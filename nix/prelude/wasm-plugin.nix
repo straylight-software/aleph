@@ -580,6 +580,40 @@ let
         builtins.wasm wasmFile name args;
     };
 
+  # ──────────────────────────────────────────────────────────────────────────
+  #                           // zero-bash-builder //
+  # ──────────────────────────────────────────────────────────────────────────
+  # Build a derivation using the zero-bash architecture (RFC-007).
+  #
+  # Instead of converting actions to shell strings, this creates a derivation
+  # that uses aleph-exec as the builder. aleph-exec reads the spec directly
+  # and executes actions via Haskell I/O.
+  #
+  # This is opt-in. Set `zeroBash = true` in the spec to enable.
+  #
+  # FEATURE REQUIREMENT: aleph-exec must be built and available
+  #
+  buildFromSpecZeroBash =
+    {
+      spec,
+      pkgs,
+      aleph-exec,
+    }:
+    let
+      typedBuilder = import ./typed-builder.nix {
+        inherit lib;
+        inherit (pkgs)
+          writeText
+          runCommand
+          stdenv
+          fetchFromGitHub
+          fetchurl
+          ;
+        inherit aleph-exec;
+      };
+    in
+    typedBuilder.buildTypedDerivation { inherit spec pkgs; };
+
 in
 {
   inherit
@@ -596,7 +630,12 @@ in
     buildFromSpec
     loadWasmPackages
 
+    # Zero-bash builder (RFC-007)
+    # Use this instead of buildFromSpec when you have aleph-exec available
+    buildFromSpecZeroBash
+
     # Action interpreter - use this to interpret typed phases from any source
+    # DEPRECATED: Use buildFromSpecZeroBash instead for new code
     actionToShell
     actionsToShell
     ;

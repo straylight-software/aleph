@@ -269,15 +269,19 @@ in
         nvidia-cusparselt = call-package ./packages/nvidia-cusparselt.hs { };
         nvidia-cutlass = call-package ./packages/nvidia-cutlass.hs { };
       };
+
+      # aleph-exec: zero-bash build executor (RFC-007)
+      aleph-exec = pkgs.callPackage ./packages/aleph-exec.nix { };
     in
     {
       # Make aleph available to other modules via _module.args
       _module.args = {
-        inherit aleph call-package;
+        inherit aleph call-package aleph-exec;
       };
 
       packages = {
         mdspan = pkgs.mdspan or null;
+        inherit aleph-exec;
       }
       // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
         llvm-git = pkgs.llvm-git or null;
