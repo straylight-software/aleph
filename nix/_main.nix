@@ -139,13 +139,6 @@ in
       # GHC WASM toolchain for compiling .hs packages
       ghc-wasm = inputs.ghc-wasm-meta.packages.${system}.all_9_12 or null;
 
-      # The aleph interface
-      # Usage: aleph.eval "Aleph.Packages.Nvidia.nccl" {}
-      aleph = import ./prelude/aleph.nix {
-        inherit lib pkgs;
-        wasmFile = wasm-infra.alephWasm;
-      };
-
       # ────────────────────────────────────────────────────────────────────────
       # // call-package for typed .hs files //
       # ────────────────────────────────────────────────────────────────────────
@@ -280,7 +273,7 @@ in
     {
       # Make aleph available to other modules via _module.args
       _module.args = {
-        inherit aleph call-package aleph-exec;
+        inherit call-package aleph-exec;
       };
 
       packages = {

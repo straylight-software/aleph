@@ -43,7 +43,8 @@ let
       # - Aleph.Script.Tools (imports all tool wrappers)
       # - Aleph.Script.Vm (imports Vfio, Oci, Config)
       # - Aleph.Nix (imports Types, Value, FFI)
-      # - Aleph.Nix.Syntax (imports Derivation, CMake)
+      # - Aleph.Nix.DrvSpec (F_ω derivation types)
+      # - Aleph.Nix.CMake (typed CMake options)
 
       ghc --make -Wall -Wno-unused-imports \
         -hidir build -odir build \
@@ -53,7 +54,8 @@ let
         $src/Aleph/Script/Vm.hs \
         $src/Aleph/Script/Oci.hs \
         $src/Aleph/Nix.hs \
-        $src/Aleph/Nix/Syntax.hs \
+        $src/Aleph/Nix/DrvSpec.hs \
+        $src/Aleph/Nix/CMake.hs \
         2>&1 || {
           echo ""
           echo "FAILED: Module compilation failed"

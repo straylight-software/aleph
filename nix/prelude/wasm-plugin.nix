@@ -78,6 +78,7 @@ let
       mainModule,
       extraModules ? [ ],
       ghcFlags ? [ ],
+
       # List of function names to export (must match foreign export ccall names)
       exports ? [ ],
     }:
@@ -134,15 +135,6 @@ let
         # Optionally optimize with wasm-opt
         ${ghc-wasm}/bin/wasm-opt -O3 plugin.wasm -o "$out"
       '';
-
-  # ──────────────────────────────────────────────────────────────────────────
-  #                        // aleph wasm module //
-  # ──────────────────────────────────────────────────────────────────────────
-  # The compiled typed package definitions. Internal implementation detail.
-  #
-  # The aleph WASM module is no longer built here - packages are compiled
-  # individually via call-package. This is a placeholder for compatibility.
-  alephWasm = null;
 
   # ──────────────────────────────────────────────────────────────────────────
   #                        // build-from-spec //
@@ -389,15 +381,8 @@ in
     # WASM plugin building (requires ghc-wasm-meta)
     buildWasmPlugin
 
-    # The compiled aleph WASM module (internal)
-    alephWasm
-
     # WASM plugin loading (requires straylight-nix with builtins.wasm)
     buildFromSpec
     loadWasmPackages
     ;
-
-  # NOTE: The aleph interface (aleph.eval, aleph.import) is in ./aleph.nix
-  # Import it directly:
-  #   aleph = import ./prelude/aleph.nix { inherit lib pkgs; wasmFile = ...; };
 }

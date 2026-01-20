@@ -942,7 +942,7 @@ adoption. This is abandoned in favor of the zero-bash architecture.
 **New approach**: Packages are either:
 
 1. **Legacy** - Use `mkDerivation` with bash phases (existing nixpkgs)
-2. **Typed** - Use `call-package ./pkg.hs {}` with `aleph-exec`
+1. **Typed** - Use `call-package ./pkg.hs {}` with `aleph-exec`
 
 There is no hybrid. Incremental adoption happens at the package level, not
 the phase level. Convert entire packages or don't convert them.
@@ -994,16 +994,16 @@ This is replaced by direct execution via `aleph-exec`. See [ℵ-007](aleph-007-f
 for the new architecture:
 
 1. WASM emits **Dhall** expressions (not JSON-like attrsets)
-2. Nix **validates store paths** against the actual store
-3. `derivation` uses `aleph-exec` as builder (not bash)
-4. `aleph-exec` executes actions directly in Haskell
+1. Nix **validates store paths** against the actual store
+1. `derivation` uses `aleph-exec` as builder (not bash)
+1. `aleph-exec` executes actions directly in Haskell
 
 **Adding new actions** now requires:
 
 1. Add constructor to `Action` in `Derivation.hs`
-2. Add Dhall serialization in `Aleph/Nix/Dhall.hs`
-3. Update Dhall schema in `nix/prelude/dhall/actions.dhall`
-4. Implement execution in `aleph-exec/Main.hs`
+1. Add Dhall serialization in `Aleph/Nix/Dhall.hs`
+1. Update Dhall schema in `nix/prelude/dhall/actions.dhall`
+1. Implement execution in `aleph-exec/Main.hs`
 
 No shell. No `actionToShell`. No string interpolation.
 
@@ -1090,10 +1090,10 @@ Implementation:
 **Phase A: Zero-Bash Foundation (Now → 1 week)**
 
 1. Dhall schema for actions and store paths
-2. WASM emits Dhall expressions
-3. Nix validates store paths against store
-4. `aleph-exec` binary executes actions directly
-5. Deprecate `actionToShell` interpreter
+1. WASM emits Dhall expressions
+1. Nix validates store paths against store
+1. `aleph-exec` binary executes actions directly
+1. Deprecate `actionToShell` interpreter
 
 **Phase B: Full Package Migration (1 → 8 weeks)**
 

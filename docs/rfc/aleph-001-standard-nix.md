@@ -159,9 +159,9 @@ Configuration is typed as Dhall and validated at evaluation time.
 Straylight Standard Nix is **zero-bash**:
 
 1. **Package phases** are typed actions executed by `aleph-exec`, not shell strings
-2. **Scripts** are compiled Haskell (Aleph.Script), not bash
-3. **Store paths** are Dhall-typed and validated against the store, not interpolated
-4. **Configuration** is Dhall, not heredocs
+1. **Scripts** are compiled Haskell (Aleph.Script), not bash
+1. **Store paths** are Dhall-typed and validated against the store, not interpolated
+1. **Configuration** is Dhall, not heredocs
 
 The `actionToShell` interpreter exists only for backward compatibility during
 migration. New code MUST NOT use it. See [ℵ-007](aleph-007-formalization.md)
@@ -193,10 +193,10 @@ for the typed execution model.
 All **new** packages SHALL:
 
 1. Be defined as typed `.hs` files using `Aleph.Nix.Package`
-2. Be callable by `call-package ./pkg.hs {}`
-3. Use typed actions (no bash strings)
-4. Have store paths validated via Dhall schema
-5. Provide `meta` with `description`, `license`, and `mainProgram` (if applicable)
+1. Be callable by `call-package ./pkg.hs {}`
+1. Use typed actions (no bash strings)
+1. Have store paths validated via Dhall schema
+1. Provide `meta` with `description`, `license`, and `mainProgram` (if applicable)
 
 ```haskell
 -- my-tool.hs

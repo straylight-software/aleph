@@ -17,9 +17,9 @@ Design decisions and rationale for aleph.
 ## Core Principles
 
 1. **Zero Bash** - No shell strings in derivations. Typed actions only.
-2. **Dhall Validation** - Store paths validated against Nix store at eval time.
-3. **Direct Execution** - `aleph-exec` runs actions, not bash interpreters.
-4. **Typed Everything** - Haskell/PureScript → WASM → Dhall → validated derivation.
+1. **Dhall Validation** - Store paths validated against Nix store at eval time.
+1. **Direct Execution** - `aleph-exec` runs actions, not bash interpreters.
+1. **Typed Everything** - Haskell/PureScript → WASM → Dhall → validated derivation.
 
 See also: [Conformance Report](./conformance-report.md)
 

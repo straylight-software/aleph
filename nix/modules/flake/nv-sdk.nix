@@ -1,7 +1,7 @@
 # nix/modules/flake/nv-sdk.nix
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                              // nvidia sdk //
+#                                                                  // nvidia sdk
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     "The matrix has its roots in primitive arcade games, in early graphics

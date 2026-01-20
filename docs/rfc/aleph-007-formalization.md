@@ -560,9 +560,9 @@ emits valid Dhall can define packages:
 Dhall provides:
 
 1. **Static typing** - Invalid structures rejected at generation time
-2. **Imports** - Schemas can reference other schemas
-3. **Normalization** - Canonical form for reproducibility
-4. **No Turing completeness** - Guaranteed termination, no escape hatches
+1. **Imports** - Schemas can reference other schemas
+1. **Normalization** - Canonical form for reproducibility
+1. **No Turing completeness** - Guaranteed termination, no escape hatches
 
 The Dhall schema lives in `nix/scripts/Aleph/Config/Drv.dhall`.
 
@@ -584,6 +584,7 @@ let Ref =
 ```
 
 This prevents injection because:
+
 - `Ref.Dep` references are resolved to actual store paths at eval time
 - `Ref.Out` references are validated to be within the output
 - There is no "raw string" variant - you must declare intent
@@ -669,9 +670,9 @@ Nix validates these paths exist before the build starts.
 **Injection is impossible** because:
 
 1. Path references are typed (`Ref.Dep`, `Ref.Out`, etc.)
-2. WASM resolves deps via FFI - Nix controls the actual paths
-3. `aleph-exec` receives validated Dhall, not string templates
-4. There is no shell - paths go directly to Haskell filesystem operations
+1. WASM resolves deps via FFI - Nix controls the actual paths
+1. `aleph-exec` receives validated Dhall, not string templates
+1. There is no shell - paths go directly to Haskell filesystem operations
 
 ### The aleph-exec Binary
 
@@ -681,8 +682,8 @@ directly. No bash, no shell, no subprocess spawning for basic operations.
 Located at `nix/scripts/Aleph/Exec/Main.hs`, it:
 
 1. Parses Dhall spec via the `dhall` library
-2. Resolves `Ref` types to actual filesystem paths
-3. Executes actions directly via Haskell I/O
+1. Resolves `Ref` types to actual filesystem paths
+1. Executes actions directly via Haskell I/O
 
 ```haskell
 -- Simplified from nix/scripts/Aleph/Exec/Main.hs
@@ -814,15 +815,18 @@ Build Output (no bash)
 **Key changes in this session:**
 
 1. **Added `drvToDhall`** (`nix/scripts/Aleph/Nix/DrvSpec.hs`)
+
    - Haskell emits self-contained Dhall text
    - All actions, refs, phases serialized as valid Dhall
    - Placeholders for Nix-resolved values: `@src@`, `@dep:name@`
 
-2. **Deleted `typed-builder.nix`**
+1. **Deleted `typed-builder.nix`**
+
    - Was generating Dhall via Nix string interpolation (the problem)
    - This was a transitional hack, now eliminated
 
-3. **Updated `wasm-plugin.nix:buildFromSpecZeroBash`**
+1. **Updated `wasm-plugin.nix:buildFromSpecZeroBash`**
+
    - Reads `spec.dhall` from WASM output
    - Substitutes placeholders with resolved store paths
    - Writes resolved Dhall to store for aleph-exec
@@ -837,8 +841,8 @@ Build Output (no bash)
 **What's next:**
 
 1. Update WASM packages to emit `spec.dhall` field via `drvToDhall`
-2. Remove `actionToShell` fallback (currently still used for non-zeroBash mode)
-3. Add FFI for `fetchFromGitHub`/`resolveDep` to resolve at WASM eval time
+1. Remove `actionToShell` fallback (currently still used for non-zeroBash mode)
+1. Add FFI for `fetchFromGitHub`/`resolveDep` to resolve at WASM eval time
 
 The `aleph.phases.interpret` bridge is **deprecated before implementation**.
 We skip the incremental shell-generation phase entirely and go directly to
