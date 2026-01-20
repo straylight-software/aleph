@@ -1,0 +1,194 @@
+/* ndg-ono-sendai.css — dark mode for NDG option docs
+ * Same palette as mdBook ono-sendai, NDG-specific selectors
+ */
+
+@import url("../../docs/theme/css/variables.css");
+
+:root {
+  /* ━━━ Grayscale ramp (211° blue tint) ━━━ */
+  --base00: #191c20;
+  --base01: #1f232a;
+  --base02: #2a3039;
+  --base03: #3a424f;
+  --base04: #6b7689;
+  --base05: #c5d0dd;
+  --base06: #dce3ec;
+  --base07: #f0f4f8;
+
+  /* ━━━ Accent ramp ━━━ */
+  --base08: #b6e3ff;
+  --base09: #80ccff;
+  --base0A: #54aeff;
+  --base0B: #218bff;
+  --base0C: #0969da;
+  --base0D: #4d9fff;
+  --base0E: #6cb6ff;
+  --base0F: #1f6feb;
+
+  /* ━━━ Semantic ━━━ */
+  --bg: var(--base00);
+  --bg-secondary: var(--base01);
+  --fg: var(--base05);
+  --fg-muted: var(--base04);
+  --accent: var(--base0A);
+  --border: var(--base02);
+  --code-bg: var(--base01);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  line-height: var(--line-height);
+}
+
+/* ━━━ NDG Option entries ━━━ */
+.ndg-option,
+.option-entry {
+  border-left: 2px solid var(--accent);
+  margin-bottom: var(--space-6);
+  background: var(--bg-secondary);
+  padding: var(--space-4);
+  border-radius: 0 var(--border-radius) var(--border-radius) 0;
+}
+
+.ndg-option-name,
+.option-name {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: var(--space-2);
+}
+
+.ndg-option-type,
+.option-type {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  color: var(--fg-muted);
+  margin-bottom: var(--space-2);
+}
+
+.ndg-option-type::before,
+.option-type::before {
+  content: "Type: ";
+  color: var(--base03);
+}
+
+.ndg-option-description,
+.option-description {
+  margin-top: var(--space-3);
+  color: var(--fg);
+}
+
+.ndg-option-default,
+.option-default {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius);
+  margin-top: var(--space-3);
+}
+
+.ndg-option-default::before,
+.option-default::before {
+  content: "Default: ";
+  color: var(--base03);
+}
+
+/* ━━━ NDG Sidebar ━━━ */
+.ndg-sidebar {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  width: var(--sidebar-width);
+  padding: var(--space-4);
+}
+
+.ndg-sidebar a {
+  color: var(--fg-muted);
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.ndg-sidebar a:hover {
+  color: var(--fg);
+  background: rgba(84, 174, 255, 0.1);
+}
+
+.ndg-sidebar a.active {
+  color: var(--accent);
+  background: rgba(84, 174, 255, 0.15);
+}
+
+.ndg-sidebar-section {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--base03);
+  margin-top: var(--space-6);
+  margin-bottom: var(--space-2);
+}
+
+/* ━━━ Code blocks ━━━ */
+pre,
+code {
+  font-family: var(--font-mono);
+}
+
+code {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  padding: 0.125rem 0.375rem;
+  font-size: 0.9em;
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+/* ━━━ Headers ━━━ */
+h1,
+h2,
+h3 {
+  font-family: var(--font-mono);
+  color: var(--base06);
+  font-weight: 600;
+}
+
+h1::before {
+  content: "# ";
+  color: var(--base03);
+}
+h2::before {
+  content: "## ";
+  color: var(--base03);
+}
+
+/* ━━━ Links ━━━ */
+a {
+  color: var(--base0D);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--base0E);
+  text-decoration: underline;
+}

@@ -1,0 +1,315 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1400">
+  <defs>
+    <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M 64 0 L 0 0 0 64" fill="none" stroke="#596775" stroke-width="0.5" opacity="0.15"/>
+    </pattern>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#54aeff"/>
+    </marker>
+    <marker id="arrowGray" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#596775"/>
+    </marker>
+    <linearGradient id="cubeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#54aeff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#111417" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  
+  <rect width="1920" height="1400" fill="#111417"/>
+  <rect width="1920" height="1400" fill="url(#grid)"/>
+  
+  <!-- Title -->
+  <text x="960" y="60" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="48" font-weight="600" fill="#80ccff">The Lambda Hierarchy</text>
+  <text x="960" y="100" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="20" fill="#596775">From Untyped to CIC · A Map of Type-Theoretic Foundations</text>
+  
+  <!-- Lambda Cube Legend -->
+  <g transform="translate(1500, 130)">
+    <rect x="0" y="0" width="380" height="130" rx="6" fill="#111417" stroke="#596775" stroke-width="1"/>
+    <text x="190" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#80ccff">Barendregt's Lambda Cube</text>
+    <text x="15" y="50" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#54aeff">λ2</text>
+    <text x="45" y="50" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Terms → Types (polymorphism)</text>
+    <text x="15" y="70" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#80ccff">λω</text>
+    <text x="45" y="70" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Types → Types (type operators)</text>
+    <text x="15" y="90" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#b6e3ff">λΠ</text>
+    <text x="45" y="90" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Terms → Types (dependent types)</text>
+    <text x="15" y="115" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">CoC = λ2 + λω + λΠ (all three)</text>
+  </g>
+
+  <!-- TIER 0: Untyped -->
+  <g transform="translate(100, 160)">
+    <rect x="0" y="0" width="1300" height="120" rx="8" fill="#111417" stroke="#596775" stroke-width="2"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="24" fill="#596775">Untyped Lambda Calculus</text>
+    <text x="30" y="60" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#596775">λx.M | M N | x — No static type checking, everything is a function</text>
+    
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="90" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="45" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Scheme</text>
+    </g>
+    <g transform="translate(130, 75)">
+      <rect x="0" y="0" width="70" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="35" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Lisp</text>
+    </g>
+    <g transform="translate(210, 75)">
+      <rect x="0" y="0" width="80" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="40" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Erlang</text>
+    </g>
+    <g transform="translate(300, 75)">
+      <rect x="0" y="0" width="80" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="40" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Python</text>
+    </g>
+    <g transform="translate(390, 75)">
+      <rect x="0" y="0" width="60" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="30" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Ruby</text>
+    </g>
+    <g transform="translate(460, 75)">
+      <rect x="0" y="0" width="40" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="20" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">JS</text>
+    </g>
+    <g transform="translate(510, 75)">
+      <rect x="0" y="0" width="60" height="30" rx="4" fill="#111417" stroke="#596775"/>
+      <text x="30" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Bash</text>
+    </g>
+    
+    <text x="650" y="100" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Runtime dynamism. Types are lies we tell at 3am.</text>
+  </g>
+  
+  <!-- Arrow up -->
+  <line x1="750" y1="280" x2="750" y2="310" stroke="#596775" stroke-width="2" marker-end="url(#arrowGray)"/>
+  
+  <!-- TIER 1: STLC -->
+  <g transform="translate(100, 320)">
+    <rect x="0" y="0" width="1300" height="120" rx="8" fill="#111417" stroke="#54aeff" stroke-width="2"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="24" fill="#54aeff">Simply Typed Lambda Calculus (STLC)</text>
+    <text x="30" y="60" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#596775">τ ::= α | τ → τ — Base types and function types. No polymorphism.</text>
+    
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="120" height="30" rx="4" fill="#111417" stroke="#54aeff"/>
+      <text x="60" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#54aeff">Go (pre-1.18)</text>
+    </g>
+    <g transform="translate(160, 75)">
+      <rect x="0" y="0" width="50" height="30" rx="4" fill="#111417" stroke="#54aeff"/>
+      <text x="25" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#54aeff">C</text>
+    </g>
+    <g transform="translate(220, 75)">
+      <rect x="0" y="0" width="60" height="30" rx="4" fill="#111417" stroke="#54aeff"/>
+      <text x="30" y="20" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#54aeff">Pascal</text>
+    </g>
+    
+    <text x="350" y="100" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Types exist. Copy-paste reigns supreme.</text>
+  </g>
+  
+  <!-- Arrow up -->
+  <line x1="750" y1="440" x2="750" y2="470" stroke="#54aeff" stroke-width="2" marker-end="url(#arrow)"/>
+  
+  <!-- TIER 2: System F -->
+  <g transform="translate(100, 480)">
+    <rect x="0" y="0" width="1300" height="160" rx="8" fill="#111417" stroke="#54aeff" stroke-width="3"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="24" fill="#54aeff">System F (λ2) — Polymorphic Lambda Calculus</text>
+    <text x="30" y="60" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#b6e3ff">∀α. α → α — Universal quantification over types. Parametric polymorphism.</text>
+    
+    <!-- Straylight languages -->
+    <g transform="translate(30, 80)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#0d1012" stroke="#54aeff" stroke-width="2"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#54aeff">Rust</text>
+    </g>
+    <g transform="translate(120, 80)">
+      <rect x="0" y="0" width="120" height="35" rx="4" fill="#0d1012" stroke="#54aeff" stroke-width="2"/>
+      <text x="60" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#54aeff">TypeScript</text>
+    </g>
+    <g transform="translate(250, 80)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#0d1012" stroke="#54aeff" stroke-width="2"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#54aeff">C++</text>
+    </g>
+    
+    <!-- Other System F languages -->
+    <g transform="translate(360, 80)">
+      <rect x="0" y="0" width="60" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="30" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Go</text>
+    </g>
+    <g transform="translate(430, 80)">
+      <rect x="0" y="0" width="70" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="35" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Java</text>
+    </g>
+    <g transform="translate(510, 80)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Kotlin</text>
+    </g>
+    <g transform="translate(600, 80)">
+      <rect x="0" y="0" width="70" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="35" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Swift</text>
+    </g>
+    <g transform="translate(680, 80)">
+      <rect x="0" y="0" width="55" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="27" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">C#</text>
+    </g>
+    <g transform="translate(745, 80)">
+      <rect x="0" y="0" width="55" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="27" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">F#</text>
+    </g>
+    <g transform="translate(810, 80)">
+      <rect x="0" y="0" width="55" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="27" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Zig</text>
+    </g>
+    
+    <!-- Special: Elm -->
+    <g transform="translate(900, 80)">
+      <rect x="0" y="0" width="55" height="35" rx="4" fill="#111417" stroke="#7ec699"/>
+      <text x="27" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#7ec699">Elm</text>
+    </g>
+    
+    <text x="30" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Generics. The industrial workhorse tier. Most production code lives here.</text>
+    <text x="730" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#7ec699">Elm: System F with no escape hatches. "If it compiles, it works."</text>
+  </g>
+  
+  <!-- Branch into two paths -->
+  <line x1="500" y1="640" x2="500" y2="680" stroke="#54aeff" stroke-width="2"/>
+  <line x1="1000" y1="640" x2="1000" y2="680" stroke="#80ccff" stroke-width="2"/>
+  
+  <!-- TIER 3a: System Fω (left branch) -->
+  <g transform="translate(100, 690)">
+    <rect x="0" y="0" width="600" height="160" rx="8" fill="#111417" stroke="#80ccff" stroke-width="2"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="22" fill="#80ccff">System Fω — Type Operators</text>
+    <text x="30" y="58" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#b6e3ff">List : Type → Type — Higher-kinded types</text>
+    
+    <!-- Straylight -->
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="100" height="35" rx="4" fill="#0d1012" stroke="#80ccff" stroke-width="2"/>
+      <text x="50" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Haskell</text>
+    </g>
+    
+    <!-- Others -->
+    <g transform="translate(140, 75)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">OCaml</text>
+    </g>
+    <g transform="translate(230, 75)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#80ccff">Scala 3</text>
+    </g>
+    <g transform="translate(320, 75)">
+      <rect x="0" y="0" width="110" height="35" rx="4" fill="#111417" stroke="#d19a66"/>
+      <text x="55" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#d19a66">PureScript</text>
+    </g>
+    
+    <text x="30" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Functor, Monad, Applicative. The type-level DSL tier.</text>
+  </g>
+  
+  <!-- TIER 3b: LF/λΠ (right branch) -->
+  <g transform="translate(800, 690)">
+    <rect x="0" y="0" width="600" height="160" rx="8" fill="#111417" stroke="#b6e3ff" stroke-width="2"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="22" fill="#b6e3ff">LF (λΠ) — Dependent Functions</text>
+    <text x="30" y="58" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#b6e3ff">Πn:Nat. Vec n — Types indexed by terms</text>
+    
+    <g transform="translate(30, 75)">
+      <rect x="0" y="0" width="70" height="35" rx="4" fill="#111417" stroke="#b6e3ff"/>
+      <text x="35" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#b6e3ff">Twelf</text>
+    </g>
+    <g transform="translate(110, 75)">
+      <rect x="0" y="0" width="80" height="35" rx="4" fill="#111417" stroke="#b6e3ff"/>
+      <text x="40" y="22" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#b6e3ff">Beluga</text>
+    </g>
+    
+    <text x="30" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Metatheory. Proofs about proofs. The logical framework.</text>
+  </g>
+  
+  <!-- Converge arrows -->
+  <line x1="400" y1="850" x2="400" y2="890" stroke="#80ccff" stroke-width="2"/>
+  <line x1="1100" y1="850" x2="1100" y2="890" stroke="#b6e3ff" stroke-width="2"/>
+  <line x1="400" y1="890" x2="750" y2="890" stroke="#80ccff" stroke-width="2"/>
+  <line x1="1100" y1="890" x2="750" y2="890" stroke="#b6e3ff" stroke-width="2"/>
+  <line x1="750" y1="890" x2="750" y2="920" stroke="#54aeff" stroke-width="2" marker-end="url(#arrow)"/>
+  
+  <!-- TIER 4: CoC -->
+  <g transform="translate(100, 930)">
+    <rect x="0" y="0" width="1300" height="100" rx="8" fill="#111417" stroke="url(#cubeGrad)" stroke-width="3"/>
+    <rect x="0" y="0" width="1300" height="100" rx="8" fill="none" stroke="#54aeff" stroke-width="2"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="22" fill="#54aeff">Calculus of Constructions (CoC)</text>
+    <text x="30" y="60" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="13" fill="#b6e3ff">λ2 + λω + λΠ — All three axes of the Lambda Cube. Propositions-as-types.</text>
+    
+    <text x="30" y="85" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775" font-style="italic">Foundational. The Curry-Howard apex. No inhabitants yet.</text>
+  </g>
+  
+  <!-- Arrow up -->
+  <line x1="750" y1="1030" x2="750" y2="1060" stroke="#54aeff" stroke-width="2" marker-end="url(#arrow)"/>
+  
+  <!-- TIER 5: CIC -->
+  <g transform="translate(100, 1070)">
+    <rect x="0" y="0" width="1300" height="180" rx="8" fill="#111417" stroke="#54aeff" stroke-width="3"/>
+    <text x="30" y="35" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="24" fill="#54aeff">Calculus of Inductive Constructions (CIC)</text>
+    <text x="30" y="60" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#b6e3ff">CoC + Inductive Types + Universe Hierarchy — The proof assistant foundation</text>
+    
+    <g transform="translate(30, 80)">
+      <rect x="0" y="0" width="120" height="40" rx="4" fill="#0d1012" stroke="#54aeff" stroke-width="2"/>
+      <text x="60" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#54aeff">Coq/Rocq</text>
+    </g>
+    <g transform="translate(160, 80)">
+      <rect x="0" y="0" width="100" height="40" rx="4" fill="#0d1012" stroke="#54aeff" stroke-width="2"/>
+      <text x="50" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#54aeff">Lean 4</text>
+    </g>
+    <g transform="translate(270, 80)">
+      <rect x="0" y="0" width="80" height="40" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="40" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#80ccff">Agda</text>
+    </g>
+    <g transform="translate(360, 80)">
+      <rect x="0" y="0" width="90" height="40" rx="4" fill="#111417" stroke="#80ccff"/>
+      <text x="45" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#80ccff">Idris 2</text>
+    </g>
+    
+    <text x="30" y="160" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775" font-style="italic">"Programs are proofs. Types are theorems. Compilation is verification."</text>
+    <text x="750" y="160" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#54aeff">The shape_pos : shape > 0 proof obligation lives here.</text>
+  </g>
+  
+  <!-- Side note: Nix -->
+  <g transform="translate(1500, 690)">
+    <rect x="0" y="0" width="380" height="160" rx="8" fill="#111417" stroke="#7ec699" stroke-width="2"/>
+    <text x="190" y="30" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="18" fill="#7ec699">Straylight Outlier: Nix</text>
+    <text x="20" y="55" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Lazy, pure, functional DSL</text>
+    <text x="20" y="75" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Untyped at its core (dynamic)</text>
+    <text x="20" y="95" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">But: derivations are pure functions</text>
+    <text x="20" y="115" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">Reproducibility by construction</text>
+    <text x="20" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#7ec699" font-style="italic">The build system as theorem prover.</text>
+  </g>
+  
+  <!-- PureScript vs Elm note -->
+  <g transform="translate(1500, 870)">
+    <rect x="0" y="0" width="380" height="140" rx="8" fill="#111417" stroke="#d19a66" stroke-width="1" stroke-dasharray="5,3"/>
+    <text x="190" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="16" fill="#d19a66">PureScript vs Elm</text>
+    <text x="20" y="50" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#d19a66">PureScript:</text>
+    <text x="100" y="50" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">Full Fω, HKT, type classes</text>
+    <text x="100" y="65" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">FFI escape hatch, row types</text>
+    <text x="20" y="90" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#7ec699">Elm:</text>
+    <text x="100" y="90" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">Intentionally System F only</text>
+    <text x="100" y="105" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">No type classes, no HKT, no FFI</text>
+    <text x="20" y="130" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="10" fill="#596775" font-style="italic">Simplicity vs power. The eternal trade.</text>
+  </g>
+  
+  <!-- Practical notes box -->
+  <g transform="translate(1500, 1030)">
+    <rect x="0" y="0" width="380" height="220" rx="8" fill="#111417" stroke="#596775" stroke-width="1"/>
+    <text x="190" y="25" text-anchor="middle" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="16" fill="#80ccff">Practical Reality</text>
+    
+    <text x="20" y="55" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#54aeff">Rust:</text>
+    <text x="70" y="55" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">System F + affine types (ownership)</text>
+    
+    <text x="20" y="80" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#54aeff">TypeScript:</text>
+    <text x="110" y="80" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">Unsound. Gradual typing.</text>
+    
+    <text x="20" y="105" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#54aeff">Haskell:</text>
+    <text x="90" y="105" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">Fω + GADTs + DataKinds</text>
+    <text x="90" y="120" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">(creeping toward dependent types)</text>
+    
+    <text x="20" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#54aeff">C++:</text>
+    <text x="60" y="145" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">Templates are Turing-complete</text>
+    <text x="60" y="160" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">(accidental type-level programming)</text>
+    
+    <text x="20" y="185" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#54aeff">Zig:</text>
+    <text x="60" y="185" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">comptime ≈ dependent types</text>
+    <text x="60" y="200" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="11" fill="#596775">(without the formalism)</text>
+  </g>
+  
+  <!-- Footer -->
+  <text x="100" y="1360" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#596775">"Villa Straylight was a body grown in upon itself. Each space in some way secret, with a morbid grandiosity."</text>
+  <text x="100" y="1380" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="12" fill="#596775">— Types are the rectilinear chambers. The question is how deep you can go.</text>
+  
+  <text x="1870" y="1370" text-anchor="end" font-family="Berkeley Mono, SF Mono, Consolas, monospace" font-size="14" fill="#596775" opacity="0.6">razorgirl · λ-hierarchy · 2026</text>
+</svg>

@@ -1,0 +1,631 @@
+/* straylight.css - Ono-Sendai Razorgirl (dark) / Maas Neoform (light)
+ * Base16 color systems from hypermodern-emacs
+ * 211° blue hue axis for monochrome discipline
+ */
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RAZORGIRL (dark) - preserve strokes, L=8%
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.coal {
+  /* Grayscale ramp - 211° blue tint */
+  --base00: #111417; /* HSL(211° 17% 8%) - L=8% background */
+  --base01: #181c21; /* HSL(211° 18% 11%) - raised surfaces */
+  --base02: #21262d; /* HSL(211° 17% 15%) - selections */
+  --base03: #2b323a; /* HSL(211° 16% 19%) - comments */
+  --base04: #596775; /* HSL(211° 14% 41%) - dark foreground */
+  --base05: #d8e0e7; /* HSL(211° 25% 88%) - default foreground */
+  --base06: #ddf4ff; /* HSL(201° 100% 94%) - light foreground */
+  --base07: #e6f7ff; /* HSL(201° 100% 96%) - lightest */
+
+  /* Accent ramp - hero at #54aeff (211°) */
+  --base08: #b6e3ff; /* HSL(201° 100% 86%) - ice blue, cool shift */
+  --base09: #80ccff; /* HSL(201° 100% 75%) - sky blue */
+  --base0A: #54aeff; /* HSL(211° 100% 66%) - HERO electric blue */
+  --base0B: #218bff; /* HSL(211° 100% 57%) - deep blue */
+  --base0C: #0969da; /* HSL(211° 94% 45%) - matrix blue */
+  --base0D: #4d9fff; /* HSL(211° 100% 65%) - link blue */
+  --base0E: #6cb6ff; /* HSL(211° 100% 71%) - soft electric */
+  --base0F: #1f6feb; /* HSL(211° 86% 53%) - corp blue */
+
+  /* Semantic mapping */
+  --bg: var(--base00);
+  --fg: var(--base05);
+  --sidebar-bg: var(--base01);
+  --sidebar-fg: var(--base05);
+  --sidebar-non-existant: var(--base04);
+  --sidebar-active: var(--base0A);
+  --sidebar-spacer: var(--base02);
+  --scrollbar: var(--base04);
+  --icons: var(--base04);
+  --icons-hover: var(--base05);
+  --links: var(--base0D);
+  --inline-code-color: var(--base0A);
+  --theme-popup-bg: var(--base01);
+  --theme-popup-border: var(--base02);
+  --theme-hover: var(--base02);
+  --quote-bg: var(--base01);
+  --quote-border: var(--base02);
+  --table-border-color: var(--base02);
+  --table-header-bg: var(--base01);
+  --table-alternate-bg: var(--base00);
+  --searchbar-border-color: var(--base02);
+  --searchbar-bg: var(--base01);
+  --searchbar-fg: var(--base05);
+  --searchbar-shadow-color: var(--base00);
+  --searchresults-header-fg: var(--base05);
+  --searchresults-border-color: var(--base02);
+  --searchresults-li-bg: var(--base01);
+  --search-mark-bg: var(--base09);
+  --warning-border: var(--base08);
+  --color-scheme: dark;
+}
+
+/* Syntax highlighting - Razorgirl dark */
+.coal .hljs {
+  color: var(--base05);
+  background: var(--base00);
+}
+.coal .hljs-keyword {
+  color: var(--base0E);
+}
+.coal .hljs-built_in {
+  color: var(--base08);
+}
+.coal .hljs-type {
+  color: var(--base0A);
+}
+.coal .hljs-literal {
+  color: var(--base09);
+}
+.coal .hljs-number {
+  color: var(--base09);
+}
+.coal .hljs-operator {
+  color: var(--base0E);
+}
+.coal .hljs-punctuation {
+  color: var(--base04);
+}
+.coal .hljs-property {
+  color: var(--base0A);
+}
+.coal .hljs-regexp {
+  color: var(--base0B);
+}
+.coal .hljs-string {
+  color: var(--base0B);
+}
+.coal .hljs-char.escape_ {
+  color: var(--base0B);
+}
+.coal .hljs-subst {
+  color: var(--base05);
+}
+.coal .hljs-symbol {
+  color: var(--base09);
+}
+.coal .hljs-variable {
+  color: var(--base08);
+}
+.coal .hljs-variable.language_ {
+  color: var(--base0E);
+}
+.coal .hljs-variable.constant_ {
+  color: var(--base09);
+}
+.coal .hljs-title {
+  color: var(--base0D);
+}
+.coal .hljs-title.class_ {
+  color: var(--base0A);
+}
+.coal .hljs-title.function_ {
+  color: var(--base0D);
+}
+.coal .hljs-params {
+  color: var(--base05);
+}
+.coal .hljs-comment {
+  color: var(--base03);
+  font-style: italic;
+}
+.coal .hljs-doctag {
+  color: var(--base0E);
+}
+.coal .hljs-meta {
+  color: var(--base0F);
+}
+.coal .hljs-section {
+  color: var(--base0A);
+}
+.coal .hljs-tag {
+  color: var(--base0B);
+}
+.coal .hljs-name {
+  color: var(--base0B);
+}
+.coal .hljs-attr {
+  color: var(--base0A);
+}
+.coal .hljs-attribute {
+  color: var(--base0B);
+}
+.coal .hljs-bullet {
+  color: var(--base09);
+}
+.coal .hljs-code {
+  color: var(--base0B);
+}
+.coal .hljs-emphasis {
+  color: var(--base08);
+  font-style: italic;
+}
+.coal .hljs-strong {
+  color: var(--base08);
+  font-weight: bold;
+}
+.coal .hljs-formula {
+  color: var(--base0B);
+}
+.coal .hljs-link {
+  color: var(--base0D);
+  text-decoration: underline;
+}
+.coal .hljs-quote {
+  color: var(--base03);
+  font-style: italic;
+}
+.coal .hljs-selector-tag {
+  color: var(--base0B);
+}
+.coal .hljs-selector-id {
+  color: var(--base0D);
+}
+.coal .hljs-selector-class {
+  color: var(--base0A);
+}
+.coal .hljs-selector-attr {
+  color: var(--base0A);
+}
+.coal .hljs-selector-pseudo {
+  color: var(--base0E);
+}
+.coal .hljs-template-tag {
+  color: var(--base0E);
+}
+.coal .hljs-template-variable {
+  color: var(--base08);
+}
+.coal .hljs-addition {
+  color: var(--base0B);
+  background-color: rgba(33, 139, 255, 0.1);
+}
+.coal .hljs-deletion {
+  color: var(--base08);
+  background-color: rgba(182, 227, 255, 0.1);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NEOFORM (light) - paper white, slight blue, L=97%
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.light {
+  /* Grayscale ramp - 211° blue tint, inverted */
+  --base00: #f5f7fa; /* HSL(211° 28% 97%) - paper white */
+  --base01: #e8ecf2; /* HSL(211° 28% 93%) - raised surfaces */
+  --base02: #d4dbe6; /* HSL(211° 28% 87%) - selections */
+  --base03: #8896a8; /* HSL(211° 18% 60%) - comments */
+  --base04: #5c6b7d; /* HSL(211° 16% 43%) - dark foreground */
+  --base05: #2d3848; /* HSL(211° 26% 23%) - default foreground */
+  --base06: #1d2530; /* HSL(211° 28% 15%) - darker text */
+  --base07: #0f1318; /* HSL(211° 24% 8%) - darkest */
+
+  /* Accent ramp - shifted darker for legibility */
+  --base08: #0550ae; /* HSL(211° 95% 35%) - deep blue */
+  --base09: #0969da; /* HSL(211° 94% 45%) - matrix blue */
+  --base0A: #1f6feb; /* HSL(211° 86% 53%) - hero shifted */
+  --base0B: #218bff; /* HSL(211° 100% 57%) - NEW HERO */
+  --base0C: #54aeff; /* HSL(211° 100% 66%) - support */
+  --base0D: #0550ae; /* HSL(211° 95% 35%) - functions */
+  --base0E: #0969da; /* HSL(211° 94% 45%) - keywords */
+  --base0F: #1b4b91; /* HSL(211° 70% 34%) - deprecated */
+
+  /* Semantic mapping */
+  --bg: var(--base00);
+  --fg: var(--base05);
+  --sidebar-bg: var(--base01);
+  --sidebar-fg: var(--base05);
+  --sidebar-non-existant: var(--base03);
+  --sidebar-active: var(--base0B);
+  --sidebar-spacer: var(--base02);
+  --scrollbar: var(--base02);
+  --icons: var(--base03);
+  --icons-hover: var(--base05);
+  --links: var(--base0D);
+  --inline-code-color: var(--base0A);
+  --theme-popup-bg: var(--base00);
+  --theme-popup-border: var(--base02);
+  --theme-hover: var(--base01);
+  --quote-bg: var(--base01);
+  --quote-border: var(--base02);
+  --table-border-color: var(--base02);
+  --table-header-bg: var(--base01);
+  --table-alternate-bg: var(--base00);
+  --searchbar-border-color: var(--base02);
+  --searchbar-bg: var(--base01);
+  --searchbar-fg: var(--base05);
+  --searchbar-shadow-color: var(--base03);
+  --searchresults-header-fg: var(--base05);
+  --searchresults-border-color: var(--base02);
+  --searchresults-li-bg: var(--base00);
+  --search-mark-bg: var(--base09);
+  --warning-border: var(--base08);
+  --color-scheme: light;
+}
+
+/* Syntax highlighting - Neoform light */
+.light .hljs {
+  color: var(--base05);
+  background: var(--base00);
+}
+.light .hljs-keyword {
+  color: var(--base0E);
+}
+.light .hljs-built_in {
+  color: var(--base08);
+}
+.light .hljs-type {
+  color: var(--base0A);
+}
+.light .hljs-literal {
+  color: var(--base09);
+}
+.light .hljs-number {
+  color: var(--base09);
+}
+.light .hljs-operator {
+  color: var(--base0E);
+}
+.light .hljs-punctuation {
+  color: var(--base04);
+}
+.light .hljs-property {
+  color: var(--base0A);
+}
+.light .hljs-regexp {
+  color: var(--base0B);
+}
+.light .hljs-string {
+  color: var(--base0B);
+}
+.light .hljs-char.escape_ {
+  color: var(--base0B);
+}
+.light .hljs-subst {
+  color: var(--base05);
+}
+.light .hljs-symbol {
+  color: var(--base09);
+}
+.light .hljs-variable {
+  color: var(--base08);
+}
+.light .hljs-variable.language_ {
+  color: var(--base0E);
+}
+.light .hljs-variable.constant_ {
+  color: var(--base09);
+}
+.light .hljs-title {
+  color: var(--base0D);
+}
+.light .hljs-title.class_ {
+  color: var(--base0A);
+}
+.light .hljs-title.function_ {
+  color: var(--base0D);
+}
+.light .hljs-params {
+  color: var(--base05);
+}
+.light .hljs-comment {
+  color: var(--base03);
+  font-style: italic;
+}
+.light .hljs-doctag {
+  color: var(--base0E);
+}
+.light .hljs-meta {
+  color: var(--base0F);
+}
+.light .hljs-section {
+  color: var(--base0A);
+}
+.light .hljs-tag {
+  color: var(--base0B);
+}
+.light .hljs-name {
+  color: var(--base0B);
+}
+.light .hljs-attr {
+  color: var(--base0A);
+}
+.light .hljs-attribute {
+  color: var(--base0B);
+}
+.light .hljs-bullet {
+  color: var(--base09);
+}
+.light .hljs-code {
+  color: var(--base0B);
+}
+.light .hljs-emphasis {
+  color: var(--base08);
+  font-style: italic;
+}
+.light .hljs-strong {
+  color: var(--base08);
+  font-weight: bold;
+}
+.light .hljs-formula {
+  color: var(--base0B);
+}
+.light .hljs-link {
+  color: var(--base0D);
+  text-decoration: underline;
+}
+.light .hljs-quote {
+  color: var(--base03);
+  font-style: italic;
+}
+.light .hljs-selector-tag {
+  color: var(--base0B);
+}
+.light .hljs-selector-id {
+  color: var(--base0D);
+}
+.light .hljs-selector-class {
+  color: var(--base0A);
+}
+.light .hljs-selector-attr {
+  color: var(--base0A);
+}
+.light .hljs-selector-pseudo {
+  color: var(--base0E);
+}
+.light .hljs-template-tag {
+  color: var(--base0E);
+}
+.light .hljs-template-variable {
+  color: var(--base08);
+}
+.light .hljs-addition {
+  color: var(--base0B);
+  background-color: rgba(33, 139, 255, 0.1);
+}
+.light .hljs-deletion {
+  color: var(--base08);
+  background-color: rgba(5, 80, 174, 0.1);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   CONTENT WIDTH - Use the damn screen
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Override mdBook's tiny default max-width */
+:root {
+  --content-max-width: 900px;
+}
+
+/* mdBook's .content is the main content wrapper, it should respect the sidebar */
+.page-wrapper > .content {
+  max-width: var(--content-max-width);
+}
+
+.page-wrapper > .content > main {
+  max-width: 100%;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SIDEBAR FIXES - Kill the pop
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Disable all sidebar transitions and animations */
+.sidebar,
+.sidebar-hidden,
+.sidebar-visible,
+#sidebar,
+.sidebar-resize-handle {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Force sidebar to stay visible and stable */
+.sidebar {
+  position: fixed !important;
+  left: 0 !important;
+  transform: none !important;
+}
+
+/* Prevent sidebar toggle from causing layout shifts */
+.sidebar-hidden .sidebar {
+  left: 0 !important;
+  transform: none !important;
+}
+
+/* Disable folding animations */
+.chapter li.expanded,
+.chapter li.collapsed {
+  transition: none !important;
+}
+
+/* Kill any transform transitions on the main content */
+.content {
+  transition: none !important;
+  transform: none !important;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   RESPONSIVE / NARROW VIEWPORT FIXES
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Fix the page wrapper to not have fixed max-width that cuts off content */
+.page-wrapper {
+  box-sizing: border-box;
+}
+
+/* On narrow viewports, ensure content is readable */
+@media (max-width: 1080px) {
+  /* mdBook hides sidebar at this breakpoint - ensure content fills the space */
+  .page-wrapper {
+    padding-left: 0 !important;
+  }
+
+  /* Give main content proper padding when sidebar is hidden */
+  .content {
+    padding: 0 1.5rem !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+  }
+
+  main {
+    margin-left: 0 !important;
+    padding: 1.5rem !important;
+    max-width: 100% !important;
+  }
+
+  /* Ensure code blocks don't overflow */
+  pre {
+    overflow-x: auto !important;
+    max-width: calc(100vw - 3rem) !important;
+  }
+
+  /* Tables should scroll horizontally */
+  table {
+    display: block;
+    overflow-x: auto;
+    max-width: calc(100vw - 3rem);
+  }
+
+  /* The sidebar hidden state shouldn't affect content position */
+  .sidebar-hidden .page-wrapper {
+    transform: none !important;
+  }
+}
+
+/* Even narrower - phone-sized */
+@media (max-width: 600px) {
+  .content {
+    padding: 0 0.5rem !important;
+  }
+
+  main {
+    padding: 0.5rem !important;
+  }
+
+  /* Reduce heading sizes on mobile */
+  h1 {
+    font-size: 1.5rem !important;
+  }
+
+  h2 {
+    font-size: 1.25rem !important;
+  }
+
+  h3 {
+    font-size: 1.1rem !important;
+  }
+
+  /* Code blocks need smaller font on mobile */
+  pre code {
+    font-size: 0.8rem !important;
+  }
+
+  /* Inline code wrapping */
+  code {
+    word-break: break-word;
+  }
+}
+
+/* Make the menu button more visible on narrow screens */
+@media (max-width: 1080px) {
+  .menu-title {
+    font-size: 1rem;
+  }
+
+  /* Ensure the hamburger menu is easily tappable */
+  #menu-bar-hover-placeholder,
+  .menu-bar {
+    min-height: 48px;
+  }
+
+  .icon-button {
+    padding: 0.75rem !important;
+  }
+
+  /* When sidebar is shown as overlay, make it usable */
+  .sidebar-visible .sidebar {
+    box-shadow: 4px 0 10px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+  }
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   NIXDOC / API REFERENCE SPECIFIC STYLES
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+/* Function definitions in API docs */
+.content h2 code {
+  font-size: 1.1rem;
+  background: var(--quote-bg);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* Type signatures in API docs */
+.content h3 + pre {
+  margin-top: 0.5rem;
+  border-left: 3px solid var(--sidebar-active);
+}
+
+/* Arguments list styling */
+.content dl {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--sidebar-spacer);
+}
+
+.content dt {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  color: var(--inline-code-color);
+  margin-top: 0.5rem;
+}
+
+.content dd {
+  margin-left: 0;
+  margin-bottom: 0.5rem;
+  color: var(--fg);
+}
+
+/* Example blocks */
+.content .example {
+  background: var(--quote-bg);
+  border: 1px solid var(--quote-border);
+  border-radius: 4px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+
+/* Make function anchors more visible */
+.content h2[id^="function-library"] {
+  padding-top: 1rem;
+  margin-top: 2rem;
+  border-top: 1px solid var(--sidebar-spacer);
+}
+
+.content h2[id^="function-library"]:first-of-type {
+  border-top: none;
+  margin-top: 0;
+}

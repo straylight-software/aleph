@@ -1,0 +1,21 @@
+# aleph-naught taplo - The Law
+#
+# TOML formatting rules
+# Compatible with: taplo 0.9+
+
+[formatting]
+align_entries = false
+align_comments = true
+array_trailing_comma = true
+array_auto_expand = true
+array_auto_collapse = true
+compact_arrays = true
+compact_inline_tables = false
+column_width = 100
+indent_tables = false
+indent_entries = false
+inline_table_expand = true
+reorder_keys = true
+allowed_blank_lines = 1
+trailing_newline = true
+crlf = false

@@ -1,0 +1,366 @@
+/* ono-sendai.css — dark mode
+ * 
+ * "He'd operated on an almost permanent adrenaline high, a byproduct 
+ *  of youth and proficiency, jacked into a custom cyberspace deck..."
+ *                                              — Neuromancer
+ *
+ * Palette: HSL-tuned blue monochrome, 211° hue axis
+ * Base: ono-sendai-tuned from hypermodern-emacs
+ */
+
+.ono-sendai {
+  /* ━━━ Grayscale ramp (211° blue tint) ━━━ */
+  --base00: #191c20; /* L=11% - OLED-safe background */
+  --base01: #1f232a; /* L=14% - raised surfaces */
+  --base02: #2a3039; /* L=19% - selections */
+  --base03: #3a424f; /* L=28% - comments */
+  --base04: #6b7689; /* L=48% - dark foreground */
+  --base05: #c5d0dd; /* L=81% - default foreground */
+  --base06: #dce3ec; /* L=89% - light foreground */
+  --base07: #f0f4f8; /* L=95% - light background */
+
+  /* ━━━ Accent ramp (blue spectrum) ━━━ */
+  --base08: #b6e3ff; /* ice blue - variables */
+  --base09: #80ccff; /* sky blue - integers */
+  --base0A: #54aeff; /* HERO: electric blue - classes */
+  --base0B: #218bff; /* deep blue - strings */
+  --base0C: #0969da; /* matrix blue - support */
+  --base0D: #4d9fff; /* link blue - functions */
+  --base0E: #6cb6ff; /* soft electric - keywords */
+  --base0F: #1f6feb; /* corp blue - deprecated */
+
+  /* ━━━ Semantic mapping ━━━ */
+  --bg: var(--base00);
+  --bg-secondary: var(--base01);
+  --bg-tertiary: var(--base02);
+  --bg-selection: var(--base02);
+
+  --fg: var(--base05);
+  --fg-muted: var(--base04);
+  --fg-emphasis: var(--base06);
+  --fg-strong: var(--base07);
+
+  --accent: var(--base0A);
+  --accent-secondary: var(--base0D);
+  --accent-muted: var(--base0C);
+
+  --link: var(--base0D);
+  --link-hover: var(--base0E);
+
+  --border: var(--base02);
+  --border-emphasis: var(--base03);
+
+  --code-bg: var(--base01);
+  --code-border: var(--base02);
+
+  --selection-bg: rgba(84, 174, 255, 0.2);
+
+  /* ━━━ Syntax highlighting ━━━ */
+  --syntax-comment: var(--base03);
+  --syntax-keyword: var(--base0E);
+  --syntax-string: var(--base0B);
+  --syntax-number: var(--base09);
+  --syntax-function: var(--base0D);
+  --syntax-variable: var(--base08);
+  --syntax-type: var(--base0A);
+  --syntax-constant: var(--base09);
+  --syntax-operator: var(--base05);
+
+  /* ━━━ Sidebar ━━━ */
+  --sidebar-bg: var(--base00);
+  --sidebar-fg: var(--base04);
+  --sidebar-fg-hover: var(--base05);
+  --sidebar-active: var(--accent);
+  --sidebar-active-bg: rgba(84, 174, 255, 0.1);
+  --sidebar-border: var(--base02);
+  --sidebar-section: var(--base03);
+
+  /* ━━━ Scrollbar ━━━ */
+  --scrollbar-track: var(--base00);
+  --scrollbar-thumb: var(--base02);
+  --scrollbar-thumb-hover: var(--base03);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * GLOBAL STYLES
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.ono-sendai body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+}
+
+.ono-sendai code,
+.ono-sendai pre,
+.ono-sendai kbd {
+  font-family: var(--font-mono);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * TYPOGRAPHY
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai h1,
+.ono-sendai h2,
+.ono-sendai h3,
+.ono-sendai h4 {
+  color: var(--fg-emphasis);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+.ono-sendai h1 {
+  font-size: 1.75rem;
+}
+.ono-sendai h2 {
+  font-size: 1.375rem;
+}
+.ono-sendai h3 {
+  font-size: 1.125rem;
+}
+.ono-sendai h4 {
+  font-size: 1rem;
+}
+
+/* Subtle hash prefix */
+.ono-sendai h1::before {
+  content: "# ";
+  color: var(--base03);
+}
+.ono-sendai h2::before {
+  content: "## ";
+  color: var(--base03);
+}
+
+.ono-sendai p {
+  margin-bottom: var(--space-4);
+}
+
+.ono-sendai strong {
+  color: var(--fg-emphasis);
+  font-weight: 600;
+}
+
+.ono-sendai em {
+  font-style: italic;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * LINKS
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai a {
+  color: var(--link);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.ono-sendai a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * CODE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai code {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--border-radius);
+  padding: 0.125rem 0.375rem;
+  font-size: 0.9em;
+}
+
+.ono-sendai pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--border-radius);
+  padding: var(--space-4);
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+
+.ono-sendai pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Syntax highlighting */
+.ono-sendai .hljs-comment {
+  color: var(--syntax-comment);
+}
+.ono-sendai .hljs-keyword {
+  color: var(--syntax-keyword);
+}
+.ono-sendai .hljs-string {
+  color: var(--syntax-string);
+}
+.ono-sendai .hljs-number {
+  color: var(--syntax-number);
+}
+.ono-sendai .hljs-function {
+  color: var(--syntax-function);
+}
+.ono-sendai .hljs-variable {
+  color: var(--syntax-variable);
+}
+.ono-sendai .hljs-type {
+  color: var(--syntax-type);
+}
+.ono-sendai .hljs-built_in {
+  color: var(--syntax-function);
+}
+.ono-sendai .hljs-attr {
+  color: var(--syntax-variable);
+}
+.ono-sendai .hljs-title {
+  color: var(--syntax-function);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SIDEBAR (mdBook)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai .sidebar,
+.ono-sendai nav.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.ono-sendai .sidebar .chapter {
+  padding: var(--space-2) var(--space-4);
+}
+
+.ono-sendai .sidebar a {
+  color: var(--sidebar-fg);
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-fast);
+}
+
+.ono-sendai .sidebar a:hover {
+  color: var(--sidebar-fg-hover);
+  background: var(--sidebar-active-bg);
+  text-decoration: none;
+}
+
+.ono-sendai .sidebar a.active,
+.ono-sendai .sidebar .active > a {
+  color: var(--sidebar-active);
+  background: var(--sidebar-active-bg);
+}
+
+/* Section headers in sidebar */
+.ono-sendai .sidebar .part-title {
+  color: var(--sidebar-section);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* Nested items */
+.ono-sendai .sidebar .chapter li.chapter-item {
+  position: relative;
+}
+
+.ono-sendai .sidebar .section {
+  padding-left: var(--space-4);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * TABLES
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-4) 0;
+}
+
+.ono-sendai th,
+.ono-sendai td {
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.ono-sendai th {
+  background: var(--bg-secondary);
+  color: var(--fg-emphasis);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.ono-sendai tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * BLOCKQUOTE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai blockquote {
+  border-left: 3px solid var(--accent-muted);
+  padding-left: var(--space-4);
+  margin: var(--space-4) 0;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * HORIZONTAL RULE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-8) 0;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SELECTION
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai ::selection {
+  background: var(--selection-bg);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SCROLLBAR
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.ono-sendai ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ono-sendai ::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.ono-sendai ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.ono-sendai ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}

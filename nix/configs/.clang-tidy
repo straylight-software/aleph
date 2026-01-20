@@ -1,0 +1,10 @@
+# weyl-std .clang-tidy - The Law
+UseColor: true
+
+Checks: >
+    bugprone-*,
+    cppcoreguidelines-*,
+    google-*,
+    performance-*,
+
+WarningsAsErrors: "*"

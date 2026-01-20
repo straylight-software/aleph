@@ -1,0 +1,18 @@
+Usage: taplo [OPTIONS] <COMMAND>
+
+Commands:
+  lint         Lint TOML documents [aliases: check, validate]
+  format       Format TOML documents [aliases: fmt]
+  lsp          Language server operations
+  config       Operations with the Taplo config file [aliases: cfg]
+  get          Extract a value from the given TOML document
+  toml-test    Start a decoder for `toml-test` (https://github.com/BurntSushi/toml-test)
+  completions  Generate completions for Taplo CLI
+  help         Print this message or the help of the given subcommand(s)
+
+Options:
+      --colors <COLORS>  [default: auto] [possible values: auto, always, never]
+      --verbose          Enable a verbose logging format
+      --log-spans        Enable logging spans
+  -h, --help             Print help (see more with '--help')
+  -V, --version          Print version

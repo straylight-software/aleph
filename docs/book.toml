@@ -1,0 +1,34 @@
+# book.toml — mdBook configuration for straylight aleph docs
+
+[book]
+title = "Straylight Aleph"
+authors = ["Straylight"]
+description = "A specification for reproducible, composable infrastructure on Nix"
+language = "en"
+src = "."
+
+[build]
+build-dir = "../result/docs"
+create-missing = false
+
+[output.html]
+default-theme = "coal"
+preferred-dark-theme = "coal"
+git-repository-url = "https://github.com/straylight-software/aleph"
+edit-url-template = "https://github.com/straylight-software/aleph/edit/main/docs/{path}"
+# site-url = "/" # Disabled for file:// protocol compatibility
+additional-css = ["theme/straylight.css"]
+no-section-label = false
+
+[output.html.fold]
+enable = false
+level = 0
+
+[output.html.search]
+enable = true
+limit-results = 20
+
+[preprocessor.toc]
+command = "mdbook-toc"
+renderer = ["html"]
+optional = true

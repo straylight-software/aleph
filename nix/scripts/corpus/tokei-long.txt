@@ -1,0 +1,48 @@
+Count your code, quickly.
+Support this project on GitHub Sponsors: https://github.com/sponsors/XAMPPRocky
+
+Usage: tokei [OPTIONS] [input]...
+
+Arguments:
+  [input]...  The path(s) to the file or directory to be counted. (default current directory)
+
+Options:
+  -c, --columns <columns>              Sets a strict column width of the output, only available for
+                                       terminal output.
+  -e, --exclude <exclude>              Ignore all files & directories matching the pattern.
+  -f, --files                          Will print out statistics on individual files.
+  -i, --input <file_input>             Gives statistics from a previous tokei run. Can be given a
+                                       file path, or "stdin" to read from stdin.
+      --hidden                         Count hidden files.
+  -l, --languages                      Prints out supported languages and their extensions.
+      --no-ignore                      Don't respect ignore files (.gitignore, .ignore, etc.). This
+                                       implies --no-ignore-parent, --no-ignore-dot, and
+                                       --no-ignore-vcs.
+      --no-ignore-parent               Don't respect ignore files (.gitignore, .ignore, etc.) in
+                                       parent directories.
+      --no-ignore-dot                  Don't respect .ignore and .tokeignore files, including those
+                                       in parent directories.
+      --no-ignore-vcs                  Don't respect VCS ignore files (.gitignore, .hgignore, etc.)
+                                       including those in parent directories.
+  -o, --output <output>                Outputs Tokei in a specific format. Compile with additional
+                                       features for more format support.
+      --streaming <streaming>          prints the (language, path, lines, blanks, code, comments)
+                                       records as simple lines or as Json for batch processing
+                                       [possible values: simple, json]
+  -s, --sort <sort>                    Sort languages based on column [possible values: files,
+                                       lines, blanks, code, comments]
+  -r, --rsort <rsort>                  Reverse sort languages based on column [possible values:
+                                       files, lines, blanks, code, comments]
+  -t, --types <types>                  Filters output by language type, separated by a comma. i.e.
+                                       -t=Rust,Markdown
+  -C, --compact                        Do not print statistics about embedded languages.
+  -n, --num-format <num_format_style>  Format of printed numbers, i.e., plain (1234, default),
+                                       commas (1,234), dots (1.234), or underscores (1_234). Cannot
+                                       be used with --output.
+  -v, --verbose...                     Set log output level:
+                                                               1: to show unknown file extensions,
+                                                               2: reserved for future debugging,
+                                                               3: enable file level trace. Not
+                                                               recommended on multiple files
+  -h, --help                           Print help
+  -V, --version                        Print version

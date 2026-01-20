@@ -1,0 +1,368 @@
+/* maas.css — light mode
+ * 
+ * "She was probably his closest equivalent to a partner,
+ *  certainly his equal when it came to the mechanics of
+ *  data extraction."
+ *                                              — Neuromancer
+ *
+ * Palette: HSL-tuned blue monochrome, 211° hue axis (inverted)
+ * Base: maas-neoform from hypermodern-emacs
+ * Clean room schematics — the biotech complement to ono-sendai's chrome
+ */
+
+.maas {
+  /* ━━━ Grayscale ramp (211° blue tint, inverted) ━━━ */
+  --base00: #f5f7fa; /* L=97% - paper white, slight blue */
+  --base01: #e8ecf2; /* L=93% - raised surfaces */
+  --base02: #d4dbe6; /* L=87% - selections */
+  --base03: #8896a8; /* L=60% - comments */
+  --base04: #5c6b7d; /* L=43% - dark foreground */
+  --base05: #2d3848; /* L=23% - default foreground */
+  --base06: #1d2530; /* L=15% - darker text */
+  --base07: #0f1318; /* L=8%  - darkest */
+
+  /* ━━━ Accent ramp (shifted darker for light bg) ━━━ */
+  --base08: #0550ae; /* deep blue - variables */
+  --base09: #0969da; /* matrix blue - integers */
+  --base0A: #1f6feb; /* corp blue - classes */
+  --base0B: #218bff; /* HERO: deep blue - strings */
+  --base0C: #54aeff; /* electric blue - support */
+  --base0D: #0550ae; /* deep blue - functions */
+  --base0E: #0969da; /* matrix blue - keywords */
+  --base0F: #1b4b91; /* dark corp - deprecated */
+
+  /* ━━━ Semantic mapping ━━━ */
+  --bg: var(--base00);
+  --bg-secondary: var(--base01);
+  --bg-tertiary: var(--base02);
+  --bg-selection: var(--base02);
+
+  --fg: var(--base05);
+  --fg-muted: var(--base04);
+  --fg-emphasis: var(--base06);
+  --fg-strong: var(--base07);
+
+  --accent: var(--base0B);
+  --accent-secondary: var(--base0D);
+  --accent-muted: var(--base0C);
+
+  --link: var(--base0D);
+  --link-hover: var(--base0B);
+
+  --border: var(--base02);
+  --border-emphasis: var(--base03);
+
+  --code-bg: var(--base01);
+  --code-border: var(--base02);
+
+  --selection-bg: rgba(33, 139, 255, 0.2);
+
+  /* ━━━ Syntax highlighting ━━━ */
+  --syntax-comment: var(--base03);
+  --syntax-keyword: var(--base0E);
+  --syntax-string: var(--base0B);
+  --syntax-number: var(--base09);
+  --syntax-function: var(--base0D);
+  --syntax-variable: var(--base08);
+  --syntax-type: var(--base0A);
+  --syntax-constant: var(--base09);
+  --syntax-operator: var(--base05);
+
+  /* ━━━ Sidebar ━━━ */
+  --sidebar-bg: var(--base00);
+  --sidebar-fg: var(--base04);
+  --sidebar-fg-hover: var(--base05);
+  --sidebar-active: var(--accent);
+  --sidebar-active-bg: rgba(33, 139, 255, 0.1);
+  --sidebar-border: var(--base02);
+  --sidebar-section: var(--base03);
+
+  /* ━━━ Scrollbar ━━━ */
+  --scrollbar-track: var(--base00);
+  --scrollbar-thumb: var(--base02);
+  --scrollbar-thumb-hover: var(--base03);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * GLOBAL STYLES
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.maas body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+}
+
+.maas code,
+.maas pre,
+.maas kbd {
+  font-family: var(--font-mono);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * TYPOGRAPHY
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas h1,
+.maas h2,
+.maas h3,
+.maas h4 {
+  color: var(--fg-emphasis);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+.maas h1 {
+  font-size: 1.75rem;
+}
+.maas h2 {
+  font-size: 1.375rem;
+}
+.maas h3 {
+  font-size: 1.125rem;
+}
+.maas h4 {
+  font-size: 1rem;
+}
+
+/* Subtle hash prefix */
+.maas h1::before {
+  content: "# ";
+  color: var(--base03);
+}
+.maas h2::before {
+  content: "## ";
+  color: var(--base03);
+}
+
+.maas p {
+  margin-bottom: var(--space-4);
+}
+
+.maas strong {
+  color: var(--fg-emphasis);
+  font-weight: 600;
+}
+
+.maas em {
+  font-style: italic;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * LINKS
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas a {
+  color: var(--link);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.maas a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * CODE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas code {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--border-radius);
+  padding: 0.125rem 0.375rem;
+  font-size: 0.9em;
+}
+
+.maas pre {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--border-radius);
+  padding: var(--space-4);
+  overflow-x: auto;
+  margin: var(--space-4) 0;
+}
+
+.maas pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Syntax highlighting */
+.maas .hljs-comment {
+  color: var(--syntax-comment);
+}
+.maas .hljs-keyword {
+  color: var(--syntax-keyword);
+}
+.maas .hljs-string {
+  color: var(--syntax-string);
+}
+.maas .hljs-number {
+  color: var(--syntax-number);
+}
+.maas .hljs-function {
+  color: var(--syntax-function);
+}
+.maas .hljs-variable {
+  color: var(--syntax-variable);
+}
+.maas .hljs-type {
+  color: var(--syntax-type);
+}
+.maas .hljs-built_in {
+  color: var(--syntax-function);
+}
+.maas .hljs-attr {
+  color: var(--syntax-variable);
+}
+.maas .hljs-title {
+  color: var(--syntax-function);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SIDEBAR (mdBook)
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas .sidebar,
+.maas nav.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+}
+
+.maas .sidebar .chapter {
+  padding: var(--space-2) var(--space-4);
+}
+
+.maas .sidebar a {
+  color: var(--sidebar-fg);
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-fast);
+}
+
+.maas .sidebar a:hover {
+  color: var(--sidebar-fg-hover);
+  background: var(--sidebar-active-bg);
+  text-decoration: none;
+}
+
+.maas .sidebar a.active,
+.maas .sidebar .active > a {
+  color: var(--sidebar-active);
+  background: var(--sidebar-active-bg);
+}
+
+/* Section headers in sidebar */
+.maas .sidebar .part-title {
+  color: var(--sidebar-section);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* Nested items */
+.maas .sidebar .chapter li.chapter-item {
+  position: relative;
+}
+
+.maas .sidebar .section {
+  padding-left: var(--space-4);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * TABLES
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-4) 0;
+}
+
+.maas th,
+.maas td {
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+}
+
+.maas th {
+  background: var(--bg-secondary);
+  color: var(--fg-emphasis);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.maas tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * BLOCKQUOTE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas blockquote {
+  border-left: 3px solid var(--accent-muted);
+  padding-left: var(--space-4);
+  margin: var(--space-4) 0;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * HORIZONTAL RULE
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-8) 0;
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SELECTION
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas ::selection {
+  background: var(--selection-bg);
+}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * SCROLLBAR
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+.maas ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.maas ::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.maas ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+.maas ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
