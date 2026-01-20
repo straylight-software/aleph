@@ -255,6 +255,20 @@ in
 
   config = lib.mkIf cfg.enable {
     # ══════════════════════════════════════════════════════════════════════════
+    # Nixpkgs overlays - automatically add required overlays
+    # ══════════════════════════════════════════════════════════════════════════
+    aleph-naught.nixpkgs.overlays = lib.mkBefore [
+      # LLVM 22 overlay (for llvm-git package)
+      (import ../../overlays/llvm-git.nix inputs)
+      # Packages overlay (for mdspan)
+      (final: _prev: {
+        mdspan = final.callPackage ../../overlays/packages/mdspan.nix { };
+      })
+      # NVIDIA SDK overlay
+      (import ../../overlays/nixpkgs-nvidia-sdk.nix)
+    ];
+
+    # ══════════════════════════════════════════════════════════════════════════
     # Flake-level outputs
     # ══════════════════════════════════════════════════════════════════════════
     flake = {

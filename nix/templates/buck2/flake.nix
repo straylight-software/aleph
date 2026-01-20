@@ -50,20 +50,16 @@
       aleph-naught.nixpkgs.nv.enable = true;
 
       perSystem =
-        { pkgs, system, ... }:
+        { pkgs, config, ... }:
         {
           # Development shell with Buck2 and toolchains
+          # Uses packages from the build module (includes llvm-git, nvidia-sdk, etc.)
           devShells.default = pkgs.mkShell {
-            packages = [
-              pkgs.buck2
-              pkgs.llvm-git
-            ]
-            ++ pkgs.lib.optionals (pkgs ? nvidia-sdk) [
-              pkgs.nvidia-sdk
-            ];
+            packages = [ pkgs.buck2 ] ++ config.straylight.build.packages;
 
-            # The build module adds shellHook via config.straylight.build.shellHook
-            # which links prelude, toolchains, and generates .buckconfig.local
+            # Shell hook from build module links prelude, toolchains,
+            # and generates .buckconfig.local with Nix store paths
+            shellHook = config.straylight.build.shellHook;
           };
 
           packages.default = pkgs.hello;
