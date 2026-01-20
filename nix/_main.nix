@@ -213,18 +213,8 @@ in
                   -o plugin.wasm
                 wasm-opt -O3 plugin.wasm -o $out
               '';
-          # Check if zero-bash mode is requested
-          useZeroBash = args.zeroBash or false;
-
-          # Build function to use based on mode
-          buildSpec =
-            spec:
-            if useZeroBash then
-              wasm-infra.buildFromSpecZeroBash {
-                inherit spec pkgs aleph-exec;
-              }
-            else
-              wasm-infra.buildFromSpec { inherit spec pkgs; };
+          # All builds go through buildFromSpec (F_ω path only)
+          buildSpec = spec: wasm-infra.buildFromSpec { inherit spec pkgs; };
         in
         if ext == "hs" then
           if ghc-wasm == null then
@@ -234,14 +224,14 @@ in
           else
             let
               wasmDrv = buildHsWasm path;
-              spec = builtins.wasm wasmDrv "pkg" (builtins.removeAttrs args [ "zeroBash" ]);
+              spec = builtins.wasm wasmDrv "pkg" args;
             in
             buildSpec spec
         else if ext == "wasm" then
           if !(builtins ? wasm) then
             throw "call-package for .wasm files requires straylight-nix"
           else
-            buildSpec (builtins.wasm path "pkg" (builtins.removeAttrs args [ "zeroBash" ]))
+            buildSpec (builtins.wasm path "pkg" args)
         else if ext == "nix" then
           pkgs.callPackage path args
         else
@@ -250,42 +240,13 @@ in
       # ────────────────────────────────────────────────────────────────────────
       # // typed packages //
       # ────────────────────────────────────────────────────────────────────────
-      # Packages defined in Haskell via call-package.
+      # Packages defined in Haskell via call-package using DrvSpec types.
       # Only available when using straylight-nix (builtins.wasm).
       #
-      typedPackages = lib.optionalAttrs (builtins ? wasm && ghc-wasm != null) {
-        # Test packages
-        test-hello = call-package ./packages/test-hello.hs { };
-        test-zlib-ng = call-package ./packages/test-zlib-ng.hs { };
-        test-tool-deps = call-package ./packages/test-tool-deps.hs { };
-        test-typed-tools = call-package ./packages/test-typed-tools.hs { };
-
-        # Zero-bash test package (RFC-007)
-        test-zero-bash = call-package ./packages/test-zero-bash.hs { zeroBash = true; };
-
-        # C++ libraries
-        catch2 = call-package ./packages/catch2.hs { };
-        fmt = call-package ./packages/fmt.hs { };
-        mdspan = call-package ./packages/mdspan.hs { };
-        nlohmann-json = call-package ./packages/nlohmann-json.hs { };
-        rapidjson = call-package ./packages/rapidjson.hs { };
-        spdlog = call-package ./packages/spdlog.hs { };
-        zlib-ng = call-package ./packages/zlib-ng.hs { };
-
-        # Zero-bash variants (RFC-007) - same packages, no shell strings
-        zlib-ng-zero-bash = call-package ./packages/zlib-ng.hs { zeroBash = true; };
-        fmt-zero-bash = call-package ./packages/fmt.hs { zeroBash = true; };
-        mdspan-zero-bash = call-package ./packages/mdspan.hs { zeroBash = true; };
-        # Note: abseil-cpp uses libmodern overlay (needs combine-archive)
-
-        # NVIDIA SDK (from PyPI wheels)
-        nvidia-nccl = call-package ./packages/nvidia-nccl.hs { };
-        nvidia-cudnn = call-package ./packages/nvidia-cudnn.hs { };
-        nvidia-tensorrt = call-package ./packages/nvidia-tensorrt.hs { };
-        nvidia-cutensor = call-package ./packages/nvidia-cutensor.hs { };
-        nvidia-cusparselt = call-package ./packages/nvidia-cusparselt.hs { };
-        nvidia-cutlass = call-package ./packages/nvidia-cutlass.hs { };
-      };
+      # TODO: Migrate packages to use DrvSpec (Aleph.Nix.DrvSpec) instead of
+      # the deleted Derivation.hs types. For now, typed packages are disabled.
+      #
+      typedPackages = { };
 
       # aleph-exec: zero-bash build executor (RFC-007)
       aleph-exec = pkgs.callPackage ./packages/aleph-exec.nix { };

@@ -200,143 +200,6 @@ let
   };
 
   # ──────────────────────────────────────────────────────────────────────────
-  #                        // action-to-shell //
-  # ──────────────────────────────────────────────────────────────────────────
-  # Convert a typed Action to shell commands.
-  #
-  # This is the interpreter that makes typed phases work. Each Action variant
-  # becomes a safe, properly-quoted shell command. No string interpolation bugs.
-  #
-  actionToShell =
-    action:
-    if action.action == "writeFile" then
-      # WriteFile path content → write content to $out/path
-      # Use a content-addressed delimiter to prevent injection attacks.
-      # The delimiter includes a hash of the content, making it impossible
-      # for the content to contain the exact delimiter string.
-      let
-        contentHash = builtins.hashString "sha256" action.content;
-        delimiter = "__WEYL_EOF_${builtins.substring 0 16 contentHash}__";
-      in
-      ''
-        mkdir -p "$out/$(dirname '${action.path}')"
-        cat > "$out/${action.path}" << '${delimiter}'
-        ${action.content}
-        ${delimiter}
-      ''
-    else if action.action == "install" then
-      # Install mode src dst → install -m<mode> src $out/dst
-      let
-        modeStr = toString action.mode;
-      in
-      ''
-        mkdir -p "$out/$(dirname '${action.dst}')"
-        install -m${modeStr} '${action.src}' "$out/${action.dst}"
-      ''
-    else if action.action == "mkdir" then
-      # Mkdir path → mkdir -p $out/path
-      ''
-        mkdir -p "$out/${action.path}"
-      ''
-    else if action.action == "symlink" then
-      # Symlink target link → ln -s target $out/link
-      ''
-        mkdir -p "$out/$(dirname '${action.link}')"
-        ln -s '${action.target}' "$out/${action.link}"
-      ''
-    else if action.action == "copy" then
-      # Copy src dst → cp -r src $out/dst
-      ''
-        mkdir -p "$out/$(dirname '${action.dst}')"
-        cp -r '${action.src}' "$out/${action.dst}"
-      ''
-    else if action.action == "remove" then
-      # Remove path → rm -rf $out/path
-      ''
-        rm -rf "$out/${action.path}"
-      ''
-    else if action.action == "unzip" then
-      # Unzip $src to dest directory (for wheel extraction)
-      ''
-        unzip -q "$src" -d '${action.dest}'
-      ''
-    else if action.action == "patchelfRpath" then
-      # PatchElfRpath path rpaths → set rpath on binary
-      # Paths are relative to $out unless they start with /
-      let
-        resolveRpath = p: if lib.hasPrefix "/" p then p else "$out/${p}";
-        rpathStr = lib.concatMapStringsSep ":" resolveRpath action.rpaths;
-      in
-      ''
-        patchelf --set-rpath '${rpathStr}' "$out/${action.path}"
-      ''
-    else if action.action == "patchelfAddRpath" then
-      # PatchElfAddRpath path rpaths → add to rpath
-      let
-        rpathStr = lib.concatStringsSep ":" action.rpaths;
-      in
-      ''
-        patchelf --add-rpath '${rpathStr}' "$out/${action.path}"
-      ''
-    else if action.action == "substitute" then
-      # Substitute file replacements → substituteInPlace with typed pairs
-      let
-        replaceArgs = lib.concatMapStringsSep " " (
-          r: "--replace-fail ${lib.escapeShellArg r.from} ${lib.escapeShellArg r.to}"
-        ) action.replacements;
-      in
-      ''
-        substituteInPlace '${action.file}' ${replaceArgs}
-      ''
-    else if action.action == "wrap" then
-      # Wrap program wrapActions → wrapProgram with typed actions
-      let
-        wrapArg =
-          wa:
-          if wa.type == "prefix" then
-            "--prefix ${wa.var} : ${lib.escapeShellArg wa.value}"
-          else if wa.type == "suffix" then
-            "--suffix ${wa.var} : ${lib.escapeShellArg wa.value}"
-          else if wa.type == "set" then
-            "--set ${wa.var} ${lib.escapeShellArg wa.value}"
-          else if wa.type == "setDefault" then
-            "--set-default ${wa.var} ${lib.escapeShellArg wa.value}"
-          else if wa.type == "unset" then
-            "--unset ${wa.var}"
-          else if wa.type == "addFlags" then
-            "--add-flags ${lib.escapeShellArg wa.flags}"
-          else
-            throw "Unknown wrap action type: ${wa.type}";
-        wrapArgs = lib.concatMapStringsSep " " wrapArg action.wrapActions;
-      in
-      ''
-        wrapProgram "$out/${action.program}" ${wrapArgs}
-      ''
-    else if action.action == "run" then
-      # Run cmd args → escape hatch, run arbitrary command
-      # Don't escape args that look like shell variables ($foo)
-      let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
-      in
-      ''
-        ${action.cmd} ${lib.concatMapStringsSep " " escapeArg action.args}
-      ''
-    else if action.action == "toolRun" then
-      # ToolRun pkg args → typed tool invocation
-      # The tool is automatically added to nativeBuildInputs by extractToolDeps
-      let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
-      in
-      ''
-        ${action.pkg} ${lib.concatMapStringsSep " " escapeArg action.args}
-      ''
-    else
-      throw "Unknown action type: ${action.action}";
-
-  # Convert a list of actions to a shell script
-  actionsToShell = actions: lib.concatMapStringsSep "\n" actionToShell actions;
-
-  # ──────────────────────────────────────────────────────────────────────────
   #                        // build-from-spec //
   # ──────────────────────────────────────────────────────────────────────────
   # Convert a package spec (attrset from WASM) to an actual derivation.
@@ -432,42 +295,33 @@ let
         else
           { };
 
-      # Typed phases → shell scripts
-      phases =
-        spec.phases or {
-          postPatch = [ ];
-          preConfigure = [ ];
-          installPhase = [ ];
-          postInstall = [ ];
-          postFixup = [ ];
-        };
+      # ────────────────────────────────────────────────────────────────────────
+      # Phase handling: Dhall → aleph-exec (F_ω only, no legacy shell path)
+      # ────────────────────────────────────────────────────────────────────────
 
-      phaseAttrs =
-        { }
-        // (
-          if (phases.postPatch or [ ]) != [ ] then { postPatch = actionsToShell phases.postPatch; } else { }
-        )
-        // (
-          if (phases.preConfigure or [ ]) != [ ] then
-            { preConfigure = actionsToShell phases.preConfigure; }
-          else
-            { }
-        )
-        // (
-          if (phases.installPhase or [ ]) != [ ] then
-            { installPhase = actionsToShell phases.installPhase; }
-          else
-            { }
-        )
-        // (
-          if (phases.postInstall or [ ]) != [ ] then
-            { postInstall = actionsToShell phases.postInstall; }
-          else
-            { }
-        )
-        // (
-          if (phases.postFixup or [ ]) != [ ] then { postFixup = actionsToShell phases.postFixup; } else { }
-        );
+      # spec.dhall is REQUIRED - no legacy shell path
+      dhallSpec = pkgs.writeText "${spec.pname}-spec.dhall" (
+        spec.dhall or (throw "spec.dhall required - all packages must emit Dhall via drvToDhall")
+      );
+
+      aleph-exec = pkgs.aleph-exec or (throw "aleph-exec required for typed builds");
+
+      hasCustomPhases =
+        (phases'.postPatch or [ ]) != [ ]
+        || (phases'.preConfigure or [ ]) != [ ]
+        || (phases'.installPhase or [ ]) != [ ]
+        || (phases'.postInstall or [ ]) != [ ]
+        || (phases'.postFixup or [ ]) != [ ];
+
+      phaseAttrs = lib.optionalAttrs hasCustomPhases {
+        postPatch = lib.optionalString ((phases'.postPatch or [ ]) != [ ]) ''
+          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase patch
+        '';
+        postInstall = ''
+          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase install
+          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
+        '';
+      };
 
       # Environment variables
       env = spec.env or { };
@@ -580,166 +434,6 @@ let
         builtins.wasm wasmFile name args;
     };
 
-  # ──────────────────────────────────────────────────────────────────────────
-  #                           // zero-bash-builder //
-  # ──────────────────────────────────────────────────────────────────────────
-  # Build a derivation using the zero-bash architecture (RFC-007).
-  #
-  # DHALL IS THE SUBSTRATE.
-  #
-  # The new architecture:
-  #   1. Haskell WASM module emits Dhall directly (drvToDhall)
-  #   2. Nix resolves sources/deps and writes resolved Dhall to store
-  #   3. aleph-exec reads Dhall and executes typed actions
-  #
-  # No Nix string interpolation for generating Dhall - that's eliminated.
-  # The spec.dhall field contains pre-generated Dhall from Haskell.
-  #
-  # FEATURE REQUIREMENT: aleph-exec must be built and available
-  #
-  buildFromSpecZeroBash =
-    {
-      spec,
-      pkgs,
-      aleph-exec,
-    }:
-    let
-      # Resolve source at eval time
-      src =
-        if spec.src == null || spec.src.type or "" == "none" then
-          null
-        else if spec.src.type == "github" then
-          pkgs.fetchFromGitHub {
-            inherit (spec.src)
-              owner
-              repo
-              rev
-              hash
-              ;
-          }
-        else if spec.src.type == "url" then
-          pkgs.fetchurl {
-            inherit (spec.src) url hash;
-          }
-        else if spec.src.type == "store" then
-          spec.src.path
-        else
-          throw "Unknown source type: ${spec.src.type}";
-
-      # Resolve dependencies by name
-      resolveDep =
-        name:
-        let
-          parts = lib.splitString "." name;
-          resolved = lib.foldl' (acc: part: acc.${part} or null) pkgs parts;
-        in
-        if resolved != null then resolved else throw "Unknown package: ${name}";
-
-      deps = spec.deps or { };
-      nativeBuildInputs = map resolveDep (deps.nativeBuildInputs or [ ]);
-      buildInputs = map resolveDep (deps.buildInputs or [ ]);
-      propagatedBuildInputs = map resolveDep (deps.propagatedBuildInputs or [ ]);
-
-      # The Dhall spec - either pre-generated from Haskell or we fall back to
-      # shell-based building for now. Future: all packages emit Dhall directly.
-      #
-      # When spec.dhall exists, it contains complete Dhall with placeholders:
-      #   - @src@ → resolved source path
-      #   - @out@ → output path (resolved at build time via $out)
-      #   - @dep:name@ → resolved dependency path
-      #
-      # We substitute the resolved paths and write to store.
-      specDhall = spec.dhall or null;
-
-      # Build dependency path map for substitution
-      depPaths = lib.mapAttrs' (name: _: lib.nameValuePair "@dep:${name}@" (toString (resolveDep name))) (
-        lib.listToAttrs (
-          map (n: lib.nameValuePair n null) (deps.nativeBuildInputs or [ ] ++ deps.buildInputs or [ ])
-        )
-      );
-
-      # Substitute placeholders in Dhall
-      resolvedDhall =
-        if specDhall != null then
-          let
-            withSrc =
-              builtins.replaceStrings
-                [ "@src@" ]
-                [
-                  (if src != null then ''"${src}"'' else "Src.None")
-                ]
-                specDhall;
-            # Substitute all @dep:name@ placeholders
-            withDeps = lib.foldl' (
-              s: name: builtins.replaceStrings [ "@dep:${name}@" ] [ "${resolveDep name}" ] s
-            ) withSrc (deps.nativeBuildInputs or [ ] ++ deps.buildInputs or [ ]);
-          in
-          withDeps
-        else
-          null;
-
-      # Write resolved Dhall to store
-      specFile =
-        if resolvedDhall != null then pkgs.writeText "${spec.pname}-spec.dhall" resolvedDhall else null;
-
-      # Builder type determines how we integrate with stdenv
-      builder = spec.builder or { type = "none"; };
-
-      # For cmake/meson projects, let stdenv handle the build system
-      # but use aleph-exec for custom phases
-      builderAttrs =
-        if builder.type == "cmake" then
-          {
-            nativeBuildInputs = nativeBuildInputs ++ [
-              pkgs.cmake
-              pkgs.ninja
-            ];
-            cmakeFlags = builder.flags or [ ];
-          }
-        else if builder.type == "meson" then
-          {
-            nativeBuildInputs = nativeBuildInputs ++ [
-              pkgs.meson
-              pkgs.ninja
-            ];
-            mesonFlags = builder.flags or [ ];
-          }
-        else
-          { };
-
-      # Custom phase hooks that call aleph-exec
-      phaseHooks = lib.optionalAttrs (specFile != null) {
-        postInstall = ''
-          echo "[zero-bash] Running aleph-exec for install phase..."
-          ${aleph-exec}/bin/aleph-exec --spec ${specFile} --phase install || true
-        '';
-        postFixup = ''
-          echo "[zero-bash] Running aleph-exec for fixup phase..."
-          ${aleph-exec}/bin/aleph-exec --spec ${specFile} --phase fixup || true
-        '';
-      };
-
-    in
-    pkgs.stdenv.mkDerivation (
-      {
-        inherit (spec) pname version;
-        inherit src buildInputs propagatedBuildInputs;
-        nativeBuildInputs = (builderAttrs.nativeBuildInputs or nativeBuildInputs) ++ [ aleph-exec ];
-
-        strictDeps = spec.strictDeps or true;
-        doCheck = spec.doCheck or false;
-
-        meta = {
-          description = spec.meta.description or "";
-          homepage = spec.meta.homepage or null;
-          license = lib.licenses.${spec.meta.license or "unfree"} or lib.licenses.unfree;
-          platforms = if (spec.meta.platforms or [ ]) == [ ] then lib.platforms.all else spec.meta.platforms;
-        };
-      }
-      // builderAttrs
-      // phaseHooks
-    );
-
 in
 {
   inherit
@@ -755,15 +449,6 @@ in
     # WASM plugin loading (requires straylight-nix with builtins.wasm)
     buildFromSpec
     loadWasmPackages
-
-    # Zero-bash builder (RFC-007)
-    # Use this instead of buildFromSpec when you have aleph-exec available
-    buildFromSpecZeroBash
-
-    # Action interpreter - use this to interpret typed phases from any source
-    # DEPRECATED: Use buildFromSpecZeroBash instead for new code
-    actionToShell
-    actionsToShell
     ;
 
   # NOTE: The aleph interface (aleph.eval, aleph.import) is in ./aleph.nix

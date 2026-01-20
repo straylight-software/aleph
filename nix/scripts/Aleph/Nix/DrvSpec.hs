@@ -96,13 +96,21 @@ module Aleph.Nix.DrvSpec (
     drvToDhall,
     actionToDhall,
     refToDhall,
+    
+    -- * Nix emission (WASM boundary)
+    drvToNix,
 ) where
 
 import Data.Aeson (FromJSON, ToJSON)
+import Data.Int (Int64)
 import Data.List (intercalate)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import GHC.Generics (Generic)
+
+import Aleph.Nix.Value (Value, mkAttrs, mkString, mkBool, mkList, mkNull, mkInt)
 
 -- ============================================================================
 -- Hash Types
@@ -869,3 +877,216 @@ dhallMaybe f (Just x) = "Some " <> f x
 dhallList :: (a -> Text) -> [a] -> Text
 dhallList _ [] = "[] : List _"  -- Type annotation needed for empty lists
 dhallList f xs = "[" <> T.intercalate ", " (map f xs) <> "]"
+
+-- ============================================================================
+-- Nix Emission (WASM Boundary)
+-- ============================================================================
+--
+-- Convert DrvSpec to Nix Value for the WASM FFI boundary.
+-- This is what gets returned to Nix from builtins.wasm calls.
+--
+-- The returned attrset includes:
+--   - All derivation fields (pname, version, src, deps, etc.)
+--   - dhall: the Dhall spec for aleph-exec (zero-bash path)
+--
+-- Nix then either:
+--   1. Passes dhall to aleph-exec (zero-bash mode)
+--   2. Uses the fields to call stdenv.mkDerivation (legacy mode)
+--
+
+-- | Convert DrvSpec to Nix Value for WASM boundary
+drvToNix :: DrvSpec -> IO Value
+drvToNix drv@DrvSpec{..} = do
+    pairs <- sequence
+        [ ("pname",) <$> mkString pname
+        , ("version",) <$> mkString version
+        , ("system",) <$> mkString system
+        , ("src",) <$> srcToNix specSrc
+        , ("deps",) <$> depsToNix deps
+        , ("builder",) <$> builderToNix
+        , ("meta",) <$> metaToNix meta
+        , ("phases",) <$> phasesToNix phases
+        , ("env",) <$> envToNix env
+        , ("strictDeps",) <$> mkBool True
+        , ("doCheck",) <$> mkBool False
+        , ("dontUnpack",) <$> mkBool False
+        -- Zero-bash: include Dhall spec for aleph-exec
+        , ("dhall",) <$> mkString (drvToDhall drv)
+        ]
+    mkAttrs (Map.fromList pairs)
+  where
+    -- Determine builder type from phases
+    builderToNix = do
+        -- For now, detect cmake from configure phase
+        -- TODO: add explicit builder field to DrvSpec
+        let hasCMake = any isCMakeAction (configure phases)
+        if hasCMake
+            then do
+                pairs <- sequence
+                    [ ("type",) <$> mkString "cmake"
+                    , ("flags",) <$> mkList []
+                    ]
+                mkAttrs (Map.fromList pairs)
+            else do
+                pairs <- sequence [("type",) <$> mkString "none"]
+                mkAttrs (Map.fromList pairs)
+    
+    isCMakeAction (CMakeConfigure {}) = True
+    isCMakeAction _ = False
+
+-- | Convert Src to Nix
+srcToNix :: Src -> IO Value
+srcToNix = \case
+    SrcGitHub GitHubSrc{..} -> do
+        pairs <- sequence
+            [ ("type",) <$> mkString "github"
+            , ("owner",) <$> mkString ghOwner
+            , ("repo",) <$> mkString ghRepo
+            , ("rev",) <$> mkString ghRev
+            , ("hash",) <$> mkString ghHash
+            ]
+        mkAttrs (Map.fromList pairs)
+    SrcUrl UrlSrc{..} -> do
+        pairs <- sequence
+            [ ("type",) <$> mkString "url"
+            , ("url",) <$> mkString urlUrl
+            , ("hash",) <$> mkString urlHash
+            ]
+        mkAttrs (Map.fromList pairs)
+    SrcGit GitSrc{..} -> do
+        pairs <- sequence
+            [ ("type",) <$> mkString "git"
+            , ("url",) <$> mkString gitUrl
+            , ("rev",) <$> mkString gitRev
+            , ("hash",) <$> mkString gitHash
+            ]
+        mkAttrs (Map.fromList pairs)
+    SrcStore (StorePath p) -> do
+        pairs <- sequence
+            [ ("type",) <$> mkString "store"
+            , ("path",) <$> mkString p
+            ]
+        mkAttrs (Map.fromList pairs)
+    SrcNone -> mkNull
+
+-- | Convert deps to Nix
+depsToNix :: [Dep] -> IO Value
+depsToNix depList = do
+    let byKind k = [depName d | d <- depList, depKind d == k]
+    pairs <- sequence
+        [ ("nativeBuildInputs",) <$> mkList =<< mapM mkString (byKind Build)
+        , ("buildInputs",) <$> mkList =<< mapM mkString (byKind Host)
+        , ("propagatedBuildInputs",) <$> mkList =<< mapM mkString (byKind Propagate)
+        , ("checkInputs",) <$> mkList =<< mapM mkString (byKind Check)
+        ]
+    mkAttrs (Map.fromList pairs)
+
+-- | Convert Meta to Nix
+metaToNix :: Meta -> IO Value
+metaToNix Meta{..} = do
+    homepageVal <- case metaHomepage of
+        Nothing -> mkNull
+        Just h -> mkString h
+    pairs <- sequence
+        [ ("description",) <$> mkString metaDescription
+        , ("homepage",) <$> pure homepageVal
+        , ("license",) <$> mkString metaLicense
+        , ("platforms",) <$> mkList =<< mapM mkString metaPlatforms
+        ]
+    mkAttrs (Map.fromList pairs)
+
+-- | Convert Phases to Nix (for legacy stdenv path)
+phasesToNix :: Phases -> IO Value
+phasesToNix Phases{..} = do
+    pairs <- sequence
+        [ ("postPatch",) <$> actionsToNix patch
+        , ("preConfigure",) <$> actionsToNix configure
+        , ("installPhase",) <$> actionsToNix install
+        , ("postInstall",) <$> actionsToNix install  -- TODO: separate
+        , ("postFixup",) <$> actionsToNix fixup
+        ]
+    mkAttrs (Map.fromList pairs)
+
+-- | Convert actions to Nix (as list of action attrsets)
+actionsToNix :: [Action] -> IO Value
+actionsToNix actions = mkList =<< mapM actionToNix actions
+
+-- | Convert single action to Nix attrset
+actionToNix :: Action -> IO Value
+actionToNix = \case
+    Mkdir ref parents -> do
+        pairs <- sequence
+            [ ("action",) <$> mkString "mkdir"
+            , ("path",) <$> mkString (refToText ref)
+            ]
+        mkAttrs (Map.fromList pairs)
+    Write ref contents -> do
+        pairs <- sequence
+            [ ("action",) <$> mkString "writeFile"
+            , ("path",) <$> mkString (refToText ref)
+            , ("content",) <$> mkString contents
+            ]
+        mkAttrs (Map.fromList pairs)
+    Symlink target link -> do
+        pairs <- sequence
+            [ ("action",) <$> mkString "symlink"
+            , ("target",) <$> mkString (refToText target)
+            , ("link",) <$> mkString (refToText link)
+            ]
+        mkAttrs (Map.fromList pairs)
+    Copy src dst -> do
+        pairs <- sequence
+            [ ("action",) <$> mkString "copy"
+            , ("src",) <$> mkString (refToText src)
+            , ("dst",) <$> mkString (refToText dst)
+            ]
+        mkAttrs (Map.fromList pairs)
+    Substitute file reps -> do
+        repList <- mkList =<< mapM (\(from, to) -> do
+            pairs <- sequence
+                [ ("from",) <$> mkString from
+                , ("to",) <$> mkString to
+                ]
+            mkAttrs (Map.fromList pairs)) reps
+        pairs <- sequence
+            [ ("action",) <$> mkString "substitute"
+            , ("file",) <$> mkString (refToText file)
+            , ("replacements",) <$> pure repList
+            ]
+        mkAttrs (Map.fromList pairs)
+    PatchElfRpath path rpaths -> do
+        rpathList <- mkList =<< mapM (mkString . refToText) rpaths
+        pairs <- sequence
+            [ ("action",) <$> mkString "patchelfRpath"
+            , ("path",) <$> mkString (refToText path)
+            , ("rpaths",) <$> pure rpathList
+            ]
+        mkAttrs (Map.fromList pairs)
+    Shell cmd -> do
+        pairs <- sequence
+            [ ("action",) <$> mkString "run"
+            , ("cmd",) <$> mkString cmd
+            , ("args",) <$> mkList []
+            ]
+        mkAttrs (Map.fromList pairs)
+    _ -> do
+        -- Fallback for unhandled actions
+        pairs <- sequence [("action",) <$> mkString "noop"]
+        mkAttrs (Map.fromList pairs)
+
+-- | Convert Ref to Text (for legacy path)
+refToText :: Ref -> Text
+refToText = \case
+    RefDep name msub -> maybe name (\s -> name <> "/" <> s) msub
+    RefOut name msub -> maybe ("$out") (\s -> "$out/" <> s) msub
+    RefSrc msub -> maybe "$src" (\s -> "$src/" <> s) msub
+    RefEnv v -> "$" <> v
+    RefRel p -> p
+    RefLit t -> t
+    RefCat refs -> T.concat (map refToText refs)
+
+-- | Convert env to Nix
+envToNix :: [(Text, Text)] -> IO Value
+envToNix envVars = do
+    pairs <- mapM (\(k, v) -> (k,) <$> mkString v) envVars
+    mkAttrs (Map.fromList pairs)
