@@ -3,38 +3,49 @@
 -- | nlohmann/json - JSON for Modern C++
 module Pkg where
 
-import Aleph.Nix.Package
-import Prelude hiding (writeFile)
+import Aleph.Nix.DrvSpec
 
-pkg :: Drv
-pkg =
-    mkDerivation
-        [ pname "nlohmann_json"
-        , version "3.12.0"
-        , src $
-            fetchFromGitHub
-                [ owner "nlohmann"
-                , repo "json"
-                , rev "v3.12.0"
-                , hash "sha256-cECvDOLxgX7Q9R3IE86Hj9JJUxraDQvhoyPDF03B2CY="
-                ]
-        , nativeBuildInputs ["cmake", "pkg-config"]
-        , cmake
-            defaults
-                { buildTesting = Just False
-                , extraFlags = [("JSON_BuildTests", "OFF")]
-                }
-        , -- Fix broken pkg-config and add compatibility symlink
-          postInstall
-            [ remove "share/pkgconfig/nlohmann_json.pc"
-            , mkdir "lib/pkgconfig"
-            , writeFile "lib/pkgconfig/nlohmann_json.pc" pkgConfig
-            , symlink "nlohmann/json.hpp" "include/json.hpp"
-            ]
-        , description "JSON for Modern C++"
-        , homepage "https://github.com/nlohmann/json"
-        , license "mit"
+pkg :: DrvSpec
+pkg = defaultDrvSpec
+    { pname = "nlohmann_json"
+    , version = "3.12.0"
+    , specSrc = SrcGitHub GitHubSrc
+        { ghOwner = "nlohmann"
+        , ghRepo = "json"
+        , ghRev = "v3.12.0"
+        , ghHash = "sha256-cECvDOLxgX7Q9R3IE86Hj9JJUxraDQvhoyPDF03B2CY="
+        }
+    , deps = 
+        [ buildDep "cmake"
+        , buildDep "pkg-config"
         ]
+    , phases = emptyPhases
+        { configure = 
+            [ CMakeConfigure 
+                (RefSrc Nothing)
+                (RefRel "build")
+                (RefOut "out" Nothing)
+                "Release"
+                ["-DJSON_BuildTests=OFF"]
+                Ninja
+            ]
+        , build = [CMakeBuild (RefRel "build") Nothing Nothing]
+        , install = [CMakeInstall (RefRel "build")]
+        , fixup = 
+            [ Remove (RefOut "out" (Just "share/pkgconfig/nlohmann_json.pc")) True
+            , Mkdir (RefOut "out" (Just "lib/pkgconfig")) True
+            , Write (RefOut "out" (Just "lib/pkgconfig/nlohmann_json.pc")) pkgConfig
+            , Symlink (RefLit "nlohmann/json.hpp") (RefOut "out" (Just "include/json.hpp"))
+            ]
+        }
+    , meta = Meta
+        { description = "JSON for Modern C++"
+        , homepage = Just "https://github.com/nlohmann/json"
+        , license = "mit"
+        , maintainers = []
+        , platforms = []
+        }
+    }
   where
     pkgConfig =
         "prefix=${out}\n\

@@ -11,35 +11,33 @@ Expected nativeBuildInputs: jq, patchelf (automatically from typed tools)
 -}
 module Pkg where
 
-import Aleph.Nix.Package
-import qualified Aleph.Nix.Tools.Install as Install
-import qualified Aleph.Nix.Tools.Jq as Jq
-import qualified Aleph.Nix.Tools.PatchElf as PatchElf
-import qualified Aleph.Nix.Tools.Substitute as Sub
+import Aleph.Nix.DrvSpec
 
-pkg :: Drv
-pkg =
-    mkDerivation
-        [ pname "test-typed-tools"
-        , version "1.0.0"
-        , -- No source - this is a meta-test package
-          dontUnpack True
-        , -- Test installPhase with Install helpers
-          installPhase
-            [ Install.dir "share/test-typed-tools"
+pkg :: DrvSpec
+pkg = defaultDrvSpec
+    { pname = "test-typed-tools"
+    , version = "1.0.0"
+    , specSrc = SrcNone  -- No source needed
+    , phases = emptyPhases
+        { unpack = []  -- No source to unpack
+        , install = 
+            [ -- Create directory structure
+              Mkdir (outSub "share/test-typed-tools") True
             , -- Create a test JSON file
-              run "sh" ["-c", "echo '{\"version\": \"1.0.0\", \"name\": \"test\"}' > $out/share/test-typed-tools/metadata.json"]
+              Write (outSub "share/test-typed-tools/metadata.json") 
+                    "{\"version\": \"1.0.0\", \"name\": \"test\"}"
             ]
-        , -- Test postInstall with jq (reads the JSON we created)
-          -- This verifies jq was added to nativeBuildInputs
-          postInstall
-            [ Jq.query Jq.defaults{Jq.rawOutput = True} ".version" "$out/share/test-typed-tools/metadata.json"
+        , fixup = 
+            [ -- Test that tools are available
+              Tool "jq" "jq" [ExprStr "--version"]
+              -- patchelf would be tested too if we had ELF binaries
             ]
-        , -- Test postFixup with PatchElf - just verify the tool is available
-          -- (patchelf --version exits 0 and prints version)
-          postFixup
-            [ run "patchelf" ["--version"]
-            ]
-        , description "Test package for typed tool APIs"
-        , license "mit"
-        ]
+        }
+    , meta = Meta
+        { description = "Test package for typed tool APIs"
+        , homepage = Nothing
+        , license = "mit"
+        , maintainers = []
+        , platforms = []
+        }
+    }

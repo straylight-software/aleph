@@ -3,33 +3,45 @@
 -- | zlib-ng - Next generation zlib with SIMD optimizations
 module Pkg where
 
-import Aleph.Nix.Package
+import Aleph.Nix.DrvSpec
 
-pkg :: Drv
-pkg =
-    mkDerivation
-        [ pname "zlib-ng"
-        , version "2.2.4"
-        , src $
-            fetchFromGitHub
-                [ owner "zlib-ng"
-                , repo "zlib-ng"
-                , rev "2.2.4"
-                , hash "sha256-Khmrhp5qy4vvoQe4WgoogpjWrgcUB/q8zZeqIydthYg="
-                ]
-        , nativeBuildInputs ["cmake", "pkg-config"]
-        , buildInputs ["gtest"]
-        , cmake
-            defaults
-                { installPrefix = Just "/"
-                , buildStaticLibs = Just True
-                , buildSharedLibs = Just False
-                , extraFlags =
-                    [ ("INSTALL_UTILS", "ON")
-                    , ("ZLIB_COMPAT", "ON")
-                    ]
-                }
-        , description "zlib for next generation systems"
-        , homepage "https://github.com/zlib-ng/zlib-ng"
-        , license "zlib"
+pkg :: DrvSpec
+pkg = defaultDrvSpec
+    { pname = "zlib-ng"
+    , version = "2.2.4"
+    , specSrc = SrcGitHub GitHubSrc
+        { ghOwner = "zlib-ng"
+        , ghRepo = "zlib-ng"
+        , ghRev = "2.2.4"
+        , ghHash = "sha256-Khmrhp5qy4vvoQe4WgoogpjWrgcUB/q8zZeqIydthYg="
+        }
+    , deps = 
+        [ buildDep "cmake"
+        , buildDep "pkg-config"
+        , hostDep "gtest"
         ]
+    , phases = emptyPhases
+        { configure = 
+            [ CMakeConfigure 
+                (RefSrc Nothing)           -- srcDir
+                (RefRel "build")           -- buildDir
+                (RefOut "out" Nothing)     -- installPrefix
+                "Release"                  -- buildType
+                [ "-DBUILD_STATIC_LIBS=ON"
+                , "-DBUILD_SHARED_LIBS=OFF"
+                , "-DINSTALL_UTILS=ON"
+                , "-DZLIB_COMPAT=ON"
+                ]
+                Ninja
+            ]
+        , build = [CMakeBuild (RefRel "build") Nothing Nothing]
+        , install = [CMakeInstall (RefRel "build")]
+        }
+    , meta = Meta
+        { description = "zlib for next generation systems"
+        , homepage = Just "https://github.com/zlib-ng/zlib-ng"
+        , license = "zlib"
+        , maintainers = []
+        , platforms = []
+        }
+    }

@@ -36,6 +36,7 @@
   stdenv,
   ghc-wasm-meta,
   runCommand,
+  aleph-exec ? null, # Zero-bash build executor (RFC-007)
 }:
 let
   # ──────────────────────────────────────────────────────────────────────────
@@ -139,65 +140,9 @@ let
   # ──────────────────────────────────────────────────────────────────────────
   # The compiled typed package definitions. Internal implementation detail.
   #
-  alephWasm = buildWasmPlugin {
-    name = "aleph";
-    src = ../scripts;
-    # Use Main module to get proper GHC RTS initialization in reactor mode
-    mainModule = "Main";
-    extraModules = [
-      "Aleph.Nix"
-      "Aleph.Nix.FFI"
-      "Aleph.Nix.Types"
-      "Aleph.Nix.Value"
-      "Aleph.Nix.Derivation"
-      "Aleph.Nix.Syntax"
-      "Aleph.Script.Tools.CMake"
-      # Typed build tools
-      "Aleph.Nix.Tools"
-      "Aleph.Nix.Tools.Jq"
-      "Aleph.Nix.Tools.PatchElf"
-      "Aleph.Nix.Tools.Install"
-      "Aleph.Nix.Tools.Substitute"
-      # Packages
-      "Aleph.Nix.Packages.ZlibNg"
-      "Aleph.Nix.Packages.Fmt"
-      "Aleph.Nix.Packages.Mdspan"
-      "Aleph.Nix.Packages.Cutlass"
-      "Aleph.Nix.Packages.Rapidjson"
-      "Aleph.Nix.Packages.NlohmannJson"
-      "Aleph.Nix.Packages.Spdlog"
-      "Aleph.Nix.Packages.Catch2"
-      "Aleph.Nix.Packages.AbseilCpp"
-      # NVIDIA SDK
-      "Aleph.Nix.Packages.Nvidia"
-      # Test packages for typed actions
-      "Aleph.Nix.Packages.Jq"
-      "Aleph.Nix.Packages.HelloWrapped"
-    ];
-    # These must match the foreign export ccall names in Main.hs
-    exports = [
-      "nix_wasm_init_v1"
-      "zlib_ng"
-      "fmt"
-      "mdspan"
-      "cutlass"
-      "rapidjson"
-      "nlohmann_json"
-      "spdlog"
-      "catch2"
-      "abseil_cpp"
-      # NVIDIA SDK
-      "nvidia_nccl"
-      "nvidia_cudnn"
-      "nvidia_tensorrt"
-      "nvidia_cutensor"
-      "nvidia_cusparselt"
-      "nvidia_cutlass"
-      # Test packages
-      "jq"
-      "hello_wrapped"
-    ];
-  };
+  # The aleph WASM module is no longer built here - packages are compiled
+  # individually via call-package. This is a placeholder for compatibility.
+  alephWasm = null;
 
   # ──────────────────────────────────────────────────────────────────────────
   #                        // build-from-spec //
@@ -304,7 +249,8 @@ let
         spec.dhall or (throw "spec.dhall required - all packages must emit Dhall via drvToDhall")
       );
 
-      aleph-exec = pkgs.aleph-exec or (throw "aleph-exec required for typed builds");
+      aleph-exec' =
+        if aleph-exec != null then aleph-exec else (throw "aleph-exec required for typed builds");
 
       hasCustomPhases =
         (phases'.postPatch or [ ]) != [ ]
@@ -315,11 +261,11 @@ let
 
       phaseAttrs = lib.optionalAttrs hasCustomPhases {
         postPatch = lib.optionalString ((phases'.postPatch or [ ]) != [ ]) ''
-          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase patch
+          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase patch
         '';
         postInstall = ''
-          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase install
-          ${aleph-exec}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
+          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase install
+          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
         '';
       };
 

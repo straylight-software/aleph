@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -8,9 +6,8 @@
 {- | CA-Derivation types matching Aleph/Config/Drv.dhall
   
 These types are designed for bidirectional conversion with Dhall:
-  - FromDhall: read Dhall specs into Haskell
   - ToDhall: write Haskell specs to Dhall (drvToDhall)
-  - ToJSON/FromJSON: serialize for WASM boundary
+  - toNix: convert to Nix Value for WASM boundary
 
 DHALL IS THE SUBSTRATE.
 
@@ -101,14 +98,10 @@ module Aleph.Nix.DrvSpec (
     drvToNix,
 ) where
 
-import Data.Aeson (FromJSON, ToJSON)
-import Data.Int (Int64)
-import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import qualified Data.Text as T
-import GHC.Generics (Generic)
 
 import Aleph.Nix.Value (Value, mkAttrs, mkString, mkBool, mkList, mkNull, mkInt)
 
@@ -117,15 +110,13 @@ import Aleph.Nix.Value (Value, mkAttrs, mkString, mkBool, mkList, mkNull, mkInt)
 -- ============================================================================
 
 data HashAlgo = SHA256 | SHA512 | Blake3
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
 
 data Hash = Hash
     { algo :: !HashAlgo
     , value :: !Text
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
 
 type SriHash = Text
 
@@ -134,18 +125,15 @@ type SriHash = Text
 -- ============================================================================
 
 newtype StorePath = StorePath { unStorePath :: Text }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
 
 newtype DrvPath = DrvPath { unDrvPath :: Text }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
 
 data OutputMethod
     = Fixed !SriHash
     | Floating
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
 
 -- ============================================================================
 -- References
@@ -159,8 +147,8 @@ data Ref
     | RefRel !Text
     | RefLit !Text
     | RefCat ![Ref]
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 -- Smart constructors
 dep :: Text -> Ref
@@ -194,20 +182,20 @@ data Mode
     | ModeRX
     | ModeRWX
     | ModeOctal !Int
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Cmp = Eq | Ne | Lt | Le | Gt | Ge
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data StreamTarget
     = Stdout
     | Stderr
     | ToFile !Ref
     | ToNull
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Expr
     = ExprStr !Text
@@ -222,20 +210,20 @@ data Expr
     | ExprAnd !Expr !Expr
     | ExprOr !Expr !Expr
     | ExprNot !Expr
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Compression = NoCompression | Gzip | Zstd | Xz
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Generator = Ninja | Make | DefaultGenerator
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data LogLevel = Debug | Info | Warn | Error
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Action
     -- Filesystem
@@ -341,16 +329,16 @@ data Action
     
     -- Escape hatch
     | Shell !Text
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 -- ============================================================================
 -- Dependencies
 -- ============================================================================
 
 data DepKind = Build | Host | Propagate | Check | Data
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Dep = Dep
     { depName :: !Text
@@ -358,8 +346,8 @@ data Dep = Dep
     , depKind :: !DepKind
     , depOutputs :: ![Text]
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 buildDep :: Text -> Dep
 buildDep n = Dep n Nothing Build ["out"]
@@ -380,23 +368,23 @@ data GitHubSrc = GitHubSrc
     , ghRev :: !Text
     , ghHash :: !SriHash
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data UrlSrc = UrlSrc
     { urlUrl :: !Text
     , urlHash :: !SriHash
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data GitSrc = GitSrc
     { gitUrl :: !Text
     , gitRev :: !Text
     , gitHash :: !SriHash
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 data Src
     = SrcGitHub !GitHubSrc
@@ -405,8 +393,8 @@ data Src
     | SrcGit !GitSrc
     | SrcStore !StorePath
     | SrcNone
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 -- ============================================================================
 -- Outputs
@@ -416,8 +404,8 @@ data Output = Output
     { outputName :: !Text
     , outputMethod :: !OutputMethod
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 floatingOut :: Text -> Output
 floatingOut n = Output n Floating
@@ -438,8 +426,8 @@ data Phases = Phases
     , install :: ![Action]
     , fixup :: ![Action]
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 emptyPhases :: Phases
 emptyPhases = Phases [] [] [] [] [] [] []
@@ -455,8 +443,8 @@ data Meta = Meta
     , maintainers :: ![Text]
     , platforms :: ![Text]
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 -- ============================================================================
 -- Shell Hooks (escape hatch)
@@ -468,8 +456,8 @@ data ShellHooks = ShellHooks
     , preInstall :: !(Maybe Text)
     , postInstall :: !(Maybe Text)
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 -- ============================================================================
 -- The Derivation Spec
@@ -489,8 +477,8 @@ data DrvSpec = DrvSpec
     , passthru :: ![(Text, Text)]
     , shellHooks :: !ShellHooks
     }
-    deriving (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON)
+    deriving (Eq, Show)
+
 
 defaultDrvSpec :: DrvSpec
 defaultDrvSpec = DrvSpec
@@ -973,27 +961,32 @@ srcToNix = \case
 depsToNix :: [Dep] -> IO Value
 depsToNix depList = do
     let byKind k = [depName d | d <- depList, depKind d == k]
-    pairs <- sequence
-        [ ("nativeBuildInputs",) <$> mkList =<< mapM mkString (byKind Build)
-        , ("buildInputs",) <$> mkList =<< mapM mkString (byKind Host)
-        , ("propagatedBuildInputs",) <$> mkList =<< mapM mkString (byKind Propagate)
-        , ("checkInputs",) <$> mkList =<< mapM mkString (byKind Check)
+    nativeBuildInputs <- mkList =<< mapM mkString (byKind Build)
+    buildInputs <- mkList =<< mapM mkString (byKind Host)
+    propagatedBuildInputs <- mkList =<< mapM mkString (byKind Propagate)
+    checkInputs <- mkList =<< mapM mkString (byKind Check)
+    mkAttrs $ Map.fromList
+        [ ("nativeBuildInputs", nativeBuildInputs)
+        , ("buildInputs", buildInputs)
+        , ("propagatedBuildInputs", propagatedBuildInputs)
+        , ("checkInputs", checkInputs)
         ]
-    mkAttrs (Map.fromList pairs)
 
 -- | Convert Meta to Nix
 metaToNix :: Meta -> IO Value
 metaToNix Meta{..} = do
-    homepageVal <- case metaHomepage of
+    homepageVal <- case homepage of
         Nothing -> mkNull
         Just h -> mkString h
-    pairs <- sequence
-        [ ("description",) <$> mkString metaDescription
-        , ("homepage",) <$> pure homepageVal
-        , ("license",) <$> mkString metaLicense
-        , ("platforms",) <$> mkList =<< mapM mkString metaPlatforms
+    descriptionVal <- mkString description
+    licenseVal <- mkString license
+    platformsVal <- mkList =<< mapM mkString platforms
+    mkAttrs $ Map.fromList
+        [ ("description", descriptionVal)
+        , ("homepage", homepageVal)
+        , ("license", licenseVal)
+        , ("platforms", platformsVal)
         ]
-    mkAttrs (Map.fromList pairs)
 
 -- | Convert Phases to Nix (for legacy stdenv path)
 phasesToNix :: Phases -> IO Value
