@@ -108,6 +108,7 @@ in
     flakeModules.prelude
     flakeModules.prelude-demos
     flakeModules.container
+    flakeModules.build
   ];
 
   perSystem =
@@ -287,6 +288,20 @@ in
   };
 
   aleph-naught.nixpkgs.nv.enable = true;
+
+  # Buck2 build system integration
+  aleph-naught.build = {
+    enable = true;
+    prelude.enable = true;
+    toolchain = {
+      cxx.enable = true;
+      nv.enable = true;
+      haskell.enable = true;
+      rust.enable = true;
+      lean.enable = true;
+      python.enable = true;
+    };
+  };
 
   aleph-naught.docs = {
     enable = true;

@@ -34,7 +34,7 @@ let
       ];
 
       cmakeFlags = [
-        "-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra"
+        "-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra;lld"
         "-DCMAKE_BUILD_TYPE=Release"
         "-DLLVM_TARGETS_TO_BUILD=X86;NVPTX;AArch64"
         "-DLLVM_ENABLE_ASSERTIONS=OFF"

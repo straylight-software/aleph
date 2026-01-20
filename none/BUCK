@@ -1,0 +1,3 @@
+# Empty BUCK file for the "none" cell
+# This cell is used as an alias target for fbcode, fbsource, etc.
+# It intentionally contains no targets.

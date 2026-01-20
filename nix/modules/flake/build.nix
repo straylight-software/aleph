@@ -21,12 +21,49 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { inputs }:
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  flake-parts-lib,
+  ...
+}:
 let
+  inherit (flake-parts-lib) mkPerSystemOption;
   cfg = config.aleph-naught.build;
 in
 {
   _class = "flake";
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Per-system options for straylight.build
+  # ════════════════════════════════════════════════════════════════════════════
+  options.perSystem = mkPerSystemOption (
+    { lib, ... }:
+    {
+      options.straylight.build = {
+        buck2-toolchain = lib.mkOption {
+          type = lib.types.raw;
+          default = { };
+          description = "Buck2 toolchain paths from .buckconfig.local";
+        };
+        buckconfig-local = lib.mkOption {
+          type = lib.types.nullOr lib.types.path;
+          default = null;
+          description = "Path to generated .buckconfig.local";
+        };
+        shellHook = lib.mkOption {
+          type = lib.types.lines;
+          default = "";
+          description = "Shell hook for Buck2 setup";
+        };
+        packages = lib.mkOption {
+          type = lib.types.listOf lib.types.package;
+          default = [ ];
+          description = "Packages for Buck2 toolchains";
+        };
+      };
+    }
+  );
 
   options.aleph-naught.build = {
     enable = lib.mkEnableOption "Buck2 build system integration";
@@ -129,15 +166,21 @@ in
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
-          default = hp: [
-            hp.text
-            hp.bytestring
-            hp.containers
-            hp.aeson
-            hp.optparse-applicative
-          ];
+          default =
+            hp:
+            lib.filter (p: p != null) [
+              hp.text or null
+              hp.bytestring or null
+              hp.containers or null
+              hp.aeson or null
+              hp.optparse-applicative or null
+            ];
           description = "Haskell packages for Buck2 toolchain (receives haskellPackages)";
         };
+      };
+
+      rust = {
+        enable = lib.mkEnableOption "Rust toolchain";
       };
 
       lean = {
@@ -149,10 +192,12 @@ in
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
-          default = ps: [
-            ps.nanobind
-            ps.numpy
-          ];
+          default =
+            ps:
+            lib.filter (p: p != null) [
+              ps.nanobind or null
+              ps.numpy or null
+            ];
           description = "Python packages for Buck2 toolchain";
         };
       };
@@ -306,11 +351,21 @@ in
             ghc_lib_dir = ${ghcForBuck2}/lib/ghc-${hsPkgs.ghc.version}/lib
             global_package_db = ${ghcForBuck2}/lib/ghc-${hsPkgs.ghc.version}/lib/package.conf.d
           ''
+          + lib.optionalString (cfg.toolchain.rust.enable && pkgs ? rustc) ''
+
+            [rust]
+            rustc = ${pkgs.rustc}/bin/rustc
+            rustdoc = ${pkgs.rustc}/bin/rustdoc
+            clippy_driver = ${pkgs.clippy}/bin/clippy-driver
+            cargo = ${pkgs.cargo}/bin/cargo
+            target_triple = x86_64-unknown-linux-gnu
+          ''
           + lib.optionalString (cfg.toolchain.lean.enable && pkgs ? lean4) ''
 
             [lean]
             lean = ${pkgs.lean4}/bin/lean
             leanc = ${pkgs.lean4}/bin/leanc
+            lake = ${pkgs.lean4}/bin/lake
             lean_lib_dir = ${pkgs.lean4}/lib/lean/library
             lean_include_dir = ${pkgs.lean4}/include
           ''
@@ -335,10 +390,25 @@ in
         # ────────────────────────────────────────────────────────────────────────
         # Shell hook for generating .buckconfig.local and wrappers
         # ────────────────────────────────────────────────────────────────────────
+        # Buck2 prelude source
+        preludeSrc = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude or null;
+
         buildShellHook =
-          lib.optionalString (isLinux && cfg.generate-buckconfig) ''
+          lib.optionalString (isLinux && cfg.prelude.enable && preludeSrc != null) ''
+            # Link buck2-prelude to nix/build/prelude
+            if [ ! -e "nix/build/prelude/prelude.bzl" ]; then
+              echo "Linking buck2-prelude..."
+              rm -rf nix/build/prelude
+              mkdir -p nix/build
+              ln -sf ${preludeSrc} nix/build/prelude
+              echo "Linked ${preludeSrc} → nix/build/prelude"
+            fi
+          ''
+          + lib.optionalString (isLinux && cfg.generate-buckconfig) ''
             # Generate .buckconfig.local with Nix store paths
+            rm -f .buckconfig.local 2>/dev/null || true
             cp ${buckconfig-local} .buckconfig.local
+            chmod 644 .buckconfig.local
             echo "Generated .buckconfig.local with LLVM 22 paths"
           ''
           + lib.optionalString (isLinux && cfg.generate-wrappers) ''
@@ -443,15 +513,17 @@ in
             lib.optionals (isLinux && llvm-git != null && cfg.toolchain.cxx.enable) [ llvm-git ]
             ++ lib.optionals (isLinux && nvidia-sdk != null && cfg.toolchain.nv.enable) [ nvidia-sdk ]
             ++ lib.optionals cfg.toolchain.haskell.enable [ ghcForBuck2 ]
+            ++ lib.optionals (cfg.toolchain.rust.enable && pkgs ? rustc) [
+              pkgs.rustc
+              pkgs.cargo
+              pkgs.clippy
+              pkgs.rustfmt
+            ]
             ++ lib.optionals (cfg.toolchain.lean.enable && pkgs ? lean4) [ pkgs.lean4 ]
             ++ lib.optionals cfg.toolchain.python.enable [ pythonEnv ]
             ++ lib.optionals (pkgs ? buck2) [ pkgs.buck2 ];
         };
 
-        # Export packages
-        packages = lib.optionalAttrs (cfg.prelude.enable && inputs ? buck2-prelude) {
-          inherit (inputs) buck2-prelude;
-        };
       };
   };
 }

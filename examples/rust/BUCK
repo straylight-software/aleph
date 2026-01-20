@@ -1,0 +1,10 @@
+# examples/rust/BUCK
+#
+# Rust examples using hermetic Nix toolchain
+
+rust_binary(
+    name = "hello",
+    srcs = ["hello.rs"],
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)

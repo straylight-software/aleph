@@ -5,3 +5,6 @@ result-*
 .nil.toml
 .direnv
 .devshell
+
+# Buck2 build artifacts
+buck-out/

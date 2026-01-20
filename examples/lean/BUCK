@@ -1,0 +1,11 @@
+# examples/lean/BUCK
+#
+# Lean 4 examples using hermetic Nix toolchain
+
+load("@toolchains//:lean.bzl", "lean_binary")
+
+lean_binary(
+    name = "hello",
+    srcs = ["Hello.lean"],
+    visibility = ["PUBLIC"],
+)

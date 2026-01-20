@@ -127,6 +127,7 @@ in
               pkgs.ripgrep
               pkgs.fd
               pkgs.just
+              pkgs.buck2
               mercuryGhc
             ]
             ++ haskellPkgs
@@ -162,55 +163,58 @@ in
             ++ (cfg.extra-packages pkgs);
 
             shellHook = ''
-              echo "━━━ aleph-naught devshell ━━━"
+                echo "━━━ aleph-naught devshell ━━━"
 
-              # Create combined package database for Mercury GHC
-              PKGDB_DIR="$PWD/.ghc-pkg-db"
-              if [ ! -f "$PKGDB_DIR/package.cache" ]; then
-                echo "Creating GHC package database..."
-                rm -rf "$PKGDB_DIR"
-                mkdir -p "$PKGDB_DIR"
+                # Create combined package database for Mercury GHC
+                PKGDB_DIR="$PWD/.ghc-pkg-db"
+                if [ ! -f "$PKGDB_DIR/package.cache" ]; then
+                  echo "Creating GHC package database..."
+                  rm -rf "$PKGDB_DIR"
+                  mkdir -p "$PKGDB_DIR"
 
-                # Collect .conf files from Haskell packages
-                collect_confs() {
-                  local pkg="$1"
-                  local visited="$2"
-                  if echo "$visited" | grep -q "$pkg"; then return; fi
-                  visited="$visited $pkg"
-                  for confdir in "$pkg"/lib/ghc-*/package.conf.d; do
-                    if [ -d "$confdir" ]; then
-                      cp "$confdir"/*.conf "$PKGDB_DIR/" 2>/dev/null || true
-                    fi
-                  done
-                  if [ -f "$pkg/nix-support/propagated-build-inputs" ]; then
-                    for dep in $(cat "$pkg/nix-support/propagated-build-inputs"); do
-                      collect_confs "$dep" "$visited"
+                  # Collect .conf files from Haskell packages
+                  collect_confs() {
+                    local pkg="$1"
+                    local visited="$2"
+                    if echo "$visited" | grep -q "$pkg"; then return; fi
+                    visited="$visited $pkg"
+                    for confdir in "$pkg"/lib/ghc-*/package.conf.d; do
+                      if [ -d "$confdir" ]; then
+                        cp "$confdir"/*.conf "$PKGDB_DIR/" 2>/dev/null || true
+                      fi
                     done
+                    if [ -f "$pkg/nix-support/propagated-build-inputs" ]; then
+                      for dep in $(cat "$pkg/nix-support/propagated-build-inputs"); do
+                        collect_confs "$dep" "$visited"
+                      done
+                    fi
+                  }
+
+                  VISITED=""
+                  for pkg in ${haskellPkgsPaths}; do
+                    collect_confs "$pkg" "$VISITED"
+                  done
+
+                  ${mercuryGhc}/bin/ghc-pkg --package-db="$PKGDB_DIR" recache
+                  echo "Package database: $(ls "$PKGDB_DIR"/*.conf 2>/dev/null | wc -l) packages"
+                fi
+
+                export GHC_PACKAGE_PATH="$PKGDB_DIR:"
+                echo "GHC: $(${mercuryGhc}/bin/ghc --version)"
+                ${lib.optionalString cfg.ghc-wasm.enable ''
+                  if command -v wasm32-wasi-ghc &>/dev/null; then
+                    echo "GHC-WASM: $(wasm32-wasi-ghc --version)"
                   fi
-                }
+                ''}
+                ${lib.optionalString cfg.straylight-nix.enable ''
+                  if [ -n "${pkgs.straylight.nix.nix or ""}" ]; then
+                    echo "straylight-nix: $(${pkgs.straylight.nix.nix}/bin/nix --version)"
+                    echo "builtins.wasm: $(${pkgs.straylight.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
+                  fi
+                ''}
+                # Buck2 build system integration
+              ${config.straylight.build.shellHook or ""}
 
-                VISITED=""
-                for pkg in ${haskellPkgsPaths}; do
-                  collect_confs "$pkg" "$VISITED"
-                done
-
-                ${mercuryGhc}/bin/ghc-pkg --package-db="$PKGDB_DIR" recache
-                echo "Package database: $(ls "$PKGDB_DIR"/*.conf 2>/dev/null | wc -l) packages"
-              fi
-
-              export GHC_PACKAGE_PATH="$PKGDB_DIR:"
-              echo "GHC: $(${mercuryGhc}/bin/ghc --version)"
-              ${lib.optionalString cfg.ghc-wasm.enable ''
-                if command -v wasm32-wasi-ghc &>/dev/null; then
-                  echo "GHC-WASM: $(wasm32-wasi-ghc --version)"
-                fi
-              ''}
-              ${lib.optionalString cfg.straylight-nix.enable ''
-                if [ -n "${pkgs.straylight.nix.nix or ""}" ]; then
-                  echo "straylight-nix: $(${pkgs.straylight.nix.nix}/bin/nix --version)"
-                  echo "builtins.wasm: $(${pkgs.straylight.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
-                fi
-              ''}
               ${cfg.extra-shell-hook}
             '';
           }
