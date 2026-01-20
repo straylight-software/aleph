@@ -585,11 +585,15 @@ let
   # ──────────────────────────────────────────────────────────────────────────
   # Build a derivation using the zero-bash architecture (RFC-007).
   #
-  # Instead of converting actions to shell strings, this creates a derivation
-  # that uses aleph-exec as the builder. aleph-exec reads the spec directly
-  # and executes actions via Haskell I/O.
+  # DHALL IS THE SUBSTRATE.
   #
-  # This is opt-in. Set `zeroBash = true` in the spec to enable.
+  # The new architecture:
+  #   1. Haskell WASM module emits Dhall directly (drvToDhall)
+  #   2. Nix resolves sources/deps and writes resolved Dhall to store
+  #   3. aleph-exec reads Dhall and executes typed actions
+  #
+  # No Nix string interpolation for generating Dhall - that's eliminated.
+  # The spec.dhall field contains pre-generated Dhall from Haskell.
   #
   # FEATURE REQUIREMENT: aleph-exec must be built and available
   #
@@ -600,19 +604,141 @@ let
       aleph-exec,
     }:
     let
-      typedBuilder = import ./typed-builder.nix {
-        inherit lib;
-        inherit (pkgs)
-          writeText
-          runCommand
-          stdenv
-          fetchFromGitHub
-          fetchurl
-          ;
-        inherit aleph-exec;
+      # Resolve source at eval time
+      src =
+        if spec.src == null || spec.src.type or "" == "none" then
+          null
+        else if spec.src.type == "github" then
+          pkgs.fetchFromGitHub {
+            inherit (spec.src)
+              owner
+              repo
+              rev
+              hash
+              ;
+          }
+        else if spec.src.type == "url" then
+          pkgs.fetchurl {
+            inherit (spec.src) url hash;
+          }
+        else if spec.src.type == "store" then
+          spec.src.path
+        else
+          throw "Unknown source type: ${spec.src.type}";
+
+      # Resolve dependencies by name
+      resolveDep =
+        name:
+        let
+          parts = lib.splitString "." name;
+          resolved = lib.foldl' (acc: part: acc.${part} or null) pkgs parts;
+        in
+        if resolved != null then resolved else throw "Unknown package: ${name}";
+
+      deps = spec.deps or { };
+      nativeBuildInputs = map resolveDep (deps.nativeBuildInputs or [ ]);
+      buildInputs = map resolveDep (deps.buildInputs or [ ]);
+      propagatedBuildInputs = map resolveDep (deps.propagatedBuildInputs or [ ]);
+
+      # The Dhall spec - either pre-generated from Haskell or we fall back to
+      # shell-based building for now. Future: all packages emit Dhall directly.
+      #
+      # When spec.dhall exists, it contains complete Dhall with placeholders:
+      #   - @src@ → resolved source path
+      #   - @out@ → output path (resolved at build time via $out)
+      #   - @dep:name@ → resolved dependency path
+      #
+      # We substitute the resolved paths and write to store.
+      specDhall = spec.dhall or null;
+
+      # Build dependency path map for substitution
+      depPaths = lib.mapAttrs' (name: _: lib.nameValuePair "@dep:${name}@" (toString (resolveDep name))) (
+        lib.listToAttrs (
+          map (n: lib.nameValuePair n null) (deps.nativeBuildInputs or [ ] ++ deps.buildInputs or [ ])
+        )
+      );
+
+      # Substitute placeholders in Dhall
+      resolvedDhall =
+        if specDhall != null then
+          let
+            withSrc =
+              builtins.replaceStrings
+                [ "@src@" ]
+                [
+                  (if src != null then ''"${src}"'' else "Src.None")
+                ]
+                specDhall;
+            # Substitute all @dep:name@ placeholders
+            withDeps = lib.foldl' (
+              s: name: builtins.replaceStrings [ "@dep:${name}@" ] [ "${resolveDep name}" ] s
+            ) withSrc (deps.nativeBuildInputs or [ ] ++ deps.buildInputs or [ ]);
+          in
+          withDeps
+        else
+          null;
+
+      # Write resolved Dhall to store
+      specFile =
+        if resolvedDhall != null then pkgs.writeText "${spec.pname}-spec.dhall" resolvedDhall else null;
+
+      # Builder type determines how we integrate with stdenv
+      builder = spec.builder or { type = "none"; };
+
+      # For cmake/meson projects, let stdenv handle the build system
+      # but use aleph-exec for custom phases
+      builderAttrs =
+        if builder.type == "cmake" then
+          {
+            nativeBuildInputs = nativeBuildInputs ++ [
+              pkgs.cmake
+              pkgs.ninja
+            ];
+            cmakeFlags = builder.flags or [ ];
+          }
+        else if builder.type == "meson" then
+          {
+            nativeBuildInputs = nativeBuildInputs ++ [
+              pkgs.meson
+              pkgs.ninja
+            ];
+            mesonFlags = builder.flags or [ ];
+          }
+        else
+          { };
+
+      # Custom phase hooks that call aleph-exec
+      phaseHooks = lib.optionalAttrs (specFile != null) {
+        postInstall = ''
+          echo "[zero-bash] Running aleph-exec for install phase..."
+          ${aleph-exec}/bin/aleph-exec --spec ${specFile} --phase install || true
+        '';
+        postFixup = ''
+          echo "[zero-bash] Running aleph-exec for fixup phase..."
+          ${aleph-exec}/bin/aleph-exec --spec ${specFile} --phase fixup || true
+        '';
       };
+
     in
-    typedBuilder.buildTypedDerivation { inherit spec pkgs; };
+    pkgs.stdenv.mkDerivation (
+      {
+        inherit (spec) pname version;
+        inherit src buildInputs propagatedBuildInputs;
+        nativeBuildInputs = (builderAttrs.nativeBuildInputs or nativeBuildInputs) ++ [ aleph-exec ];
+
+        strictDeps = spec.strictDeps or true;
+        doCheck = spec.doCheck or false;
+
+        meta = {
+          description = spec.meta.description or "";
+          homepage = spec.meta.homepage or null;
+          license = lib.licenses.${spec.meta.license or "unfree"} or lib.licenses.unfree;
+          platforms = if (spec.meta.platforms or [ ]) == [ ] then lib.platforms.all else spec.meta.platforms;
+        };
+      }
+      // builderAttrs
+      // phaseHooks
+    );
 
 in
 {

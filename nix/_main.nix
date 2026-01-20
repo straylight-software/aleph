@@ -271,6 +271,11 @@ in
         rapidjson = call-package ./packages/rapidjson.hs { };
         spdlog = call-package ./packages/spdlog.hs { };
         zlib-ng = call-package ./packages/zlib-ng.hs { };
+
+        # Zero-bash variants (RFC-007) - same packages, no shell strings
+        zlib-ng-zero-bash = call-package ./packages/zlib-ng.hs { zeroBash = true; };
+        fmt-zero-bash = call-package ./packages/fmt.hs { zeroBash = true; };
+        mdspan-zero-bash = call-package ./packages/mdspan.hs { zeroBash = true; };
         # Note: abseil-cpp uses libmodern overlay (needs combine-archive)
 
         # NVIDIA SDK (from PyPI wheels)

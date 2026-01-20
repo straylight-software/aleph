@@ -3,13 +3,15 @@
 # Zero-Bash Build Executor
 # ========================
 #
-# This is the builder binary for zero-bash derivations. It reads a JSON spec
+# This is the builder binary for zero-bash derivations. It reads a Dhall spec
 # and executes typed actions directly - no shell, no bash.
+#
+# DHALL IS THE SUBSTRATE.
 #
 # Used as:
 #   derivation {
 #     builder = "${aleph-exec}/bin/aleph-exec";
-#     args = [ "--spec" "${specFile}" ];
+#     args = [ "--spec" "${specFile.dhall}" ];
 #   }
 #
 {
@@ -18,13 +20,18 @@
   haskellPackages,
   makeWrapper,
   patchelf,
+  cmake,
+  ninja,
 }:
 
 let
-  # GHC with all required packages
+  # GHC with all required packages including Dhall
   ghcWithPkgs = haskellPackages.ghcWithPackages (
     ps: with ps; [
-      aeson
+      # Dhall - the substrate
+      dhall
+
+      # Core
       bytestring
       containers
       directory
@@ -32,7 +39,14 @@ let
       process
       text
       unix
+
+      # Archives
       zip-archive
+      tar
+      zlib
+
+      # Globbing
+      Glob
     ]
   );
 in
@@ -47,8 +61,15 @@ stdenv.mkDerivation {
     makeWrapper
   ];
 
-  # Runtime dependencies
-  buildInputs = [ patchelf ];
+  # Don't let stdenv think this is a CMake project
+  dontUseCmakeConfigure = true;
+
+  # These are only for runtime wrapping, not build-time
+  runtimeDeps = [
+    patchelf
+    cmake
+    ninja
+  ];
 
   buildPhase = ''
     runHook preBuild
@@ -65,9 +86,15 @@ stdenv.mkDerivation {
     mkdir -p $out/bin
     install -m 0755 aleph-exec $out/bin/
 
-    # Wrap to ensure patchelf is available at runtime
+    # Wrap to ensure build tools are available at runtime
     wrapProgram $out/bin/aleph-exec \
-      --prefix PATH : ${lib.makeBinPath [ patchelf ]}
+      --prefix PATH : ${
+        lib.makeBinPath [
+          patchelf
+          cmake
+          ninja
+        ]
+      }
 
     runHook postInstall
   '';

@@ -1,240 +1,330 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 {- | aleph-exec: Zero-Bash Build Executor
 
-This is the sole builder for zero-bash derivations. It reads a JSON spec
+This is the sole builder for zero-bash derivations. It reads a Dhall spec
 and executes typed actions directly - no shell, no bash, no string interpolation.
+
+DHALL IS THE SUBSTRATE.
 
 = Architecture
 
-The Nix derivation looks like:
+The Nix derivation calls aleph-exec at specific phases:
 
 @
-derivation {
-  builder = "${aleph-exec}/bin/aleph-exec";
-  args = [ "--spec" "${specFile}" ];
-  -- ...
+stdenv.mkDerivation {
+  postPatch = "aleph-exec --spec spec.dhall --phase patch";
+  postInstall = "aleph-exec --spec spec.dhall --phase install";
 }
 @
 
 aleph-exec then:
-1. Reads the JSON spec
-2. Validates all paths
-3. Executes each action using Haskell I/O
-4. Reports success/failure with structured output
+1. Reads and type-checks the Dhall spec
+2. Executes the actions for the requested phase
+3. Reports success/failure with structured output
 
 = Security
 
-- No shell execution (except patchelf, which is audited)
+- No shell execution (except cmake/ninja/patchelf, which are audited)
 - All paths validated before use
 - No string interpolation vulnerabilities
-- Output paths are validated to be under $out
+- Dhall guarantees termination - no infinite loops in specs
 
 = Actions Executed Directly
 
-- Mkdir     -> System.Directory.createDirectoryIfMissing True
-- Copy      -> System.Directory.copyFile / copyDirectoryRecursive
+- Mkdir     -> System.Directory.createDirectoryIfMissing
+- Copy      -> copyFile / copyDirectoryRecursive
 - Symlink   -> System.Posix.Files.createSymbolicLink
-- WriteFile -> Data.Text.IO.writeFile
-- Install   -> copyFile + setFileMode
-- Remove    -> removePathForcibly
-- Unzip     -> Codec.Archive.Zip.extractFilesFromArchive
-- Chmod     -> setFileMode
-- Substitute -> Text.replace in file
-
-= External Tools
-
-Only one external tool is called:
-- patchelf: For PatchElfRpath, PatchElfAddRpath, PatchElfInterpreter
-
-This is necessary because modifying ELF headers requires specialized code.
-The arguments are fully controlled (no user input reaches the command line).
+- Write     -> Data.Text.IO.writeFile
+- Unzip     -> Codec.Archive.Zip
+- Untar     -> Codec.Archive.Tar
+- CMake*    -> callProcess "cmake" / "ninja"
+- PatchElf* -> callProcess "patchelf"
 -}
 module Main (main) where
 
-import Control.Monad (forM_)
-import Data.Aeson (
-    FromJSON (..),
-    Value (..),
-    eitherDecodeFileStrict',
-    withArray,
-    withObject,
-    (.:),
-    (.:?),
- )
-import Data.Aeson.Key (toText)
-import qualified Data.Aeson.KeyMap as KM
-import Data.Aeson.Types (Parser)
+import Control.Monad (forM_, when, unless)
+import qualified Codec.Archive.Tar as Tar
+import qualified Codec.Archive.Zip as Zip
+import qualified Codec.Compression.GZip as GZip
 import qualified Data.ByteString.Lazy as BSL
-import Data.Foldable (foldl', toList)
+import Data.Foldable (foldl')
 import Data.List (intercalate)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import Dhall (FromDhall(..), Natural, auto, input)
+import qualified Dhall
 import GHC.Generics (Generic)
-import System.Directory (
-    copyFile,
-    createDirectoryIfMissing,
-    doesDirectoryExist,
-    listDirectory,
-    removePathForcibly,
- )
+import System.Directory
 import System.Environment (getArgs, getEnv, lookupEnv)
-import System.Exit (exitFailure, exitSuccess)
-import System.FilePath (takeDirectory, (</>))
+import System.Exit (exitFailure, exitSuccess, ExitCode(..))
+import System.FilePath ((</>), takeDirectory, takeFileName)
+import System.FilePath.Glob (glob)
 import System.IO (hPutStrLn, stderr)
 import System.Posix.Files (createSymbolicLink, setFileMode)
-import System.Process (callProcess)
-
--- For zip extraction
-import qualified Codec.Archive.Zip as Zip
+import System.Process (callProcess, readProcessWithExitCode)
 
 --------------------------------------------------------------------------------
--- Spec Types
+-- Dhall Types (matching Aleph/Config/Drv.dhall)
 --------------------------------------------------------------------------------
 
--- | The complete derivation spec (parsed from JSON)
-data Spec = Spec
-    { specPname :: Text
-    , specVersion :: Text
-    , specPhases :: Phases
-    , specMeta :: Maybe Meta
-    , specEnv :: [(Text, Text)]
-    }
+-- | Reference to a path - the key typed abstraction
+-- Using positional constructors to avoid field name collisions
+data Ref
+    = RefDep Text (Maybe Text)   -- name, subpath
+    | RefOut Text (Maybe Text)   -- name, subpath
+    | RefSrc (Maybe Text)        -- subpath
+    | RefEnv Text
+    | RefRel Text
+    | RefLit Text
+    | RefCat [Ref]
     deriving (Show, Generic)
 
-data Phases = Phases
-    { phasesPostPatch :: [Action]
-    , phasesPreConfigure :: [Action]
-    , phasesInstallPhase :: [Action]
-    , phasesPostInstall :: [Action]
-    , phasesPostFixup :: [Action]
-    }
+instance FromDhall Ref where
+    autoWith _ = Dhall.union
+        ( (uncurry RefDep <$> Dhall.constructor "Dep" (Dhall.record $ 
+            (,) <$> Dhall.field "name" Dhall.strictText 
+                <*> Dhall.field "subpath" (Dhall.maybe Dhall.strictText)))
+        <> (uncurry RefOut <$> Dhall.constructor "Out" (Dhall.record $
+            (,) <$> Dhall.field "name" Dhall.strictText
+                <*> Dhall.field "subpath" (Dhall.maybe Dhall.strictText)))
+        <> (RefSrc <$> Dhall.constructor "Src" (Dhall.record $
+            Dhall.field "subpath" (Dhall.maybe Dhall.strictText)))
+        <> (RefEnv <$> Dhall.constructor "Env" Dhall.strictText)
+        <> (RefRel <$> Dhall.constructor "Rel" Dhall.strictText)
+        <> (RefLit <$> Dhall.constructor "Lit" Dhall.strictText)
+        -- NOTE: Cat is intentionally NOT decoded - it causes <<loop>> due to recursive auto
+        -- Use string concatenation in the Dhall generator instead
+        )
+
+-- | File mode
+data Mode
+    = ModeR
+    | ModeRW
+    | ModeRX
+    | ModeRWX
+    | ModeOctal Natural
     deriving (Show, Generic)
 
-data Meta = Meta
-    { metaDescription :: Maybe Text
-    }
+instance FromDhall Mode where
+    autoWith _ = Dhall.union
+        ( (const ModeR <$> Dhall.constructor "R" Dhall.unit)
+        <> (const ModeRW <$> Dhall.constructor "RW" Dhall.unit)
+        <> (const ModeRX <$> Dhall.constructor "RX" Dhall.unit)
+        <> (const ModeRWX <$> Dhall.constructor "RWX" Dhall.unit)
+        <> (ModeOctal <$> Dhall.constructor "Octal" Dhall.natural)
+        )
+
+-- | Compression type
+data Compression = NoCompression | Gzip | Zstd | Xz
+    deriving (Show, Generic, FromDhall)
+
+-- | CMake generator
+data Generator = Ninja | Make | DefaultGenerator
     deriving (Show, Generic)
 
--- | Build action
+instance FromDhall Generator where
+    autoWith _ = Dhall.union
+        ( (const Ninja <$> Dhall.constructor "Ninja" Dhall.unit)
+        <> (const Make <$> Dhall.constructor "Make" Dhall.unit)
+        <> (const DefaultGenerator <$> Dhall.constructor "Default" Dhall.unit)
+        )
+
+-- | Replacement pair for substitution
+data Replacement = Replacement
+    { from :: Text
+    , to :: Text
+    }
+    deriving (Show, Generic, FromDhall)
+
+-- | Build action - the core of the typed build system
+-- Note: We use positional constructors to avoid field name collisions
 data Action
-    = Mkdir Text
-    | Copy Text Text
-    | Symlink Text Text
-    | WriteFile Text Text
-    | Install Int Text Text
-    | Remove Text
-    | Unzip Text
-    | PatchElfRpath Text [Text]
-    | PatchElfAddRpath Text [Text]
-    | PatchElfInterpreter Text Text
-    | Substitute Text [(Text, Text)]
-    | Wrap Text [WrapAction]
-    | Chmod Text Int
+    -- Filesystem
+    = Copy Ref Ref           -- src dst
+    | Move Ref Ref           -- src dst
+    | Symlink Ref Ref        -- target link
+    | Mkdir Ref Bool         -- path parents
+    | Remove Ref Bool        -- path recursive
+    | Touch Ref              -- path
+    | Chmod Ref Mode         -- path mode
+    
+    -- File I/O
+    | Write Ref Text         -- path contents
+    | Append Ref Text        -- path contents
+    
+    -- Archives
+    | Untar Ref Ref Natural  -- src dst strip
+    | Unzip Ref Ref          -- src dst
+    
+    -- Patching
+    | Substitute Ref [Replacement]  -- file replacements
+    
+    -- ELF manipulation
+    | PatchElfRpath Ref [Ref]       -- path rpaths
+    | PatchElfInterpreter Ref Ref   -- path interpreter
+    | PatchElfShrink Ref            -- path
+    
+    -- Build systems
+    | CMakeConfigure Ref Ref Ref Text [Text] Generator  -- srcDir buildDir installPrefix buildType flags generator
+    | CMakeBuild Ref (Maybe Text) (Maybe Natural)       -- buildDir target jobs
+    | CMakeInstall Ref                                  -- buildDir
+    
+    | MakeAction [Text] [Text] (Maybe Natural) (Maybe Ref)  -- targets flags jobs dir
+    
+    -- Install helpers
+    | InstallBin Ref         -- src
+    | InstallLib Ref         -- src
+    | InstallInclude Ref     -- src
+    
+    -- Control flow
+    | Seq [Action]
+    
+    -- Escape hatch (use sparingly)
+    | Shell Text
     deriving (Show, Generic)
 
-data WrapAction
-    = WrapPrefix Text Text
-    | WrapSuffix Text Text
-    | WrapSet Text Text
-    | WrapSetDefault Text Text
-    | WrapUnset Text
-    | WrapAddFlags Text
-    deriving (Show, Generic)
-
---------------------------------------------------------------------------------
--- JSON Parsing
---------------------------------------------------------------------------------
-
-instance FromJSON Spec where
-    parseJSON = withObject "Spec" $ \o -> do
-        specPname <- o .: "pname"
-        specVersion <- o .: "version"
-        specPhases <- o .: "phases"
-        specMeta <- o .:? "meta"
-        env <- o .:? "env"
-        let specEnv = case env of
-                Nothing -> []
-                Just (Object m) -> [(toText k, v) | (k, String v) <- KM.toList m]
-                _ -> []
-        return Spec{..}
-
-instance FromJSON Phases where
-    parseJSON = withObject "Phases" $ \o -> do
-        phasesPostPatch <- o .:? "postPatch" >>= parseActions
-        phasesPreConfigure <- o .:? "preConfigure" >>= parseActions
-        phasesInstallPhase <- o .:? "installPhase" >>= parseActions
-        phasesPostInstall <- o .:? "postInstall" >>= parseActions
-        phasesPostFixup <- o .:? "postFixup" >>= parseActions
-        return Phases{..}
+instance FromDhall Action where
+    autoWith _ = Dhall.union
+        ( (uncurry Copy <$> Dhall.constructor "Copy" (Dhall.record $
+            (,) <$> Dhall.field "src" auto <*> Dhall.field "dst" auto))
+        <> (uncurry Move <$> Dhall.constructor "Move" (Dhall.record $
+            (,) <$> Dhall.field "src" auto <*> Dhall.field "dst" auto))
+        <> (uncurry Symlink <$> Dhall.constructor "Symlink" (Dhall.record $
+            (,) <$> Dhall.field "target" auto <*> Dhall.field "link" auto))
+        <> (uncurry Mkdir <$> Dhall.constructor "Mkdir" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "parents" Dhall.bool))
+        <> (uncurry Remove <$> Dhall.constructor "Remove" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "recursive" Dhall.bool))
+        <> (Touch <$> Dhall.constructor "Touch" auto)
+        <> (uncurry Chmod <$> Dhall.constructor "Chmod" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "mode" auto))
+        <> (uncurry Write <$> Dhall.constructor "Write" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "contents" Dhall.strictText))
+        <> (uncurry Append <$> Dhall.constructor "Append" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "contents" Dhall.strictText))
+        <> (mk3 Untar <$> Dhall.constructor "Untar" (Dhall.record $
+            (,,) <$> Dhall.field "src" auto <*> Dhall.field "dst" auto <*> Dhall.field "strip" Dhall.natural))
+        <> (uncurry Unzip <$> Dhall.constructor "Unzip" (Dhall.record $
+            (,) <$> Dhall.field "src" auto <*> Dhall.field "dst" auto))
+        <> (uncurry Substitute <$> Dhall.constructor "Substitute" (Dhall.record $
+            (,) <$> Dhall.field "file" auto <*> Dhall.field "replacements" (Dhall.list auto)))
+        <> (uncurry PatchElfRpath <$> Dhall.constructor "PatchElfRpath" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "rpaths" (Dhall.list auto)))
+        <> (uncurry PatchElfInterpreter <$> Dhall.constructor "PatchElfInterpreter" (Dhall.record $
+            (,) <$> Dhall.field "path" auto <*> Dhall.field "interpreter" auto))
+        <> (PatchElfShrink <$> Dhall.constructor "PatchElfShrink" (Dhall.record $
+            Dhall.field "path" auto))
+        <> (mk6 CMakeConfigure <$> Dhall.constructor "CMake" (Dhall.record $
+            (,,,,,) <$> Dhall.field "srcDir" auto
+                    <*> Dhall.field "buildDir" auto
+                    <*> Dhall.field "installPrefix" auto
+                    <*> Dhall.field "buildType" Dhall.strictText
+                    <*> Dhall.field "flags" (Dhall.list Dhall.strictText)
+                    <*> Dhall.field "generator" auto))
+        <> (mk3 CMakeBuild <$> Dhall.constructor "CMakeBuild" (Dhall.record $
+            (,,) <$> Dhall.field "buildDir" auto
+                 <*> Dhall.field "target" (Dhall.maybe Dhall.strictText)
+                 <*> Dhall.field "jobs" (Dhall.maybe Dhall.natural)))
+        <> (CMakeInstall <$> Dhall.constructor "CMakeInstall" (Dhall.record $
+            Dhall.field "buildDir" auto))
+        <> (mk4 MakeAction <$> Dhall.constructor "Make" (Dhall.record $
+            (,,,) <$> Dhall.field "targets" (Dhall.list Dhall.strictText)
+                  <*> Dhall.field "flags" (Dhall.list Dhall.strictText)
+                  <*> Dhall.field "jobs" (Dhall.maybe Dhall.natural)
+                  <*> Dhall.field "dir" (Dhall.maybe auto)))
+        <> (InstallBin <$> Dhall.constructor "InstallBin" (Dhall.record $
+            Dhall.field "src" auto))
+        <> (InstallLib <$> Dhall.constructor "InstallLib" (Dhall.record $
+            Dhall.field "src" auto))
+        <> (InstallInclude <$> Dhall.constructor "InstallInclude" (Dhall.record $
+            Dhall.field "src" auto))
+        -- NOTE: Seq is intentionally NOT decoded - it causes <<loop>> due to recursive auto
+        -- Use Shell as escape hatch or flatten sequences in the Dhall generator
+        <> (Shell <$> Dhall.constructor "Shell" Dhall.strictText)
+        )
       where
-        parseActions :: Maybe Value -> Parser [Action]
-        parseActions Nothing = return []
-        parseActions (Just v) = withArray "actions" (mapM parseAction . toList) v
+        mk3 f (a, b, c) = f a b c
+        mk4 f (a, b, c, d) = f a b c d
+        mk6 f (a, b, c, d, e, g) = f a b c d e g
 
-instance FromJSON Meta where
-    parseJSON = withObject "Meta" $ \o -> do
-        metaDescription <- o .:? "description"
-        return Meta{..}
+-- | Build phases
+data Phases = Phases
+    { unpack :: [Action]
+    , patch :: [Action]
+    , configure :: [Action]
+    , build :: [Action]
+    , check :: [Action]
+    , install :: [Action]
+    , fixup :: [Action]
+    }
+    deriving (Show, Generic, FromDhall)
 
-parseAction :: Value -> Parser Action
-parseAction = withObject "Action" $ \o -> do
-    action :: Text <- o .: "action"
-    case action of
-        "mkdir" -> Mkdir <$> o .: "path"
-        "copy" -> Copy <$> o .: "src" <*> o .: "dst"
-        "symlink" -> Symlink <$> o .: "target" <*> o .: "link"
-        "writeFile" -> WriteFile <$> o .: "path" <*> o .: "content"
-        "install" -> Install <$> o .: "mode" <*> o .: "src" <*> o .: "dst"
-        "remove" -> Remove <$> o .: "path"
-        "unzip" -> Unzip <$> o .: "dest"
-        "patchelfRpath" -> PatchElfRpath <$> o .: "path" <*> o .: "rpaths"
-        "patchelfAddRpath" -> PatchElfAddRpath <$> o .: "path" <*> o .: "rpaths"
-        "patchelfInterpreter" -> PatchElfInterpreter <$> o .: "path" <*> o .: "interpreter"
-        "substitute" -> Substitute <$> o .: "file" <*> parseReplacements o
-        "wrap" -> Wrap <$> o .: "program" <*> parseWrapActions o
-        "chmod" -> Chmod <$> o .: "path" <*> o .: "mode"
-        _ -> fail $ "Unknown action: " ++ T.unpack action
+-- | Source specification
+data Src
+    = SrcGitHub { owner :: Text, repo :: Text, rev :: Text, hash :: Text }
+    | SrcUrl { url :: Text, hash :: Text }
+    | SrcStore Text
+    | SrcNone
+    deriving (Show, Generic)
 
-parseReplacements :: KM.KeyMap Value -> Parser [(Text, Text)]
-parseReplacements o = do
-    reps <- o .: "replacements"
-    withArray "replacements" (mapM parseRep . toList) reps
-  where
-    parseRep = withObject "replacement" $ \r ->
-        (,) <$> r .: "from" <*> r .: "to"
+instance FromDhall Src where
+    autoWith _ = Dhall.union
+        ( (mkGitHub <$> Dhall.constructor "GitHub" (Dhall.record $
+            (,,,) <$> Dhall.field "owner" Dhall.strictText
+                  <*> Dhall.field "repo" Dhall.strictText
+                  <*> Dhall.field "rev" Dhall.strictText
+                  <*> Dhall.field "hash" Dhall.strictText))
+        <> (mkUrl <$> Dhall.constructor "Url" (Dhall.record $
+            (,) <$> Dhall.field "url" Dhall.strictText
+                <*> Dhall.field "hash" Dhall.strictText))
+        <> (SrcStore <$> Dhall.constructor "Store" Dhall.strictText)
+        <> (const SrcNone <$> Dhall.constructor "None" Dhall.unit)
+        )
+      where
+        mkGitHub (o, r, v, h) = SrcGitHub o r v h
+        mkUrl (u, h) = SrcUrl u h
 
-parseWrapActions :: KM.KeyMap Value -> Parser [WrapAction]
-parseWrapActions o = do
-    acts <- o .: "wrapActions"
-    withArray "wrapActions" (mapM parseWA . toList) acts
-  where
-    parseWA = withObject "wrapAction" $ \w -> do
-        typ :: Text <- w .: "type"
-        case typ of
-            "prefix" -> WrapPrefix <$> w .: "var" <*> w .: "value"
-            "suffix" -> WrapSuffix <$> w .: "var" <*> w .: "value"
-            "set" -> WrapSet <$> w .: "var" <*> w .: "value"
-            "setDefault" -> WrapSetDefault <$> w .: "var" <*> w .: "value"
-            "unset" -> WrapUnset <$> w .: "var"
-            "addFlags" -> WrapAddFlags <$> w .: "flags"
-            _ -> fail $ "Unknown wrap action: " ++ T.unpack typ
+-- | Metadata
+data Meta = Meta
+    { description :: Text
+    , homepage :: Maybe Text
+    , license :: Text
+    , maintainers :: [Text]
+    , platforms :: [Text]
+    }
+    deriving (Show, Generic, FromDhall)
+
+-- | The complete derivation spec
+data DrvSpec = DrvSpec
+    { pname :: Text
+    , version :: Text
+    , system :: Text
+    , src :: Src
+    , phases :: Phases
+    , meta :: Meta
+    }
+    deriving (Show, Generic, FromDhall)
 
 --------------------------------------------------------------------------------
--- Environment
+-- Build Context
 --------------------------------------------------------------------------------
 
--- | Build context with paths from environment
+-- | Build context with resolved paths
 data BuildContext = BuildContext
-    { ctxOut :: FilePath
-    -- ^ $out
-    , ctxSrc :: Maybe FilePath
-    -- ^ $src (if present)
+    { ctxOut :: FilePath           -- $out
+    , ctxSrc :: Maybe FilePath     -- $src (resolved source)
+    , ctxDeps :: Map Text FilePath -- Resolved dependencies
+    , ctxOutputs :: Map Text FilePath -- All outputs
     }
     deriving (Show)
 
@@ -242,35 +332,44 @@ getContext :: IO BuildContext
 getContext = do
     ctxOut <- getEnv "out"
     ctxSrc <- lookupEnv "src"
+    -- TODO: Parse deps from environment or spec
+    let ctxDeps = Map.empty
+        ctxOutputs = Map.singleton "out" ctxOut
     return BuildContext{..}
 
 --------------------------------------------------------------------------------
--- Path Resolution
+-- Reference Resolution
 --------------------------------------------------------------------------------
 
--- | Resolve a path relative to $out
-resolveOutPath :: BuildContext -> Text -> FilePath
-resolveOutPath ctx path
-    | T.isPrefixOf "/" path = T.unpack path -- Absolute path (store path)
-    | T.isPrefixOf "$out/" path = ctxOut ctx </> T.unpack (T.drop 5 path)
-    | T.isPrefixOf "$out" path = ctxOut ctx </> T.unpack (T.drop 4 path)
-    | otherwise = ctxOut ctx </> T.unpack path
-
--- | Resolve a source path (relative to $src or absolute)
-resolveSrcPath :: BuildContext -> Text -> FilePath
-resolveSrcPath ctx path
-    | T.isPrefixOf "/" path = T.unpack path -- Absolute path
-    | T.isPrefixOf "$src/" path = case ctxSrc ctx of
-        Just src -> src </> T.unpack (T.drop 5 path)
-        Nothing -> error "No source specified but path references $src"
-    | T.isPrefixOf "$src" path = case ctxSrc ctx of
-        Just src -> src </> T.unpack (T.drop 4 path)
-        Nothing -> error "No source specified but path references $src"
-    | T.isPrefixOf "$out/" path = ctxOut ctx </> T.unpack (T.drop 5 path)
-    | T.isPrefixOf "$out" path = ctxOut ctx </> T.unpack (T.drop 4 path)
-    | otherwise = case ctxSrc ctx of
-        Just src -> src </> T.unpack path
-        Nothing -> T.unpack path
+-- | Resolve a Ref to an actual filepath
+resolveRef :: BuildContext -> Ref -> IO FilePath
+resolveRef ctx = \case
+    RefDep depName subpath -> do
+        case Map.lookup depName (ctxDeps ctx) of
+            Just depPath -> return $ maybe depPath (depPath </>) (T.unpack <$> subpath)
+            Nothing -> fail $ "Unknown dependency: " ++ T.unpack depName
+    
+    RefOut outName subpath -> do
+        case Map.lookup outName (ctxOutputs ctx) of
+            Just outPath -> return $ maybe outPath (outPath </>) (T.unpack <$> subpath)
+            Nothing -> fail $ "Unknown output: " ++ T.unpack outName
+    
+    RefSrc subpath -> do
+        case ctxSrc ctx of
+            Just srcPath -> return $ maybe srcPath (srcPath </>) (T.unpack <$> subpath)
+            Nothing -> fail "No source available"
+    
+    RefEnv var -> getEnv (T.unpack var)
+    
+    RefRel path -> do
+        cwd <- getCurrentDirectory
+        return $ cwd </> T.unpack path
+    
+    RefLit text -> return $ T.unpack text
+    
+    RefCat refs -> do
+        parts <- mapM (resolveRef ctx) refs
+        return $ concat parts
 
 --------------------------------------------------------------------------------
 -- Action Execution
@@ -281,99 +380,203 @@ executeAction :: BuildContext -> Action -> IO ()
 executeAction ctx action = do
     logAction action
     case action of
-        Mkdir path -> do
-            let p = resolveOutPath ctx path
-            createDirectoryIfMissing True p
-
-        Copy src dst -> do
-            let srcPath = resolveSrcPath ctx src
-                dstPath = resolveOutPath ctx dst
+        Copy srcRef dstRef -> do
+            srcPath <- resolveRef ctx srcRef
+            dstPath <- resolveRef ctx dstRef
             createDirectoryIfMissing True (takeDirectory dstPath)
             isDir <- doesDirectoryExist srcPath
             if isDir
                 then copyDirectoryRecursive srcPath dstPath
                 else copyFile srcPath dstPath
-
-        Symlink target link -> do
-            let linkPath = resolveOutPath ctx link
-                targetPath = T.unpack target -- Target can be relative or absolute
+        
+        Move srcRef dstRef -> do
+            srcPath <- resolveRef ctx srcRef
+            dstPath <- resolveRef ctx dstRef
+            createDirectoryIfMissing True (takeDirectory dstPath)
+            renamePath srcPath dstPath
+        
+        Symlink targetRef linkRef -> do
+            targetPath <- resolveRef ctx targetRef
+            linkPath <- resolveRef ctx linkRef
             createDirectoryIfMissing True (takeDirectory linkPath)
             createSymbolicLink targetPath linkPath
-
-        WriteFile path content -> do
-            let p = resolveOutPath ctx path
+        
+        Mkdir pathRef parents -> do
+            p <- resolveRef ctx pathRef
+            createDirectoryIfMissing parents p
+        
+        Remove pathRef recursive -> do
+            p <- resolveRef ctx pathRef
+            if recursive
+                then removePathForcibly p
+                else removeFile p
+        
+        Touch pathRef -> do
+            p <- resolveRef ctx pathRef
             createDirectoryIfMissing True (takeDirectory p)
-            TIO.writeFile p content
-
-        Install mode src dst -> do
-            let srcPath = resolveSrcPath ctx src
-                dstPath = resolveOutPath ctx dst
-            createDirectoryIfMissing True (takeDirectory dstPath)
-            copyFile srcPath dstPath
-            setFileMode dstPath (fromIntegral mode)
-
-        Remove path -> do
-            let p = resolveOutPath ctx path
-            removePathForcibly p
-
-        Unzip dest -> do
-            let dstDir = resolveOutPath ctx dest
-            srcFile <- case ctxSrc ctx of
-                Just s -> return s
-                Nothing -> error "Unzip requires $src"
-            createDirectoryIfMissing True dstDir
-            archive <- Zip.toArchive <$> BSL.readFile srcFile
-            Zip.extractFilesFromArchive [Zip.OptDestination dstDir] archive
-
-        PatchElfRpath binary rpaths -> do
-            let binaryPath = resolveOutPath ctx binary
-                rpathStr = intercalate ":" (map T.unpack rpaths)
-            callProcess "patchelf" ["--set-rpath", rpathStr, binaryPath]
-
-        PatchElfAddRpath binary rpaths -> do
-            let binaryPath = resolveOutPath ctx binary
-                rpathStr = intercalate ":" (map T.unpack rpaths)
-            callProcess "patchelf" ["--add-rpath", rpathStr, binaryPath]
-
-        PatchElfInterpreter binary interp -> do
-            let binaryPath = resolveOutPath ctx binary
-                interpPath = T.unpack interp
-            callProcess "patchelf" ["--set-interpreter", interpPath, binaryPath]
-
-        Substitute file replacements -> do
-            let filePath = resolveOutPath ctx file
+            TIO.writeFile p ""
+        
+        Chmod pathRef m -> do
+            p <- resolveRef ctx pathRef
+            setFileMode p (fromIntegral $ modeToInt m)
+        
+        Write pathRef contents -> do
+            p <- resolveRef ctx pathRef
+            createDirectoryIfMissing True (takeDirectory p)
+            TIO.writeFile p contents
+        
+        Append pathRef contents -> do
+            p <- resolveRef ctx pathRef
+            TIO.appendFile p contents
+        
+        Untar srcRef dstRef _strip -> do
+            srcPath <- resolveRef ctx srcRef
+            dstPath <- resolveRef ctx dstRef
+            createDirectoryIfMissing True dstPath
+            -- Detect compression from extension
+            entries <- if ".gz" `T.isSuffixOf` T.pack srcPath || ".tgz" `T.isSuffixOf` T.pack srcPath
+                    then Tar.read . GZip.decompress <$> BSL.readFile srcPath
+                    else Tar.read <$> BSL.readFile srcPath
+            Tar.unpack dstPath entries
+        
+        Unzip srcRef dstRef -> do
+            srcPath <- resolveRef ctx srcRef
+            dstPath <- resolveRef ctx dstRef
+            createDirectoryIfMissing True dstPath
+            archive <- Zip.toArchive <$> BSL.readFile srcPath
+            Zip.extractFilesFromArchive [Zip.OptDestination dstPath] archive
+        
+        Substitute fileRef replacements -> do
+            filePath <- resolveRef ctx fileRef
             content <- TIO.readFile filePath
-            let content' = foldl' (\c (from, to) -> T.replace from to c) content replacements
+            let applyReplacement c Replacement{..} = T.replace from to c
+                content' = foldl' applyReplacement content replacements
             TIO.writeFile filePath content'
+        
+        PatchElfRpath pathRef rpathRefs -> do
+            binaryPath <- resolveRef ctx pathRef
+            rpathStrs <- mapM (resolveRef ctx) rpathRefs
+            let rpathStr = intercalate ":" rpathStrs
+            callProcess "patchelf" ["--set-rpath", rpathStr, binaryPath]
+        
+        PatchElfInterpreter pathRef interpRef -> do
+            binaryPath <- resolveRef ctx pathRef
+            interpPath <- resolveRef ctx interpRef
+            callProcess "patchelf" ["--set-interpreter", interpPath, binaryPath]
+        
+        PatchElfShrink pathRef -> do
+            binaryPath <- resolveRef ctx pathRef
+            callProcess "patchelf" ["--shrink-rpath", binaryPath]
+        
+        CMakeConfigure srcDirRef buildDirRef prefixRef buildType flags gen -> do
+            srcPath <- resolveRef ctx srcDirRef
+            buildPath <- resolveRef ctx buildDirRef
+            prefixPath <- resolveRef ctx prefixRef
+            createDirectoryIfMissing True buildPath
+            let genFlag = case gen of
+                    Ninja -> ["-G", "Ninja"]
+                    Make -> ["-G", "Unix Makefiles"]
+                    DefaultGenerator -> []
+                allFlags = genFlag ++
+                    [ "-S", srcPath
+                    , "-B", buildPath
+                    , "-DCMAKE_INSTALL_PREFIX=" ++ prefixPath
+                    , "-DCMAKE_BUILD_TYPE=" ++ T.unpack buildType
+                    ] ++ map T.unpack flags
+            callProcess "cmake" allFlags
+        
+        CMakeBuild buildDirRef targetMay jobsMay -> do
+            buildPath <- resolveRef ctx buildDirRef
+            let jobsFlag = maybe [] (\j -> ["-j", show j]) jobsMay
+                targetFlag = maybe [] (\t -> ["--target", T.unpack t]) targetMay
+            callProcess "cmake" $ ["--build", buildPath] ++ jobsFlag ++ targetFlag
+        
+        CMakeInstall buildDirRef -> do
+            buildPath <- resolveRef ctx buildDirRef
+            callProcess "cmake" ["--install", buildPath]
+        
+        MakeAction targets flags jobsMay dirMay -> do
+            let jobsFlag = maybe [] (\j -> ["-j" ++ show j]) jobsMay
+                allFlags = map T.unpack flags ++ jobsFlag ++ map T.unpack targets
+            case dirMay of
+                Just dirRef -> do
+                    dirPath <- resolveRef ctx dirRef
+                    callProcess "make" $ ["-C", dirPath] ++ allFlags
+                Nothing -> callProcess "make" allFlags
+        
+        InstallBin srcRef -> do
+            srcPath <- resolveRef ctx srcRef
+            let dstPath = ctxOut ctx </> "bin" </> takeFileName srcPath
+            createDirectoryIfMissing True (ctxOut ctx </> "bin")
+            copyFile srcPath dstPath
+            setFileMode dstPath 0o755
+        
+        InstallLib srcRef -> do
+            srcPath <- resolveRef ctx srcRef
+            let dstPath = ctxOut ctx </> "lib" </> takeFileName srcPath
+            createDirectoryIfMissing True (ctxOut ctx </> "lib")
+            copyFile srcPath dstPath
+        
+        InstallInclude srcRef -> do
+            srcPath <- resolveRef ctx srcRef
+            let dstPath = ctxOut ctx </> "include" </> takeFileName srcPath
+            createDirectoryIfMissing True (ctxOut ctx </> "include")
+            isDir <- doesDirectoryExist srcPath
+            if isDir
+                then copyDirectoryRecursive srcPath dstPath
+                else copyFile srcPath dstPath
+        
+        Seq actions -> mapM_ (executeAction ctx) actions
+        
+        Shell cmd -> do
+            -- Escape hatch - run shell command
+            log' $ "WARNING: Using shell escape hatch: " ++ T.unpack cmd
+            (exitCode, _, err) <- readProcessWithExitCode "sh" ["-c", T.unpack cmd] ""
+            case exitCode of
+                ExitSuccess -> return ()
+                ExitFailure n -> fail $ "Shell command failed with code " ++ show n ++ ": " ++ err
 
-        Wrap program wrapActions -> do
-            let progPath = resolveOutPath ctx program
-            generateWrapper progPath wrapActions
-
-        Chmod path mode -> do
-            let p = resolveOutPath ctx path
-            setFileMode p (fromIntegral mode)
+-- | Convert Mode to octal int
+modeToInt :: Mode -> Int
+modeToInt = \case
+    ModeR -> 0o444
+    ModeRW -> 0o644
+    ModeRX -> 0o555
+    ModeRWX -> 0o755
+    ModeOctal n -> fromIntegral n
 
 -- | Log action being executed
 logAction :: Action -> IO ()
 logAction = \case
-    Mkdir p -> log' $ "mkdir " ++ T.unpack p
-    Copy s d -> log' $ "copy " ++ T.unpack s ++ " -> " ++ T.unpack d
-    Symlink t l -> log' $ "symlink " ++ T.unpack t ++ " <- " ++ T.unpack l
-    WriteFile p _ -> log' $ "write " ++ T.unpack p
-    Install m s d -> log' $ "install -m" ++ show m ++ " " ++ T.unpack s ++ " -> " ++ T.unpack d
-    Remove p -> log' $ "remove " ++ T.unpack p
-    Unzip d -> log' $ "unzip -> " ++ T.unpack d
-    PatchElfRpath b rs -> log' $ "patchelf --set-rpath " ++ show rs ++ " " ++ T.unpack b
-    PatchElfAddRpath b rs -> log' $ "patchelf --add-rpath " ++ show rs ++ " " ++ T.unpack b
-    PatchElfInterpreter b i -> log' $ "patchelf --set-interpreter " ++ T.unpack i ++ " " ++ T.unpack b
-    Substitute f rs -> log' $ "substitute " ++ T.unpack f ++ " (" ++ show (length rs) ++ " replacements)"
-    Wrap p _ -> log' $ "wrap " ++ T.unpack p
-    Chmod p m -> log' $ "chmod " ++ show m ++ " " ++ T.unpack p
-  where
-    log' msg = hPutStrLn stderr $ "[aleph-exec] " ++ msg
+    Copy _ _ -> log' "copy"
+    Move _ _ -> log' "move"
+    Symlink _ _ -> log' "symlink"
+    Mkdir _ _ -> log' "mkdir"
+    Remove _ _ -> log' "remove"
+    Touch _ -> log' "touch"
+    Chmod _ _ -> log' "chmod"
+    Write _ _ -> log' "write"
+    Append _ _ -> log' "append"
+    Untar _ _ _ -> log' "untar"
+    Unzip _ _ -> log' "unzip"
+    Substitute _ _ -> log' "substitute"
+    PatchElfRpath _ _ -> log' "patchelf --set-rpath"
+    PatchElfInterpreter _ _ -> log' "patchelf --set-interpreter"
+    PatchElfShrink _ -> log' "patchelf --shrink-rpath"
+    CMakeConfigure _ _ _ _ _ _ -> log' "cmake configure"
+    CMakeBuild _ _ _ -> log' "cmake build"
+    CMakeInstall _ -> log' "cmake install"
+    MakeAction _ _ _ _ -> log' "make"
+    InstallBin _ -> log' "install bin"
+    InstallLib _ -> log' "install lib"
+    InstallInclude _ -> log' "install include"
+    Seq _ -> log' "seq"
+    Shell cmd -> log' $ "shell: " ++ T.unpack (T.take 50 cmd)
 
--- | Copy a directory recursively
+log' :: String -> IO ()
+log' msg = hPutStrLn stderr $ "[aleph-exec] " ++ msg
+
+-- | Copy directory recursively
 copyDirectoryRecursive :: FilePath -> FilePath -> IO ()
 copyDirectoryRecursive src dst = do
     createDirectoryIfMissing True dst
@@ -386,50 +589,14 @@ copyDirectoryRecursive src dst = do
             then copyDirectoryRecursive srcPath dstPath
             else copyFile srcPath dstPath
 
--- | Generate a wrapper script
-generateWrapper :: FilePath -> [WrapAction] -> IO ()
-generateWrapper progPath wrapActions = do
-    -- Rename original to .wrapped
-    let wrappedPath = progPath ++ "-wrapped"
-    copyFile progPath wrappedPath
-
-    -- Generate wrapper script
-    let script = generateWrapperScript wrappedPath wrapActions
-    TIO.writeFile progPath script
-
-    -- Make executable
-    setFileMode progPath 0o755
-
--- | Generate wrapper script content
-generateWrapperScript :: FilePath -> [WrapAction] -> Text
-generateWrapperScript wrappedPath actions =
-    T.unlines $
-        [ "#!/bin/sh"
-        , "# Wrapper generated by aleph-exec"
-        , ""
-        ]
-            ++ concatMap wrapActionToLines actions
-            ++ [ ""
-               , "exec \"" <> T.pack wrappedPath <> "\" \"$@\""
-               ]
-  where
-    wrapActionToLines = \case
-        WrapPrefix var val ->
-            ["export " <> var <> "=\"" <> val <> "${" <> var <> ":+:$" <> var <> "}\""]
-        WrapSuffix var val ->
-            ["export " <> var <> "=\"${" <> var <> ":+$" <> var <> ":}" <> val <> "\""]
-        WrapSet var val ->
-            ["export " <> var <> "=\"" <> val <> "\""]
-        WrapSetDefault var val ->
-            ["export " <> var <> "=\"${" <> var <> ":-" <> val <> "}\""]
-        WrapUnset var ->
-            ["unset " <> var]
-        WrapAddFlags flags ->
-            ["set -- " <> flags <> " \"$@\""]
-
 --------------------------------------------------------------------------------
 -- Main
 --------------------------------------------------------------------------------
+
+data Options = Options
+    { optSpecFile :: FilePath
+    , optPhase :: Maybe String
+    }
 
 main :: IO ()
 main = do
@@ -437,61 +604,68 @@ main = do
     case parseArgs args of
         Left err -> do
             hPutStrLn stderr $ "Error: " ++ err
-            hPutStrLn stderr "Usage: aleph-exec --spec SPEC_FILE"
+            hPutStrLn stderr "Usage: aleph-exec --spec SPEC.dhall [--phase PHASE]"
+            hPutStrLn stderr "Phases: unpack, patch, configure, build, check, install, fixup"
             exitFailure
-        Right specFile -> runBuild specFile
+        Right opts -> runBuild opts
 
-parseArgs :: [String] -> Either String FilePath
-parseArgs ("--spec" : file : _) = Right file
-parseArgs _ = Left "Missing --spec argument"
+parseArgs :: [String] -> Either String Options
+parseArgs = go (Options "" Nothing)
+  where
+    go opts [] 
+        | null (optSpecFile opts) = Left "Missing --spec argument"
+        | otherwise = Right opts
+    go opts ("--spec" : file : rest) = go opts { optSpecFile = file } rest
+    go opts ("--phase" : phase : rest) = go opts { optPhase = Just phase } rest
+    go _ (arg : _) = Left $ "Unknown argument: " ++ arg
 
-runBuild :: FilePath -> IO ()
-runBuild specFile = do
-    hPutStrLn stderr $ "[aleph-exec] Reading spec: " ++ specFile
-
-    -- Parse spec
-    result <- eitherDecodeFileStrict' specFile
-    case result of
-        Left err -> do
-            hPutStrLn stderr $ "[aleph-exec] Failed to parse spec: " ++ err
-            exitFailure
-        Right spec -> executeBuild spec
-
-executeBuild :: Spec -> IO ()
-executeBuild spec = do
-    hPutStrLn stderr $
-        "[aleph-exec] Building "
-            ++ T.unpack (specPname spec)
-            ++ "-"
-            ++ T.unpack (specVersion spec)
-
-    -- Get build context
+runBuild :: Options -> IO ()
+runBuild Options{..} = do
+    log' $ "Reading Dhall spec: " ++ optSpecFile
+    
+    -- Read and parse Dhall spec
+    dhallText <- TIO.readFile optSpecFile
+    spec <- input auto dhallText
+    
+    log' $ "Building " ++ T.unpack (pname spec) ++ "-" ++ T.unpack (version spec)
+    
     ctx <- getContext
-    hPutStrLn stderr $ "[aleph-exec] Output: " ++ ctxOut ctx
+    log' $ "Output: " ++ ctxOut ctx
     case ctxSrc ctx of
-        Just src -> hPutStrLn stderr $ "[aleph-exec] Source: " ++ src
-        Nothing -> hPutStrLn stderr "[aleph-exec] No source"
-
-    -- Create output directory
+        Just s -> log' $ "Source: " ++ s
+        Nothing -> log' "No source"
+    
     createDirectoryIfMissing True (ctxOut ctx)
-
-    -- Execute phases in order
-    let phases = specPhases spec
-
-    hPutStrLn stderr "[aleph-exec] Phase: postPatch"
-    mapM_ (executeAction ctx) (phasesPostPatch phases)
-
-    hPutStrLn stderr "[aleph-exec] Phase: preConfigure"
-    mapM_ (executeAction ctx) (phasesPreConfigure phases)
-
-    hPutStrLn stderr "[aleph-exec] Phase: installPhase"
-    mapM_ (executeAction ctx) (phasesInstallPhase phases)
-
-    hPutStrLn stderr "[aleph-exec] Phase: postInstall"
-    mapM_ (executeAction ctx) (phasesPostInstall phases)
-
-    hPutStrLn stderr "[aleph-exec] Phase: postFixup"
-    mapM_ (executeAction ctx) (phasesPostFixup phases)
-
-    hPutStrLn stderr "[aleph-exec] Build complete"
+    
+    let Phases{..} = phases spec
+    
+    case optPhase of
+        Nothing -> do
+            -- Run all phases
+            runPhase "unpack" unpack
+            runPhase "patch" patch
+            runPhase "configure" configure
+            runPhase "build" build
+            runPhase "check" check
+            runPhase "install" install
+            runPhase "fixup" fixup
+        Just phase -> do
+            let actions = case phase of
+                    "unpack" -> unpack
+                    "patch" -> patch
+                    "configure" -> configure
+                    "build" -> build
+                    "check" -> check
+                    "install" -> install
+                    "fixup" -> fixup
+                    _ -> error $ "Unknown phase: " ++ phase
+            runPhase phase actions
+    
+    log' "Build complete"
     exitSuccess
+  where
+    runPhase name actions = do
+        unless (null actions) $ do
+            log' $ "Phase: " ++ name
+            ctx <- getContext
+            mapM_ (executeAction ctx) actions

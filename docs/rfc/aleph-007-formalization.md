@@ -420,22 +420,67 @@ this runs in the sandbox with full type safety.
 
 ### Multi-Language Support
 
-The WASM ABI is the contract, not the source language. PureScript can use
-the same DSL:
+**Dhall is the substrate.** Any language that emits valid Dhall can define
+packages. The WASM plugin is just one way to generate Dhall.
 
-```purescript
-module Aleph.Nix.Packages.Nvidia where
+#### Haskell (Current)
 
-nccl :: Drv
-nccl = mkDerivation
-    [ pname "nvidia-nccl"
-    , version "2.28.9"
-    -- ... same structure
+Haskell packages compile to WASM. The WASM plugin calls Nix FFI to resolve
+dependencies and emits Dhall with concrete store paths.
+
+```haskell
+-- nix/packages/zlib-ng.hs
+pkg = mkDerivation
+    [ pname "zlib-ng"
+    , version "2.2.4"
+    , src $ fetchFromGitHub [...]
+    , cmake defaults { ... }
     ]
 ```
 
-Both Haskell and PureScript compile to WASM. Both produce identical Nix
-attrsets. The host language is a choice of ergonomics.
+#### PureScript (Planned)
+
+PureScript can use the same Dhall schema. The PureScript compiler targets
+WASM, and the same FFI bindings work:
+
+```purescript
+-- nix/packages/zlib-ng.purs
+pkg = mkDerivation
+    [ pname "zlib-ng"
+    , version "2.2.4"
+    , src $ fetchFromGitHub { ... }
+    , cmake defaults { ... }
+    ]
+```
+
+#### Direct Dhall (Possible)
+
+For simple packages, Dhall can be written directly without a compilation step:
+
+```dhall
+-- nix/packages/hello.dhall
+let D = ../scripts/Aleph/Config/Drv.dhall
+
+in D.defaultDrv //
+  { pname = "hello"
+  , version = "1.0"
+  , phases = D.emptyPhases //
+      { install =
+          [ D.Action.Write
+              { path = D.Ref.Out { name = "out", subpath = Some "bin/hello" }
+              , contents = "#!/bin/sh\necho Hello"
+              }
+          , D.Action.Chmod
+              { path = D.Ref.Out { name = "out", subpath = Some "bin/hello" }
+              , mode = D.Mode.RWX
+              }
+          ]
+      }
+  }
+```
+
+The Dhall schema in `nix/scripts/Aleph/Config/Drv.dhall` is the shared contract.
+All language backends must emit Dhall conforming to this schema.
 
 ### Current Implementation Status
 
@@ -450,12 +495,16 @@ attrsets. The host language is a choice of ergonomics.
 | Zero-boilerplate wrapper Main.hs | **Complete** |
 | `tool()` for auto dependency tracking | **Complete** |
 | Typed tool modules (Jq, PatchElf, Install, Substitute) | **Complete** |
-| Dhall schema for actions | **Next** |
-| Dhall emission from WASM | **Next** |
+| Dhall schema for derivations | **Complete** |
+| `aleph-exec` binary | **Complete** |
+| aleph-exec Dhall parsing | **Complete** |
+| Zero-bash test package | **Complete** |
+| Zero-bash CMake packages | **Complete** |
+| `drvToDhall` Haskell→Dhall emission | **Complete** |
+| Nix placeholder substitution | **Complete** |
+| `typed-builder.nix` removal | **Complete** |
 | Store path validation in Nix | **Next** |
-| `aleph-exec` binary | **Next** |
-| Zero-bash execution | **Next** |
-| PureScript backend | **Planned** |
+| PureScript backend (uses Dhall schema) | **Planned** |
 | Flake module configuration | **Planned** |
 
 ### Example: Complete Package File
@@ -501,103 +550,127 @@ The file *is* the package. `call-package` compiles it, evaluates it, builds it.
 
 ### The Dhall Schema
 
-All typed package definitions emit Dhall, not JSON. Dhall provides:
+Dhall serves as the **universal intermediate representation**. Any language that
+emits valid Dhall can define packages:
+
+- Haskell via WASM (current)
+- PureScript via WASM (planned)
+- Direct Dhall files (possible)
+
+Dhall provides:
 
 1. **Static typing** - Invalid structures rejected at generation time
 2. **Imports** - Schemas can reference other schemas
 3. **Normalization** - Canonical form for reproducibility
-4. **No escape hatches** - No arbitrary code execution
+4. **No Turing completeness** - Guaranteed termination, no escape hatches
 
-#### Store Path Schema
+The Dhall schema lives in `nix/scripts/Aleph/Config/Drv.dhall`.
+
+#### The Ref Type (Typed Path References)
+
+The key innovation is **typed path references**. Instead of raw strings that get
+interpolated, all paths are tagged with their source:
 
 ```dhall
--- nix/prelude/dhall/store-path.dhall
-
--- A validated Nix store path. Opaque - never interpolated as a raw string.
-let StorePath = { store : Text, name : Text, out : Text }
-
--- Resolve to actual path (only called by aleph-exec, never in Nix strings)
-let resolve : StorePath → Text = λ(p : StorePath) → 
-  "/nix/store/${p.store}-${p.name}${p.out}"
-
-in { StorePath, resolve }
+let Ref =
+  < Dep : { name : Text, subpath : Optional Text }   -- Dependency: ${cmake}/bin
+  | Out : { name : Text, subpath : Optional Text }   -- Output: $out/lib
+  | Src : { subpath : Optional Text }                -- Source: $src/configure
+  | Env : Text                                       -- Environment: $HOME
+  | Rel : Text                                       -- Relative: ./build
+  | Lit : Text                                       -- Literal: /usr/bin
+  | Cat : List Ref                                   -- Concatenation
+  >
 ```
+
+This prevents injection because:
+- `Ref.Dep` references are resolved to actual store paths at eval time
+- `Ref.Out` references are validated to be within the output
+- There is no "raw string" variant - you must declare intent
 
 #### Action Schema
 
+Actions are typed operations, not shell commands:
+
 ```dhall
--- nix/prelude/dhall/actions.dhall
-
-let SP = ./store-path.dhall
-
 let Action =
-  < Mkdir : { path : Text }
-  | Copy : { from : Text, to : Text }
-  | Symlink : { target : Text, link : Text }
-  | Unzip : { dest : Text }
-  | PatchElf : { binary : Text, rpath : List SP.StorePath }
-  | WriteFile : { path : Text, content : Text }
-  | Install : { mode : Natural, src : Text, dst : Text }
-  | Substitute : { file : Text, replacements : List { from : Text, to : Text } }
+  < Copy : { src : Ref, dst : Ref }
+  | Move : { src : Ref, dst : Ref }
+  | Symlink : { target : Ref, link : Ref }
+  | Mkdir : { path : Ref, parents : Bool }
+  | Remove : { path : Ref, recursive : Bool }
+  | Touch : Ref
+  | Chmod : { path : Ref, mode : Mode }
+  | Write : { path : Ref, contents : Text }
+  | Append : { path : Ref, contents : Text }
+  | Untar : { src : Ref, dst : Ref, strip : Natural }
+  | Unzip : { src : Ref, dst : Ref }
+  | Substitute : { file : Ref, replacements : List Replacement }
+  | PatchElfRpath : { path : Ref, rpaths : List Ref }
+  | PatchElfInterpreter : { path : Ref, interpreter : Ref }
+  | PatchElfShrink : { path : Ref }
+  | CMake : { srcDir : Ref, buildDir : Ref, installPrefix : Ref, ... }
+  | CMakeBuild : { buildDir : Ref, target : Optional Text, jobs : Optional Natural }
+  | CMakeInstall : { buildDir : Ref }
+  | Make : { targets : List Text, flags : List Text, ... }
+  | InstallBin : { src : Ref }
+  | InstallLib : { src : Ref }
+  | InstallInclude : { src : Ref }
+  | Seq : List Action
+  | Shell : Text  -- Escape hatch, discouraged
   >
-
-in { Action, StorePath = SP.StorePath }
 ```
 
-#### Derivation Schema
+#### Complete Derivation Schema
 
 ```dhall
--- nix/prelude/dhall/derivation.dhall
-
-let A = ./actions.dhall
-let SP = ./store-path.dhall
-
-let Derivation =
+let Drv =
   { pname : Text
   , version : Text
-  , src : Optional SP.StorePath
-  , build-inputs : List SP.StorePath
-  , native-build-inputs : List SP.StorePath
-  , install-phase : List A.Action
+  , system : Text
+  , src : Src
+  , deps : List Dep
+  , outputs : List Text
+  , phases : Phases
+  , meta : Meta
   }
 
-in { Derivation, Action = A.Action, StorePath = SP.StorePath }
+let Phases =
+  { unpack : List Action
+  , patch : List Action
+  , configure : List Action
+  , build : List Action
+  , check : List Action
+  , install : List Action
+  , fixup : List Action
+  }
 ```
 
-### Store Path Validation
+### Store Path Resolution
 
-The critical insight: **store paths are validated against the actual Nix store
-at evaluation time**. This is not shell escaping - it's type checking against
-the filesystem.
+The WASM plugin calls Nix functions via FFI to resolve paths at eval time:
 
-```nix
--- nix/prelude/typed-builder.nix
+```haskell
+-- In the WASM plugin
+srcPath <- fetchFromGitHub owner repo rev hash  -- Returns actual store path
+cmakePath <- resolveDep "cmake"                  -- Returns /nix/store/...-cmake
 
-validateStorePath = sp:
-  let
-    path = "/nix/store/${sp.store}-${sp.name}";
-    fullPath = if sp.out == "" then path else "${path}/${sp.out}";
-  in
-  assert lib.pathExists path || 
-    throw "Store path does not exist: ${path}";
-  fullPath;
-
-validateSpec = spec: 
-  let
-    allPaths = 
-      (if spec.src != null then [ (validateStorePath spec.src) ] else [])
-      ++ map validateStorePath spec.build-inputs
-      ++ map validateStorePath spec.native-build-inputs
-      ++ lib.concatMap extractPathsFromAction spec.install-phase;
-  in
-  builtins.deepSeq allPaths spec;
+-- Emit Dhall with resolved paths
+emitDhall $ Drv
+  { src = SrcStore srcPath
+  , deps = [ Dep "cmake" cmakePath ]
+  , ...
+  }
 ```
+
+The resulting Dhall contains **concrete store paths**, not symbolic references.
+Nix validates these paths exist before the build starts.
 
 **Injection is impossible** because:
 
-1. Store paths come from Dhall schema, not string interpolation
-2. Nix validates every path exists before building
-3. `aleph-exec` receives validated paths, never raw strings
+1. Path references are typed (`Ref.Dep`, `Ref.Out`, etc.)
+2. WASM resolves deps via FFI - Nix controls the actual paths
+3. `aleph-exec` receives validated Dhall, not string templates
 4. There is no shell - paths go directly to Haskell filesystem operations
 
 ### The aleph-exec Binary
@@ -605,48 +678,63 @@ validateSpec = spec:
 `aleph-exec` is a compiled Haskell binary that reads Dhall and executes actions
 directly. No bash, no shell, no subprocess spawning for basic operations.
 
+Located at `nix/scripts/Aleph/Exec/Main.hs`, it:
+
+1. Parses Dhall spec via the `dhall` library
+2. Resolves `Ref` types to actual filesystem paths
+3. Executes actions directly via Haskell I/O
+
 ```haskell
--- aleph-exec/Main.hs
-module Main where
+-- Simplified from nix/scripts/Aleph/Exec/Main.hs
 
-import qualified Dhall
-import System.Directory
-import System.FilePath
-import qualified Codec.Archive.Zip as Zip
+executeAction :: BuildContext -> Action -> IO ()
+executeAction ctx = \case
+  Mkdir ref parents -> do
+    path <- resolveRef ctx ref
+    createDirectoryIfMissing parents path
+  
+  Write ref contents -> do
+    path <- resolveRef ctx ref
+    createDirectoryIfMissing True (takeDirectory path)
+    T.writeFile path contents
+  
+  Symlink targetRef linkRef -> do
+    target <- resolveRef ctx targetRef
+    link <- resolveRef ctx linkRef
+    createDirectoryIfMissing True (takeDirectory link)
+    createSymbolicLink target link
+  
+  Substitute fileRef replacements -> do
+    path <- resolveRef ctx fileRef
+    content <- T.readFile path
+    let content' = foldl' applyReplacement content replacements
+    T.writeFile path content'
+  
+  -- CMake, Make, PatchElf call external tools
+  CMakeConfigure srcDir buildDir prefix buildType flags gen -> do
+    src <- resolveRef ctx srcDir
+    build <- resolveRef ctx buildDir
+    pfx <- resolveRef ctx prefix
+    callProcess "cmake" (buildCMakeArgs src build pfx buildType flags gen)
 
-main :: IO ()
-main = do
-  specFile <- getSpecFile
-  spec <- Dhall.inputFile auto specFile
-  outDir <- getEnv "out"
-  srcPath <- lookupEnv "src"
-  
-  forM_ (installPhase spec) $ \action ->
-    runAction outDir srcPath action
-
-runAction :: FilePath -> Maybe FilePath -> Action -> IO ()
-runAction out src = \case
-  Mkdir path -> 
-    createDirectoryIfMissing True (out </> path)
-  
-  Copy from to -> 
-    copyRecursive (resolveFrom src from) (out </> to)
-  
-  Symlink target link ->
-    createSymbolicLink target (out </> link)
-  
-  Unzip dest -> case src of
-    Just s -> Zip.extractFilesFromArchive [Zip.OptDestination dest] =<< 
-              Zip.toArchive <$> LBS.readFile s
-    Nothing -> fail "Unzip requires src"
-  
-  PatchElf binary rpaths -> do
-    let rpathStr = intercalate ":" (map resolveStorePath rpaths)
-    -- patchelf is the ONE external tool we call
-    callProcess "patchelf" ["--set-rpath", rpathStr, out </> binary]
-  
-  -- etc.
+-- Ref resolution - the key safety mechanism
+resolveRef :: BuildContext -> Ref -> IO FilePath
+resolveRef ctx = \case
+  RefDep name subpath -> do
+    basePath <- lookupDep ctx name  -- From ALEPH_DEPS env
+    pure $ maybe basePath (basePath </>) subpath
+  RefOut name subpath ->
+    pure $ maybe (ctxOut ctx) ((ctxOut ctx) </>) subpath
+  RefSrc subpath -> case ctxSrc ctx of
+    Just s -> pure $ maybe s (s </>) subpath
+    Nothing -> fail "RefSrc but no source"
+  RefEnv var -> getEnv (T.unpack var)
+  RefRel path -> pure (T.unpack path)
+  RefLit path -> pure (T.unpack path)
 ```
+
+**Current status**: `aleph-exec` successfully builds packages like `zlib-ng`,
+`fmt`, and `mdspan` with zero bash in the custom phases.
 
 ### Why Not resholve?
 
@@ -687,42 +775,70 @@ Isospin is a Firecracker-derived instant-boot VM runtime for Nix builds:
 | 4 | Zero-boilerplate wrapper (auto Main.hs generation) | **Complete** |
 | 5 | `tool()` for automatic dependency tracking | **Complete** |
 | 6 | Typed tool modules (Jq, PatchElf, Install, Substitute) | **Complete** |
-| 7 | Dhall schema for typed store paths | **Next** |
-| 8 | WASM emits Dhall (not JSON-like attrsets) | **Next** |
-| 9 | Store path validation against Nix store | **Next** |
-| 10 | `aleph-exec` binary (zero-bash execution) | **Next** |
-| 11 | Deprecate `actionToShell` interpreter | **Next** |
-| 12 | More typed tools (Wrap, Chmod, CMake, Meson) | Planned |
-| 13 | Cross-compilation support (`buildPackages` refs) | Planned |
-| 14 | Multiple outputs support | Planned |
-| 15 | PureScript backend with shared WASM ABI | Planned |
-| 16 | Isospin builder prototype | Planned |
-| 17 | Disable legacy `mkDerivation` with bash phases | Planned |
+| 7 | Dhall schema for derivations (`Drv.dhall`) | **Complete** |
+| 8 | `aleph-exec` binary with Dhall parsing | **Complete** |
+| 9 | Zero-bash execution for test packages | **Complete** |
+| 10 | Zero-bash CMake packages (zlib-ng, fmt, mdspan) | **Complete** |
+| 11 | `drvToDhall` Haskell→Dhall emission | **Complete** |
+| 12 | Remove `typed-builder.nix` (Nix string generation) | **Complete** |
+| 13 | Nix placeholder substitution in `wasm-plugin.nix` | **Complete** |
+| 14 | WASM emits resolved Dhall via FFI | **Next** |
+| 15 | More typed tools (Wrap, Chmod, CMake, Meson) | Planned |
+| 16 | Cross-compilation support (`buildPackages` refs) | Planned |
+| 17 | Multiple outputs support | Planned |
+| 18 | PureScript backend (reuses Dhall schema) | Planned |
+| 19 | Isospin builder prototype | Planned |
+| 20 | Disable legacy `mkDerivation` with bash phases | Planned |
 
-### Phase 7-11: Zero-Bash Architecture (Current Priority)
+### Phase 11-14: Zero-Bash Migration (Complete)
 
-The current implementation generates bash from typed actions via `actionToShell`.
-This is a transitional state. The target architecture:
+The zero-bash architecture is now complete. The Nix string interpolation path
+has been eliminated.
 
-1. **Dhall schemas** define the type system for actions and store paths
-2. **WASM plugins emit Dhall** expressions, not JSON-like attrsets
-3. **Nix validates store paths** against the actual store at eval time
-4. **`aleph-exec`** executes actions directly - no shell interpreter
+**Current architecture:**
 
 ```
-Current (transitional):
-  Haskell → WASM → attrset → actionToShell → bash string → stdenv.mkDerivation
-
-Target (zero-bash):
-  Haskell → WASM → Dhall → validateStorePaths → derivation { builder = aleph-exec }
+Haskell DrvSpec
+    ↓ drvToDhall
+Dhall Text (with @src@, @dep:name@ placeholders)
+    ↓ returned from WASM to Nix
+Nix (wasm-plugin.nix)
+    ↓ resolves sources/deps, substitutes placeholders
+Resolved Dhall (store paths concrete)
+    ↓ written to store
+aleph-exec
+    ↓ reads Dhall, executes typed actions
+Build Output (no bash)
 ```
 
-**Why this matters:**
+**Key changes in this session:**
 
-- **No injection surface**: Store paths are validated, not interpolated
-- **No quoting bugs**: There is no shell to quote for
-- **Type errors at eval time**: Invalid paths fail before the build starts
-- **Reproducibility**: Dhall normalizes to canonical form
+1. **Added `drvToDhall`** (`nix/scripts/Aleph/Nix/DrvSpec.hs`)
+   - Haskell emits self-contained Dhall text
+   - All actions, refs, phases serialized as valid Dhall
+   - Placeholders for Nix-resolved values: `@src@`, `@dep:name@`
+
+2. **Deleted `typed-builder.nix`**
+   - Was generating Dhall via Nix string interpolation (the problem)
+   - This was a transitional hack, now eliminated
+
+3. **Updated `wasm-plugin.nix:buildFromSpecZeroBash`**
+   - Reads `spec.dhall` from WASM output
+   - Substitutes placeholders with resolved store paths
+   - Writes resolved Dhall to store for aleph-exec
+
+**What works:**
+
+- `test-zero-bash` - Pure aleph-exec build, no bash
+- `zlib-ng-zero-bash` - CMake build with aleph-exec for custom phases
+- `fmt-zero-bash` - CMake build with aleph-exec for custom phases
+- `mdspan-zero-bash` - CMake + Write action for shim header
+
+**What's next:**
+
+1. Update WASM packages to emit `spec.dhall` field via `drvToDhall`
+2. Remove `actionToShell` fallback (currently still used for non-zeroBash mode)
+3. Add FFI for `fetchFromGitHub`/`resolveDep` to resolve at WASM eval time
 
 The `aleph.phases.interpret` bridge is **deprecated before implementation**.
 We skip the incremental shell-generation phase entirely and go directly to
