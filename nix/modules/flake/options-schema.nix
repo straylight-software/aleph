@@ -147,4 +147,115 @@
       description = "Extra shell hook commands";
     };
   };
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # // build //
+  # ────────────────────────────────────────────────────────────────────────────
+
+  build = {
+    enable = lib.mkEnableOption "Buck2 build system integration";
+    prelude = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Include straylight-buck2-prelude in flake outputs";
+      };
+      path = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to buck2 prelude. If null, uses inputs.buck2-prelude.
+          Set this to vendor a local copy.
+        '';
+      };
+    };
+    toolchain = {
+      cxx = {
+        enable = lib.mkEnableOption "C++ toolchain (LLVM 22)";
+        c-flags = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [
+            "-O2"
+            "-g3"
+            "-std=c23"
+            "-Wall"
+            "-Wextra"
+          ];
+          description = "C compiler flags";
+        };
+        cxx-flags = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [
+            "-O2"
+            "-g3"
+            "-std=c++23"
+            "-Wall"
+            "-Wextra"
+            "-fno-exceptions"
+          ];
+          description = "C++ compiler flags";
+        };
+        link-style = lib.mkOption {
+          type = lib.types.enum [
+            "static"
+            "shared"
+          ];
+          default = "static";
+          description = "Default link style";
+        };
+      };
+      nv = {
+        enable = lib.mkEnableOption "NVIDIA toolchain (clang + nvidia-sdk)";
+        archs = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [
+            "sm_90"
+            "sm_100"
+            "sm_120"
+          ];
+          description = ''
+            Target NVIDIA architectures:
+              sm_90  = Hopper (H100)
+              sm_100 = Blackwell (B100, B200)
+              sm_120 = Blackwell (B200 full features, requires LLVM 22)
+          '';
+        };
+      };
+      haskell = {
+        enable = lib.mkEnableOption "Haskell toolchain (GHC from Nix)";
+        packages = lib.mkOption {
+          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+          default = hp: [
+            hp.text
+            hp.bytestring
+            hp.containers
+            hp.aeson
+          ];
+          description = "Haskell packages for Buck2 toolchain";
+        };
+      };
+      lean.enable = lib.mkEnableOption "Lean 4 toolchain";
+      python = {
+        enable = lib.mkEnableOption "Python toolchain (with nanobind)";
+        packages = lib.mkOption {
+          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+          default = ps: [
+            ps.nanobind
+            ps.numpy
+          ];
+          description = "Python packages for Buck2 toolchain";
+        };
+      };
+    };
+    generate-buckconfig = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Generate .buckconfig.local in devshell";
+    };
+    generate-wrappers = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Generate bin/ wrappers for toolchains";
+    };
+  };
 }

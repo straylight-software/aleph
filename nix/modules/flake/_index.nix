@@ -22,6 +22,7 @@ let
   #                                                      // individual modules
   # ──────────────────────────────────────────────────────────────────────────
 
+  build = import ./build.nix { inherit inputs; };
   devshell = import ./devshell.nix { };
   docs = import ./docs.nix { inherit inputs; };
   formatter = import ./formatter.nix { inherit inputs; };
@@ -84,6 +85,7 @@ let
 in
 {
   inherit
+    build
     container
     default
     default-with-demos

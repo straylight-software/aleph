@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "buck2-prelude": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1747422168,
+        "narHash": "sha256-iO5DxMc0uBhQfCVYJ+gD4avIhqlect7QOaszyBcBtUI=",
+        "owner": "weyl-ai",
+        "repo": "straylight-buck2-prelude",
+        "rev": "b42171bedf69b18a3c9a8e5918e96e10c196062f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "weyl-ai",
+        "repo": "straylight-buck2-prelude",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -299,6 +315,7 @@
     },
     "root": {
       "inputs": {
+        "buck2-prelude": "buck2-prelude",
         "flake-parts": "flake-parts",
         "ghc-wasm-meta": "ghc-wasm-meta",
         "llvm-project": "llvm-project",

@@ -24,6 +24,13 @@
       url = "github:haskell-wasm/ghc-wasm-meta";
       # Don't follow nixpkgs - ghc-wasm-meta has specific version requirements
     };
+
+    # Buck2 prelude (straylight fork with NVIDIA support)
+    # Mercury-based Haskell rules, LLVM 22 C++ toolchain, nv target compilation
+    buck2-prelude = {
+      url = "github:weyl-ai/straylight-buck2-prelude";
+      flake = false;
+    };
   };
 
   outputs =
