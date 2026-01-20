@@ -213,6 +213,18 @@ in
                   -o plugin.wasm
                 wasm-opt -O3 plugin.wasm -o $out
               '';
+          # Check if zero-bash mode is requested
+          useZeroBash = args.zeroBash or false;
+
+          # Build function to use based on mode
+          buildSpec =
+            spec:
+            if useZeroBash then
+              wasm-infra.buildFromSpecZeroBash {
+                inherit spec pkgs aleph-exec;
+              }
+            else
+              wasm-infra.buildFromSpec { inherit spec pkgs; };
         in
         if ext == "hs" then
           if ghc-wasm == null then
@@ -222,17 +234,14 @@ in
           else
             let
               wasmDrv = buildHsWasm path;
-              spec = builtins.wasm wasmDrv "pkg" args;
+              spec = builtins.wasm wasmDrv "pkg" (builtins.removeAttrs args [ "zeroBash" ]);
             in
-            wasm-infra.buildFromSpec { inherit spec pkgs; }
+            buildSpec spec
         else if ext == "wasm" then
           if !(builtins ? wasm) then
             throw "call-package for .wasm files requires straylight-nix"
           else
-            wasm-infra.buildFromSpec {
-              spec = builtins.wasm path "pkg" args;
-              inherit pkgs;
-            }
+            buildSpec (builtins.wasm path "pkg" (builtins.removeAttrs args [ "zeroBash" ]))
         else if ext == "nix" then
           pkgs.callPackage path args
         else
@@ -250,6 +259,9 @@ in
         test-zlib-ng = call-package ./packages/test-zlib-ng.hs { };
         test-tool-deps = call-package ./packages/test-tool-deps.hs { };
         test-typed-tools = call-package ./packages/test-typed-tools.hs { };
+
+        # Zero-bash test package (RFC-007)
+        test-zero-bash = call-package ./packages/test-zero-bash.hs { zeroBash = true; };
 
         # C++ libraries
         catch2 = call-package ./packages/catch2.hs { };
