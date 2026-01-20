@@ -7,6 +7,7 @@
 | Author | Straylight |
 | Status | Accepted |
 | Created | 2025-01-05 |
+| Updated | 2026-01-20 |
 
 ## Abstract
 
@@ -151,13 +152,30 @@ that `nix flake show` visibility or CI legibility merits separate publication.
 
 ### 5.3 Configuration
 
-Unless at great need, configuration is typed as Dhall and consumed with nixpkgs primitives.
+Configuration is typed as Dhall and validated at evaluation time.
+
+### 5.4 Zero-Bash Mandate
+
+Straylight Standard Nix is **zero-bash**:
+
+1. **Package phases** are typed actions executed by `aleph-exec`, not shell strings
+2. **Scripts** are compiled Haskell (Aleph.Script), not bash
+3. **Store paths** are Dhall-typed and validated against the store, not interpolated
+4. **Configuration** is Dhall, not heredocs
+
+The `actionToShell` interpreter exists only for backward compatibility during
+migration. New code MUST NOT use it. See [ℵ-007](aleph-007-formalization.md)
+for the typed execution model.
 
 ### 6. Forbidden Patterns
 
 | Pattern | Reason |
 |---------|--------|
-| **Heredocs** | High crimes and misdemeanors. Use `writeText` or `writeShellScript` |
+| **Bash in derivation phases** | Use typed `.hs` packages with `aleph-exec`. See [ℵ-004](aleph-004-typed-unix.md) |
+| **Heredocs** | High crimes and misdemeanors. No shell, no heredocs |
+| **`writeShellApplication`** | Use compiled Haskell scripts. See [ℵ-004](aleph-004-typed-unix.md) |
+| **`writeShellScript`** | Same as above |
+| **String interpolation in phases** | Injection risk. Use typed store paths validated by Dhall |
 | `with lib;` | Obscures provenance, breaks tooling |
 | `rec` in derivations | Breaks `overrideAttrs` |
 | `if/then/else` in module config | Eager evaluation causes infinite recursion |
@@ -168,27 +186,40 @@ Unless at great need, configuration is typed as Dhall and consumed with nixpkgs 
 | Missing `_class` | Silent cross-module-system failures |
 | Missing `meta` in packages | Breaks documentation and compliance |
 | Inline code >10 lines | Untestable, unlintable |
+| `actionToShell` usage | Deprecated. Use `aleph-exec` directly |
 
 ### 7. Package Requirements
 
-All packages SHALL:
+All **new** packages SHALL:
 
-1. Be callable by `callPackage`
-1. Use `finalAttrs` pattern (not `rec`)
-1. Provide `meta` with `description`, `license`, and `mainProgram` (if applicable)
+1. Be defined as typed `.hs` files using `Aleph.Nix.Package`
+2. Be callable by `call-package ./pkg.hs {}`
+3. Use typed actions (no bash strings)
+4. Have store paths validated via Dhall schema
+5. Provide `meta` with `description`, `license`, and `mainProgram` (if applicable)
 
-```nix
-{ lib, stdenv, fetchFromGitHub }:
-stdenv.mkDerivation (finalAttrs: {
-  pname = "my-tool";
-  version = "1.0.0";
-  meta = {
-    description = "A tool";
-    license = lib.licenses.mit;
-    mainProgram = "my-tool";
-  };
-})
+```haskell
+-- my-tool.hs
+module Pkg where
+
+import Aleph.Nix.Package
+
+pkg :: Drv
+pkg = mkDerivation
+    [ pname "my-tool"
+    , version "1.0.0"
+    , src $ fetchFromGitHub
+        [ owner "org", repo "my-tool", rev "v1.0.0"
+        , hash "sha256-..." ]
+    , cmake defaults
+    , description "A tool"
+    , license "mit"
+    , mainProgram "my-tool"
+    ]
 ```
+
+**Legacy packages** (existing nixpkgs-style) MAY use `stdenv.mkDerivation` but
+SHOULD be migrated to typed definitions. New bash phases are FORBIDDEN.
 
 ### 8. Documentation
 

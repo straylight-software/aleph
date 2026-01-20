@@ -5,8 +5,9 @@
 | RFC | ℵ-004 |
 | Title | Aleph.Script — Typed Shell Infrastructure |
 | Author | Straylight |
-| Status | Draft |
+| Status | Implemented (Part I-II), In Progress (Part III) |
 | Created | 2025-01-17 |
+| Updated | 2026-01-20 |
 
 ## Abstract
 
@@ -891,12 +892,15 @@ Both compile to WASM. Both produce the same Nix attrset shape. The host language
 | 4 | Auto-wrapper Main.hs (zero boilerplate) | **Complete** |
 | 5 | tool() for auto dependency tracking | **Complete** |
 | 6 | Typed tool modules (Jq, PatchElf, Install, Substitute) | **Complete** |
-| 7 | Incremental adoption (aleph.phases.interpret) | **Next** |
-| 8 | More typed tools (Wrap, Chmod, CMake, Meson) | Planned |
-| 9 | PureScript backend with shared WASM ABI | Planned |
-| 10 | Cross-compilation support | Planned |
-| 11 | Multiple outputs support | Planned |
-| 12 | Disable legacy patterns | Planned |
+| 7 | Dhall schema + WASM emits Dhall | **Next** |
+| 8 | Store path validation in Nix | **Next** |
+| 9 | `aleph-exec` binary (zero bash) | **Next** |
+| 10 | Deprecate `actionToShell` | **Next** |
+| 11 | More typed tools (Wrap, Chmod, CMake, Meson) | Planned |
+| 12 | PureScript backend with shared WASM ABI | Planned |
+| 13 | Cross-compilation support | Planned |
+| 14 | Multiple outputs support | Planned |
+| 15 | Remove legacy patterns entirely | Planned |
 
 The goal: **zero bash, zero untyped strings, zero heredocs**. The typed file
 is the specification. Nix is just the build orchestrator.
@@ -928,35 +932,24 @@ The typed package system is **functional** but not yet the **default**:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Gap 1: Incremental Adoption
+### Gap 1: Incremental Adoption (SUPERSEDED)
 
-**Problem**: Existing packages use `mkDerivation` with bash phases. Rewriting
-them all at once is impractical.
+**The `aleph.phases.interpret` bridge is deprecated before implementation.**
 
-**Solution**: `aleph.phases.interpret` — a bridge that lets traditional Nix
-packages use typed phases without full migration:
+The original plan was to generate shell from typed actions for incremental
+adoption. This is abandoned in favor of the zero-bash architecture.
 
-```nix
-stdenv.mkDerivation {
-  pname = "my-existing-package";
-  # ... all existing attrs ...
-  
-  # Replace just the postInstall phase with typed actions
-  postInstall = aleph.phases.interpret [
-    (Jq.query Jq.defaults { rawOutput = true; } ".version" "$out/package.json")
-    (PatchElf.setRpath "bin/myapp" [ (PatchElf.rpathOut "lib") ])
-  ];
-}
-```
+**New approach**: Packages are either:
 
-Implementation:
+1. **Legacy** - Use `mkDerivation` with bash phases (existing nixpkgs)
+2. **Typed** - Use `call-package ./pkg.hs {}` with `aleph-exec`
 
-1. `aleph.phases.interpret` takes a list of typed actions
-1. Converts them to shell script via `actionsToShell`
-1. Returns the shell string for use in traditional phases
-1. Tool deps are extracted and must be added manually (for now)
+There is no hybrid. Incremental adoption happens at the package level, not
+the phase level. Convert entire packages or don't convert them.
 
-**Status**: Not implemented. Priority: High.
+**Rationale**: The shell generation layer was always transitional. Rather than
+build tooling for a transitional state, we skip directly to the target
+architecture. Packages that need typed phases should be fully converted.
 
 ### Gap 2: Tool Coverage
 
@@ -984,33 +977,35 @@ Implementation:
 **Implementation approach**: Add tools as needed by real package migrations.
 Don't speculatively build tools — let demand drive it.
 
-### Gap 3: Interpreter Completeness
+### Gap 3: Zero-Bash Execution (SUPERSEDED)
 
-The Nix-side interpreter (`actionToShell` in `wasm-plugin.nix`) handles:
+**The `actionToShell` interpreter is deprecated.**
+
+The original design converted typed actions to shell strings:
 
 ```nix
+# DEPRECATED - do not extend
 actionToShell = action:
   if action.action == "writeFile" then ...
-  else if action.action == "install" then ...
-  else if action.action == "mkdir" then ...
-  else if action.action == "symlink" then ...
-  else if action.action == "copy" then ...
-  else if action.action == "remove" then ...
-  else if action.action == "unzip" then ...
-  else if action.action == "patchelfRpath" then ...
-  else if action.action == "patchelfAddRpath" then ...
-  else if action.action == "substitute" then ...
-  else if action.action == "wrap" then ...
-  else if action.action == "run" then ...
-  else if action.action == "toolRun" then ...
-  else throw "Unknown action type";
+  # ... generates bash strings
 ```
 
-**Missing**: No known gaps. New actions require:
+This is replaced by direct execution via `aleph-exec`. See [ℵ-007](aleph-007-formalization.md)
+for the new architecture:
+
+1. WASM emits **Dhall** expressions (not JSON-like attrsets)
+2. Nix **validates store paths** against the actual store
+3. `derivation` uses `aleph-exec` as builder (not bash)
+4. `aleph-exec` executes actions directly in Haskell
+
+**Adding new actions** now requires:
 
 1. Add constructor to `Action` in `Derivation.hs`
-1. Add serialization in `actionToNix`
-1. Add interpreter clause in `actionToShell`
+2. Add Dhall serialization in `Aleph/Nix/Dhall.hs`
+3. Update Dhall schema in `nix/prelude/dhall/actions.dhall`
+4. Implement execution in `aleph-exec/Main.hs`
+
+No shell. No `actionToShell`. No string interpolation.
 
 ### Gap 4: Cross-Compilation
 
@@ -1092,29 +1087,29 @@ Implementation:
 
 ### Migration Strategy
 
-**Phase A: Incremental Tool Adoption (Now → 4 weeks)**
+**Phase A: Zero-Bash Foundation (Now → 1 week)**
 
-1. Implement `aleph.phases.interpret` bridge
-1. Add `Aleph.Nix.Tools.Wrap` module
-1. Add `Chmod` action
-1. Port one complex package (e.g., cudnn) using mixed approach
-1. Document migration patterns
+1. Dhall schema for actions and store paths
+2. WASM emits Dhall expressions
+3. Nix validates store paths against store
+4. `aleph-exec` binary executes actions directly
+5. Deprecate `actionToShell` interpreter
 
-**Phase B: Full Package Migration (4 → 12 weeks)**
+**Phase B: Full Package Migration (1 → 8 weeks)**
 
-1. Port NVIDIA SDK packages to pure .hs
-1. Add CMake/Meson typed options
+1. Port NVIDIA SDK packages to pure .hs with `aleph-exec`
+1. Add CMake/Meson typed builders
 1. Implement cross-compilation support
 1. Implement multiple outputs
 1. Port C++ packages (fmt, spdlog, etc.)
 
-**Phase C: Default Everywhere (12+ weeks)**
+**Phase C: Default Everywhere (8+ weeks)**
 
-1. Add lint rule: warn on bash phases > 3 lines
-1. Add lint rule: error on heredocs in phases
-1. Document all typed tools
+1. Add lint rule: error on `mkDerivation` with string phases
+1. Add lint rule: error on heredocs anywhere
+1. Deprecate `writeShellApplication` completely
 1. PureScript backend for frontend developers
-1. Deprecate `writeShellApplication` in new code
+1. Remove `actionToShell` code path entirely
 
 ### Success Criteria
 
@@ -1122,12 +1117,15 @@ Implementation:
 
 1. ✅ `call-package ./foo.hs {}` works
 1. ✅ Tool deps are automatically tracked
-1. ⬜ Existing packages can incrementally adopt typed phases
+1. ⬜ WASM emits Dhall (not JSON-like attrsets)
+1. ⬜ Store paths validated against Nix store at eval time
+1. ⬜ `aleph-exec` executes actions (no bash)
 1. ⬜ All common tools have typed modules
 1. ⬜ Cross-compilation works
 1. ⬜ Multiple outputs work
-1. ⬜ Zero bash phases in new packages (by convention)
-1. ⬜ Lint rules enforce typed-first approach
+1. ⬜ Zero bash in any new package
+1. ⬜ Lint rules enforce typed-only approach
+1. ⬜ `actionToShell` removed from codebase
 
 ## References
 
