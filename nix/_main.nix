@@ -26,6 +26,8 @@ in
   flake.modules = {
     flake = {
       inherit (flakeModules)
+        build
+        build-standalone
         default
         default-with-demos
         devshell
@@ -77,6 +79,11 @@ in
     nv = {
       path = ./templates/nv;
       description = "NVIDIA/ML project";
+    };
+
+    buck2 = {
+      path = ./templates/buck2;
+      description = "Buck2 build system with hermetic Nix toolchains";
     };
 
     minimal = {

@@ -1,0 +1,27 @@
+# Source targets
+#
+# C++ binary using LLVM 22 toolchain from Nix.
+# NVIDIA binary using clang (not nvcc).
+
+load("@toolchains//:nv.bzl", "nv_binary")
+
+# ════════════════════════════════════════════════════════════════════════════════
+# C++ Hello World (host)
+# ════════════════════════════════════════════════════════════════════════════════
+
+cxx_binary(
+    name = "hello",
+    srcs = ["hello.cpp"],
+    visibility = ["PUBLIC"],
+)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# NVIDIA Hello World (device)
+# ════════════════════════════════════════════════════════════════════════════════
+# Requires nvidia-sdk in your devshell. Compiles with clang, not nvcc.
+
+nv_binary(
+    name = "nv_hello",
+    srcs = ["nv_hello.cpp"],
+    visibility = ["PUBLIC"],
+)

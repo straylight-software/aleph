@@ -82,10 +82,25 @@ let
     ];
   };
 
+  # ──────────────────────────────────────────────────────────────────────────
+  #                                                    // build module export
+  # ──────────────────────────────────────────────────────────────────────────
+  # Standalone build module for downstream flakes that just want Buck2
+  # without the full aleph-naught devshell
+  build-standalone = {
+    _class = "flake";
+
+    imports = [
+      build
+      nixpkgs # Required for overlays
+    ];
+  };
+
 in
 {
   inherit
     build
+    build-standalone
     container
     default
     default-with-demos
