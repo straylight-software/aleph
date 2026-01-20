@@ -154,9 +154,9 @@ in
               ]
             )
             # straylight-nix with builtins.wasm support
-            ++ lib.optionals (cfg.straylight-nix.enable && pkgs ? straylight && pkgs.straylight ? straylight-nix) (
+            ++ lib.optionals (cfg.straylight-nix.enable && pkgs ? straylight && pkgs.straylight ? nix) (
               lib.filter (p: p != null) [
-                pkgs.straylight.nix.straylight-nix
+                pkgs.straylight.nix.nix
               ]
             )
             ++ (cfg.extra-packages pkgs);
@@ -206,9 +206,9 @@ in
                 fi
               ''}
               ${lib.optionalString cfg.straylight-nix.enable ''
-                if [ -n "${pkgs.straylight.nix.straylight-nix or ""}" ]; then
-                  echo "straylight-nix: $(${pkgs.straylight.nix.straylight-nix}/bin/nix --version)"
-                  echo "builtins.wasm: $(${pkgs.straylight.nix.straylight-nix}/bin/nix eval --expr 'builtins ? wasm')"
+                if [ -n "${pkgs.straylight.nix.nix or ""}" ]; then
+                  echo "straylight-nix: $(${pkgs.straylight.nix.nix}/bin/nix --version)"
+                  echo "builtins.wasm: $(${pkgs.straylight.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
                 fi
               ''}
               ${cfg.extra-shell-hook}

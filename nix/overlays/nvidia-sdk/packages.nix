@@ -44,7 +44,7 @@ let
     ]);
 
   # libxml2 2.9.14 - needed because the container uses an older version
-  libxml2-legacy = final.libxml2.overrideAttrs (old: rec {
+  libxml2-legacy = final.libxml2.overrideAttrs (_old: rec {
     version = "2.9.14";
     src = fetchurl {
       url = "https://download.gnome.org/sources/libxml2/${lib.versions.majorMinor version}/libxml2-${version}.tar.xz";

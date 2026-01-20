@@ -65,7 +65,7 @@ cudaRuntimeLibs =
     , "libcusolver"
     , "libcusparse"
     , "libnvrtc"
-    , "libnvJitLink"  -- Note: camelCase
+    , "libnvJitLink" -- Note: camelCase
     ]
 
 -- | CUDA libraries from system paths (cuDNN, TensorRT, etc.)
@@ -118,8 +118,9 @@ pullImage imageRef outputDir = do
     run_ "sh" ["-c", "crane export " <> imageRef <> " - | tar -xf - -C " <> toTextIgnore outputDir]
     echoErr $ ":: Extracted to " <> toTextIgnore outputDir
 
--- | Extract NVIDIA SDK from a container rootfs
--- Note: Does NOT patch ELF binaries - that's handled by autoPatchelfHook in Nix
+{- | Extract NVIDIA SDK from a container rootfs
+Note: Does NOT patch ELF binaries - that's handled by autoPatchelfHook in Nix
+-}
 extractSdk :: FilePath -> FilePath -> ExtractMode -> Sh ()
 extractSdk rootfs outputDir mode = do
     echoErr $ ":: Extracting SDK (" <> pack (show mode) <> ")"
@@ -275,7 +276,7 @@ copyExtraLibs rootfs dstDir prefixes =
         forM_ files $ \f -> copyFile f dstDir
 
 -- | when for monadic predicates
-whenM :: Monad m => m Bool -> m () -> m ()
+whenM :: (Monad m) => m Bool -> m () -> m ()
 whenM cond action = cond >>= \b -> when b action
 
 -- | Copy CUDA runtime libraries from container
@@ -304,8 +305,9 @@ copyCudaLibraries rootfs outputLib = do
 -- Helper Functions
 -- ============================================================================
 
--- | Find CUDA directory in rootfs (handles versioned paths)
--- Prefers actual directories over symlinks (cuda-13.0 over cuda-13)
+{- | Find CUDA directory in rootfs (handles versioned paths)
+Prefers actual directories over symlinks (cuda-13.0 over cuda-13)
+-}
 findCudaDir :: FilePath -> Sh (Maybe FilePath)
 findCudaDir rootfs = do
     -- Try versioned paths (cuda-13.0, cuda-12.4, etc) - prefer longer version strings
@@ -337,25 +339,25 @@ findSystemLibDir rootfs = do
 
 -- | Find directories matching a glob pattern
 findDirs :: FilePath -> Sh [FilePath]
-findDirs pattern = do
-    output <- errExit False $ run "sh" ["-c", "ls -d " <> toTextIgnore pattern <> " 2>/dev/null"]
+findDirs globPat = do
+    output <- errExit False $ run "sh" ["-c", "ls -d " <> toTextIgnore globPat <> " 2>/dev/null"]
     pure $ map fromText $ filter (not . T.null) $ T.lines output
 
 -- | Find files matching a pattern in a directory (includes symlinks)
 findFiles :: FilePath -> Text -> Sh [FilePath]
-findFiles dir pattern = do
+findFiles dir namePat = do
     exists <- test_d dir
     if exists
         then do
             -- Use -L to follow symlinks, find both files and symlinks
-            output <- errExit False $ run "find" ["-L", toTextIgnore dir, "-maxdepth", "1", "-name", pattern, "-type", "f"]
+            output <- errExit False $ run "find" ["-L", toTextIgnore dir, "-maxdepth", "1", "-name", namePat, "-type", "f"]
             pure $ map fromText $ filter (not . T.null) $ T.lines output
         else pure []
 
 -- | Find files recursively matching a pattern (includes symlinks)
 findFilesRecursive :: FilePath -> Text -> Sh [FilePath]
-findFilesRecursive dir pattern = do
-    output <- errExit False $ run "find" ["-L", toTextIgnore dir, "-name", pattern, "-type", "f"]
+findFilesRecursive dir namePat = do
+    output <- errExit False $ run "find" ["-L", toTextIgnore dir, "-name", namePat, "-type", "f"]
     pure $ map fromText $ filter (not . T.null) $ T.lines output
 
 -- | Copy directory contents (cp -rL --no-preserve=mode src/. dst/)
@@ -363,7 +365,8 @@ copyDirContents :: FilePath -> FilePath -> Sh ()
 copyDirContents src dst = do
     exists <- test_d src
     when exists $
-        errExit False $ run_ "cp" ["-rL", "--no-preserve=mode", toTextIgnore src <> "/.", toTextIgnore dst <> "/"]
+        errExit False $
+            run_ "cp" ["-rL", "--no-preserve=mode", toTextIgnore src <> "/.", toTextIgnore dst <> "/"]
 
 -- | Copy a single file
 copyFile :: FilePath -> FilePath -> Sh ()
@@ -410,8 +413,9 @@ copyLibraries srcDir dstDir prefixes =
     forM_ prefixes $ \prefix ->
         copyMatchingLibs srcDir dstDir prefix
 
--- | Create missing .so symlinks for versioned libraries
--- e.g., libfoo.so.1.2.3 -> libfoo.so.1 -> libfoo.so
+{- | Create missing .so symlinks for versioned libraries
+e.g., libfoo.so.1.2.3 -> libfoo.so.1 -> libfoo.so
+-}
 createLibrarySymlinks :: FilePath -> Sh ()
 createLibrarySymlinks libDir = do
     exists <- test_d libDir
@@ -428,7 +432,8 @@ createLibrarySymlinks libDir = do
 
             -- Create base .so symlink if missing (libfoo.so -> libfoo.so.1.2.3)
             unlessM (test_e targetPath) $
-                errExit False $ run_ "ln" ["-sf", baseTxt, toTextIgnore targetPath]
+                errExit False $
+                    run_ "ln" ["-sf", baseTxt, toTextIgnore targetPath]
 
             -- Create major version symlinks (e.g., libcupti.so.13 -> libcupti.so.13.0)
             createMajorVersionSymlink libDir basename
@@ -445,11 +450,12 @@ createMajorVersionSymlink libDir lib = do
                 majorPath = libDir </> fromText majorName
             unlessM (test_e majorPath) $
                 when (majorName /= baseTxt) $
-                    errExit False $ run_ "ln" ["-sf", baseTxt, toTextIgnore majorPath]
+                    errExit False $
+                        run_ "ln" ["-sf", baseTxt, toTextIgnore majorPath]
         _ -> pure ()
 
 -- | unless for monadic predicates
-unlessM :: Monad m => m Bool -> m () -> m ()
+unlessM :: (Monad m) => m Bool -> m () -> m ()
 unlessM cond action = cond >>= \b -> when (not b) action
 
 -- ============================================================================

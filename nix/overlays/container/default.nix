@@ -45,7 +45,9 @@ let
     import ./firecracker.nix { inherit final lib; }
   );
   extract-mod = import ./extract.nix { inherit final lib straylight-lib; };
-  ngc-mod = lib.optionalAttrs final.stdenv.isLinux (import ./ngc.nix { inherit final lib straylight-lib; });
+  ngc-mod = lib.optionalAttrs final.stdenv.isLinux (
+    import ./ngc.nix { inherit final lib straylight-lib; }
+  );
   pep503-mod = import ./pep503.nix { inherit final; };
 
   # ══════════════════════════════════════════════════════════════════════════════

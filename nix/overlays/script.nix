@@ -274,7 +274,9 @@ in
         ];
         # All tools
         all =
-          final.straylight.script.tools.clap ++ final.straylight.script.tools.gnu ++ final.straylight.script.tools.handcrafted;
+          final.straylight.script.tools.clap
+          ++ final.straylight.script.tools.gnu
+          ++ final.straylight.script.tools.handcrafted;
       };
 
       # ──────────────────────────────────────────────────────────────────────
