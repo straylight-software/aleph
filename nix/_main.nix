@@ -211,7 +211,8 @@ in
                 wasm-opt -O3 plugin.wasm -o $out
               '';
           # All builds go through buildFromSpec (F_ω path only)
-          buildSpec = spec: wasm-infra.buildFromSpec { inherit spec pkgs; };
+          # wasmDrv is passed to include it in derivation hash for cache invalidation
+          buildSpec = wasmDrv: spec: wasm-infra.buildFromSpec { inherit spec pkgs wasmDrv; };
         in
         if ext == "hs" then
           if ghc-wasm == null then
@@ -223,12 +224,12 @@ in
               wasmDrv = buildHsWasm path;
               spec = builtins.wasm wasmDrv "pkg" args;
             in
-            buildSpec spec
+            buildSpec wasmDrv spec
         else if ext == "wasm" then
           if !(builtins ? wasm) then
             throw "call-package for .wasm files requires straylight-nix"
           else
-            buildSpec (builtins.wasm path "pkg" args)
+            buildSpec path (builtins.wasm path "pkg" args)
         else if ext == "nix" then
           pkgs.callPackage path args
         else
@@ -253,6 +254,7 @@ in
         nlohmann-json = call-package ./packages/nlohmann-json.hs { };
         catch2 = call-package ./packages/catch2.hs { };
         spdlog = call-package ./packages/spdlog.hs { };
+        libsodium = call-package ./packages/libsodium.hs { };
 
         # NVIDIA SDK components
         nvidia-cudnn = call-package ./packages/nvidia-cudnn.hs { };

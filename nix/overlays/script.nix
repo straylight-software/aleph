@@ -432,6 +432,12 @@ in
             final.findutils # find for patchelf
           ];
         };
+
+        # Build verification scripts
+        verify-static-only = mkCompiledScript {
+          name = "verify-static-only";
+          deps = [ final.findutils ]; # find
+        };
       };
 
       # Convenience: build all compiled scripts

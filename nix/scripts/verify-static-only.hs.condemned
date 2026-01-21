@@ -1,0 +1,65 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+{- |
+verify-static-only - Verify a directory contains only static libraries
+
+Checks that a directory tree contains no shared libraries (.so, .dylib, .dll).
+Used to validate static-only builds of libraries like libsodium.
+
+Usage:
+  verify-static-only <directory>
+
+Exit codes:
+  0 - No shared libraries found
+  1 - Shared libraries found (lists them on stderr)
+-}
+module Main where
+
+import Aleph.Script hiding (FilePath, null)
+import qualified Aleph.Script (FilePath)
+import Data.List (null)
+import qualified Data.Text as T
+import System.Environment (getArgs)
+import System.Exit (exitFailure, exitSuccess)
+
+type FP = Aleph.Script.FilePath
+
+main :: IO ()
+main = do
+    args <- getArgs
+    case args of
+        [dir] -> script $ verifyStaticOnly (fromText $ pack dir)
+        _ -> script $ do
+            echoErr "Usage: verify-static-only <directory>"
+            liftIO exitFailure
+
+-- | Verify directory contains no shared libraries
+verifyStaticOnly :: FP -> Sh ()
+verifyStaticOnly dir = do
+    -- Find all shared library patterns
+    soFiles <- findSharedLibs dir "*.so*"
+    dylibFiles <- findSharedLibs dir "*.dylib"
+    dllFiles <- findSharedLibs dir "*.dll"
+
+    let allShared = soFiles ++ dylibFiles ++ dllFiles
+
+    if null allShared
+        then do
+            echo "No shared libraries found - static-only build verified."
+            liftIO exitSuccess
+        else do
+            echoErr "ERROR: Shared libraries found despite static-only configuration:"
+            mapM_ (echoErr . ("  " <>) . toTextIgnore) allShared
+            liftIO exitFailure
+
+-- | Find files matching a glob pattern in directory
+findSharedLibs :: FP -> Text -> Sh [FP]
+findSharedLibs dir pattern = do
+    exists <- test_d dir
+    if exists
+        then do
+            -- Use find to locate matching files
+            output <- silently $ run "find" [toTextIgnore dir, "-name", pattern, "-type", "f"]
+            let paths = filter (not . T.null) $ T.lines output
+            return $ map (fromText . T.strip) paths
+        else return []

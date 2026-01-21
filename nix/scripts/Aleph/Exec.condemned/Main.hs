@@ -196,12 +196,17 @@ data Action
     | CMakeBuild Ref (Maybe Text) (Maybe Natural) -- buildDir target jobs
     | CMakeInstall Ref -- buildDir
     | MakeAction [Text] [Text] (Maybe Natural) (Maybe Ref) -- targets flags jobs dir
+    | Configure [Text] -- flags (autotools ./configure, prefix = $out)
+    | Tool Text Text [Text] -- dep bin args (call compiled script)
     | -- Install helpers
       InstallBin Ref -- src
     | InstallLib Ref -- src
     | InstallInclude Ref -- src
     | -- Control flow
       Seq [Action]
+    | ForFiles Text Ref Text [Action] -- pattern dir var actions
+    | -- Assertions
+      Assert Text Text -- condition (as shell test), message
     | -- Escape hatch (use sparingly)
       Shell Text
     deriving (Show, Generic)
@@ -349,6 +354,23 @@ instance FromDhall Action where
                                     <*> Dhall.field "dir" (Dhall.maybe auto)
                             )
                    )
+                <> ( Configure
+                        <$> Dhall.constructor
+                            "Configure"
+                            ( Dhall.record $
+                                Dhall.field "flags" (Dhall.list Dhall.strictText)
+                            )
+                   )
+                <> ( mk3 Tool
+                        <$> Dhall.constructor
+                            "Tool"
+                            ( Dhall.record $
+                                (,,)
+                                    <$> Dhall.field "dep" Dhall.strictText
+                                    <*> Dhall.field "bin" Dhall.strictText
+                                    <*> Dhall.field "args" (Dhall.list Dhall.strictText)
+                            )
+                   )
                 <> ( InstallBin
                         <$> Dhall.constructor
                             "InstallBin"
@@ -468,10 +490,20 @@ getContext :: IO BuildContext
 getContext = do
     ctxOut <- getEnv "out"
     ctxSrc <- lookupEnv "src"
-    -- TODO: Parse deps from environment or spec
-    let ctxDeps = Map.empty
+    -- Parse deps from ALEPH_DEPS env var (name=path:name=path:...)
+    depsStr <- fromMaybe "" <$> lookupEnv "ALEPH_DEPS"
+    let parseDep s = case T.breakOn "=" (T.pack s) of
+            (name, rest) | not (T.null rest) -> Just (name, T.unpack (T.drop 1 rest))
+            _ -> Nothing
+        ctxDeps = Map.fromList $ catMaybes $ map parseDep $ filter (not . null) $ splitOn ':' depsStr
         ctxOutputs = Map.singleton "out" ctxOut
     return BuildContext{..}
+  where
+    splitOn :: Char -> String -> [String]
+    splitOn _ "" = []
+    splitOn c s = case break (== c) s of
+        (x, "") -> [x]
+        (x, _:rest) -> x : splitOn c rest
 
 --------------------------------------------------------------------------------
 -- Reference Resolution
@@ -620,6 +652,24 @@ executeAction ctx action = do
                     dirPath <- resolveRef ctx dirRef
                     callProcess "make" $ ["-C", dirPath] ++ allFlags
                 Nothing -> callProcess "make" allFlags
+        Configure flags -> do
+            -- Autotools-style ./configure
+            -- stdenv has already cd'd into the source directory after unpack
+            let prefixPath = ctxOut ctx
+                allFlags = ["--prefix=" ++ prefixPath] ++ map T.unpack flags
+            callProcess "./configure" allFlags
+        Tool depName binName args -> do
+            -- Call a compiled script from a dependency
+            -- Try both dotted name and underscore version (Nix converts . to _)
+            let underscoreName = T.replace "." "_" depName
+            depPath <- case Map.lookup depName (ctxDeps ctx) of
+                Just p -> return p
+                Nothing -> case Map.lookup underscoreName (ctxDeps ctx) of
+                    Just p -> return p
+                    Nothing -> fail $ "Tool dependency not found: " ++ T.unpack depName
+                        ++ " (tried: " ++ T.unpack depName ++ ", " ++ T.unpack underscoreName ++ ")"
+            let binPath = depPath </> "bin" </> T.unpack binName
+            callProcess binPath (map T.unpack args)
         InstallBin srcRef -> do
             srcPath <- resolveRef ctx srcRef
             let dstPath = ctxOut ctx </> "bin" </> takeFileName srcPath
@@ -679,6 +729,8 @@ logAction = \case
     CMakeBuild _ _ _ -> log' "cmake build"
     CMakeInstall _ -> log' "cmake install"
     MakeAction _ _ _ _ -> log' "make"
+    Configure _ -> log' "./configure"
+    Tool _ bin _ -> log' $ "tool: " ++ T.unpack bin
     InstallBin _ -> log' "install bin"
     InstallLib _ -> log' "install lib"
     InstallInclude _ -> log' "install include"

@@ -146,6 +146,7 @@ let
       spec,
       pkgs,
       stdenvFn ? pkgs.stdenv.mkDerivation,
+      wasmDrv ? null, # WASM module path - included in derivation for cache invalidation
     }:
     let
       # Resolve source
@@ -197,6 +198,17 @@ let
       toolDeps = extractToolDeps allActions;
 
       deps = spec.deps or { };
+      # All dep names (for resolving Tool actions)
+      allDepNames = (deps.nativeBuildInputs or [ ]) ++ (deps.buildInputs or [ ]) ++ toolDeps;
+      # Map dep names to store paths for aleph-exec
+      depPaths = lib.listToAttrs (
+        map (name: {
+          # Convert dotted paths to underscore for env var names
+          name = builtins.replaceStrings [ "." ] [ "_" ] name;
+          value = resolveDep name;
+        }) allDepNames
+      );
+
       nativeBuildInputs = resolveDeps ((deps.nativeBuildInputs or [ ]) ++ toolDeps);
       buildInputs = resolveDeps (deps.buildInputs or [ ]);
       propagatedBuildInputs = resolveDeps (deps.propagatedBuildInputs or [ ]);
@@ -244,25 +256,48 @@ let
       aleph-exec' =
         if aleph-exec != null then aleph-exec else (throw "aleph-exec required for typed builds");
 
-      hasCustomPhases =
-        (phases'.postPatch or [ ]) != [ ]
-        || (phases'.preConfigure or [ ]) != [ ]
-        || (phases'.installPhase or [ ]) != [ ]
-        || (phases'.postInstall or [ ]) != [ ]
-        || (phases'.postFixup or [ ]) != [ ];
+      # All .hs packages run through aleph-exec. No detection, no fallbacks.
+      # We override configurePhase/buildPhase/installPhase to run aleph-exec.
+      #
+      # Dependency paths are passed via ALEPH_DEPS environment variable as
+      # a colon-separated list of name=path pairs for Tool action resolution.
+      depEnvStr = lib.concatStringsSep ":" (lib.mapAttrsToList (n: v: "${n}=${v}") depPaths);
 
-      phaseAttrs = lib.optionalAttrs hasCustomPhases {
-        postPatch = lib.optionalString ((phases'.postPatch or [ ]) != [ ]) ''
-          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase patch
+      phaseAttrs = {
+        configurePhase = ''
+          runHook preConfigure
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase patch
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase configure
+          runHook postConfigure
         '';
-        postInstall = ''
-          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase install
-          ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
+
+        buildPhase = ''
+          runHook preBuild
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase build
+          runHook postBuild
+        '';
+
+        checkPhase = ''
+          runHook preCheck
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase check
+          runHook postCheck
+        '';
+
+        installPhase = ''
+          runHook preInstall
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase install
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
+          runHook postInstall
         '';
       };
 
       # Environment variables
       env = spec.env or { };
+
+      # Include WASM module in derivation hash for proper cache invalidation
+      # When the Haskell package definition changes, the WASM changes, which
+      # should invalidate any cached builds of the resulting derivation.
+      wasmHash = if wasmDrv != null then builtins.hashFile "sha256" wasmDrv else null;
 
     in
     stdenvFn (
@@ -275,7 +310,7 @@ let
           propagatedBuildInputs
           checkInputs
           ;
-        nativeBuildInputs = builderAttrs.nativeBuildInputs or nativeBuildInputs;
+        nativeBuildInputs = nativeBuildInputs ++ [ aleph-exec' ];
 
         strictDeps = spec.strictDeps or true;
         doCheck = spec.doCheck or false;
@@ -288,10 +323,16 @@ let
           platforms = if (spec.meta.platforms or [ ]) == [ ] then lib.platforms.all else spec.meta.platforms;
           mainProgram = spec.meta.mainProgram or null;
         };
+
+        passthru = {
+          inherit spec wasmHash;
+          inherit dhallSpec;
+        };
       }
-      // builderAttrs
       // phaseAttrs
       // env
+      # Include WASM hash in derivation to invalidate cache when WASM changes
+      // lib.optionalAttrs (wasmHash != null) { __wasmHash = wasmHash; }
     );
 
   # ──────────────────────────────────────────────────────────────────────────

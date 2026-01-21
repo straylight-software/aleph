@@ -514,8 +514,8 @@ drvToDhall DrvSpec{..} =
         , "      { description = " <> dhallText (description meta)
         , "      , homepage = " <> dhallMaybe dhallText (homepage meta)
         , "      , license = " <> dhallText (license meta)
-        , "      , maintainers = " <> dhallList dhallText (maintainers meta)
-        , "      , platforms = " <> dhallList dhallText (platforms meta)
+        , "      , maintainers = " <> dhallListOf "Text" dhallText (maintainers meta)
+        , "      , platforms = " <> dhallListOf "Text" dhallText (platforms meta)
         , "      }"
         , "  }"
         ]
@@ -559,6 +559,8 @@ dhallTypes =
         , "  | CMakeBuild : { buildDir : Ref, target : Optional Text, jobs : Optional Natural }"
         , "  | CMakeInstall : { buildDir : Ref }"
         , "  | Make : { targets : List Text, flags : List Text, jobs : Optional Natural, dir : Optional Ref }"
+        , "  | Configure : { flags : List Text }"
+        , "  | Tool : { dep : Text, bin : Text, args : List Text }"
         , "  | InstallBin : { src : Ref }"
         , "  | InstallLib : { src : Ref }"
         , "  | InstallInclude : { src : Ref }"
@@ -651,20 +653,35 @@ actionToDhall = \case
         "Action.Run { cmd = "
             <> refToDhall cmd
             <> ", args = "
-            <> dhallList exprToDhall args
+            <> dhallListOf "Expr" exprToDhall args
             <> ", env = "
-            <> dhallList (\(k, v) -> "{ key = " <> dhallText k <> ", value = " <> exprToDhall v <> " }") envVars
+            <> dhallListOf "{ key : Text, value : Expr }" (\(k, v) -> "{ key = " <> dhallText k <> ", value = " <> exprToDhall v <> " }") envVars
             <> ", cwd = "
-            <> dhallMaybe refToDhall cwd
+            <> dhallMaybeOf "Ref" refToDhall cwd
             <> ", stdin = "
-            <> dhallMaybe refToDhall stdin
+            <> dhallMaybeOf "Ref" refToDhall stdin
             <> ", stdout = "
             <> streamTargetToDhall stdout
             <> ", stderr = "
             <> streamTargetToDhall stderr
             <> " }"
     Tool dep bin args ->
-        "Action.Tool { dep = " <> dhallText dep <> ", bin = " <> dhallText bin <> ", args = " <> dhallList exprToDhall args <> " }"
+        "Action.Tool { dep = " <> dhallText dep <> ", bin = " <> dhallText bin <> ", args = " <> dhallListOf "Text" exprToArgText args <> " }"
+      where
+        -- Resolve Expr to arg string (refs become $out, $src, etc.)
+        exprToArgText (ExprStr t) = dhallText t
+        exprToArgText (ExprRef r) = dhallText (refToArgText r)
+        exprToArgText (ExprInt n) = dhallText (T.pack $ show n)
+        exprToArgText (ExprBool True) = dhallText "true"
+        exprToArgText (ExprBool False) = dhallText "false"
+        exprToArgText _ = dhallText "" -- unsupported expr types
+        refToArgText (RefOut n msub) = "$" <> n <> maybe "" ("/" <>) msub
+        refToArgText (RefSrc msub) = "$src" <> maybe "" ("/" <>) msub
+        refToArgText (RefDep n msub) = "@dep:" <> n <> "@" <> maybe "" ("/" <>) msub
+        refToArgText (RefEnv v) = "$" <> v
+        refToArgText (RefRel p) = p
+        refToArgText (RefLit t) = t
+        refToArgText (RefCat rs) = T.concat (map refToArgText rs)
     CMakeConfigure srcDir buildDir prefix buildType flags gen ->
         "Action.CMake { srcDir = "
             <> refToDhall srcDir
@@ -685,19 +702,19 @@ actionToDhall = \case
             <> ", target = "
             <> dhallMaybe dhallText target
             <> ", jobs = "
-            <> dhallMaybe (T.pack . show) jobs
+            <> dhallMaybeOf "Natural" (T.pack . show) jobs
             <> " }"
     CMakeInstall buildDir ->
         "Action.CMakeInstall { buildDir = " <> refToDhall buildDir <> " }"
     MakeAction targets flags jobs dir ->
         "Action.Make { targets = "
-            <> dhallList dhallText targets
+            <> dhallListOf "Text" dhallText targets
             <> ", flags = "
-            <> dhallList dhallText flags
+            <> dhallListOf "Text" dhallText flags
             <> ", jobs = "
-            <> dhallMaybe (T.pack . show) jobs
+            <> dhallMaybeOf "Natural" (T.pack . show) jobs
             <> ", dir = "
-            <> dhallMaybe refToDhall dir
+            <> dhallMaybeOf "Ref" refToDhall dir
             <> " }"
     MesonSetup srcDir buildDir prefix buildType flags ->
         "Action.Meson { srcDir = "
@@ -715,9 +732,9 @@ actionToDhall = \case
         "Action.NinjaBuild { buildDir = "
             <> refToDhall buildDir
             <> ", targets = "
-            <> dhallList dhallText targets
+            <> dhallListOf "Text" dhallText targets
             <> ", jobs = "
-            <> dhallMaybe (T.pack . show) jobs
+            <> dhallMaybeOf "Natural" (T.pack . show) jobs
             <> " }"
     Configure flags ->
         "Action.Configure { flags = " <> dhallList dhallText flags <> " }"
@@ -886,15 +903,25 @@ dhallBool :: Bool -> Text
 dhallBool True = "True"
 dhallBool False = "False"
 
--- | Maybe to Dhall Optional
+-- | Maybe to Dhall Optional (defaults to Text for Nothing)
 dhallMaybe :: (a -> Text) -> Maybe a -> Text
 dhallMaybe _ Nothing = "None Text"
 dhallMaybe f (Just x) = "Some " <> f x
 
--- | List to Dhall
+-- | Maybe to Dhall Optional with explicit type annotation
+dhallMaybeOf :: Text -> (a -> Text) -> Maybe a -> Text
+dhallMaybeOf ty _ Nothing = "None " <> ty
+dhallMaybeOf _ f (Just x) = "Some " <> f x
+
+-- | List to Dhall (non-empty, infers type from elements)
 dhallList :: (a -> Text) -> [a] -> Text
-dhallList _ [] = "[] : List _" -- Type annotation needed for empty lists
+dhallList _ [] = error "dhallList: empty list - use dhallListOf with explicit type"
 dhallList f xs = "[" <> T.intercalate ", " (map f xs) <> "]"
+
+-- | List to Dhall with explicit type annotation (for possibly-empty lists)
+dhallListOf :: Text -> (a -> Text) -> [a] -> Text
+dhallListOf ty _ [] = "[] : List " <> ty
+dhallListOf _ f xs = "[" <> T.intercalate ", " (map f xs) <> "]"
 
 -- ============================================================================
 -- Nix Emission (WASM Boundary)
@@ -1026,16 +1053,21 @@ metaToNix Meta{..} = do
             , ("platforms", platformsVal)
             ]
 
--- | Convert Phases to Nix (for legacy stdenv path)
+{- | Convert Phases to Nix
+Emits all phases with their canonical names for F_ω typed phase detection.
+The Nix side (wasm-plugin.nix) detects these and routes through aleph-exec.
+-}
 phasesToNix :: Phases -> IO Value
 phasesToNix Phases{..} = do
     pairs <-
         sequence
-            [ ("postPatch",) <$> actionsToNix patch
-            , ("preConfigure",) <$> actionsToNix configure
-            , ("installPhase",) <$> actionsToNix install
-            , ("postInstall",) <$> actionsToNix install -- TODO: separate
-            , ("postFixup",) <$> actionsToNix fixup
+            [ ("unpack",) <$> actionsToNix unpack
+            , ("patch",) <$> actionsToNix patch
+            , ("configure",) <$> actionsToNix configure
+            , ("build",) <$> actionsToNix build
+            , ("check",) <$> actionsToNix check
+            , ("install",) <$> actionsToNix install
+            , ("fixup",) <$> actionsToNix fixup
             ]
     mkAttrs (Map.fromList pairs)
 

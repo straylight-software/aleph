@@ -1,0 +1,61 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+{- | libsodium - A modern, easy-to-use crypto library
+https://doc.libsodium.org/
+
+Uses autotools (./configure), not cmake.
+Static library only build with PIC.
+-}
+module Pkg where
+
+import Aleph.Nix.DrvSpec
+import qualified Aleph.Nix.Script as Script
+
+pkg :: DrvSpec
+pkg =
+    defaultDrvSpec
+        { pname = "libsodium"
+        , version = "1.0.20"
+        , specSrc =
+            SrcUrl
+                UrlSrc
+                    { urlUrl = "https://download.libsodium.org/libsodium/releases/libsodium-1.0.20.tar.gz"
+                    , urlHash = "sha256-67Ze9spDkzPCu0GgwZkFhyiNoH9sf9B8s6GMwY0wzhk="
+                    }
+        , deps =
+            [ buildDep "pkg-config"
+            , buildDep "straylight.script.compiled.verify-static-only"
+            ]
+        , env =
+            [ ("NIX_CFLAGS_COMPILE", "-fPIC")
+            , ("SOURCE_DATE_EPOCH", "315532800") -- 1980-01-01 for reproducibility
+            ]
+        , phases =
+            emptyPhases
+                { configure =
+                    [ Configure
+                        [ "--disable-ssp"
+                        , "--disable-shared"
+                        , "--enable-static"
+                        , "--with-pic"
+                        ]
+                    ]
+                , build =
+                    [ MakeAction [] [] Nothing Nothing
+                    ]
+                , install =
+                    [ MakeAction ["install"] [] Nothing Nothing
+                    ]
+                , fixup =
+                    [ Script.verifyStaticOnly out
+                    ]
+                }
+        , meta =
+            Meta
+                { description = "Modern and easy-to-use crypto library"
+                , homepage = Just "https://doc.libsodium.org/"
+                , license = "isc"
+                , maintainers = []
+                , platforms = []
+                }
+        }
