@@ -1,0 +1,3 @@
+id: default-nix-in-packages
+invalid:
+  - "{ }"

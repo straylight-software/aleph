@@ -1,0 +1,42 @@
+id: rec-in-derivation
+language: nix
+severity: error
+rule:
+  kind: apply_expression
+  all:
+    - has:
+        field: argument
+        kind: rec_attrset_expression
+    - any:
+        - has:
+            field: function
+            kind: variable_expression
+            has:
+              kind: identifier
+              regex: ^mkDerivation$
+        - has:
+            field: function
+            kind: select_expression
+            has:
+              field: attrpath
+              kind: attrpath
+              has:
+                kind: identifier
+                regex: ^mkDerivation$
+message: "WSN-E002: `rec` used with mkDerivation"
+note: |
+  ## What's wrong?
+  A recursive attrset (`rec { ... }`) was passed to `mkDerivation`.
+
+  This is forbidden because it:
+  - Encourages self-referential derivation inputs
+  - Obscures attribute evaluation order
+
+  ## What can I do to fix this?
+  Use the fixed-point form instead:
+
+  ```nix
+  stdenv.mkDerivation (finalAttrs: {
+    # ...
+  })
+  ```

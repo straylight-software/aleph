@@ -1,0 +1,9 @@
+id: rec-in-derivation
+valid:
+  - |
+    stdenv.mkDerivation (finalAttrs: { pname = "foo"; })
+invalid:
+  - |
+    stdenv.mkDerivation rec { pname = "foo"; }
+  - |
+    pkgs.stdenv.mkDerivation rec { pname = "foo"; }

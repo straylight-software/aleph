@@ -1,0 +1,10 @@
+id: with-lib
+valid:
+  - |
+    environment.systemPackages = with pkgs; [ vim git ];
+  - |
+    let lib = pkgs.lib; in { inherit (lib) mkOption; }
+invalid:
+  - |
+    with lib;
+    { options.foo = mkOption { }; }

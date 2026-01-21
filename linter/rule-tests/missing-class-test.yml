@@ -1,0 +1,13 @@
+id: missing-class
+valid:
+  - |
+    { config, ... }:
+    {
+      _class = "nixos";
+    }
+invalid:
+  - |
+    { config, ... }:
+    {
+      options.example.enable = true;
+    }

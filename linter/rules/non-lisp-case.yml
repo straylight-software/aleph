@@ -1,0 +1,33 @@
+id: non-lisp-case
+language: nix
+severity: error
+rule:
+  kind: select_expression
+  all:
+    - has:
+        field: expression
+        kind: variable_expression
+        has:
+          kind: identifier
+          regex: ^straylight$
+    - has:
+        field: attrpath
+        kind: attrpath
+        has:
+          kind: identifier
+          regex: .*[A-Z_].*
+message: "WSN-E003: non-lisp-case identifier in `straylight.*`"
+note: |
+  ## What's wrong?
+  Identifiers in the `straylight.*` namespace must use lisp-case.
+
+  CamelCase or snake_case names are forbidden because they:
+  - Break naming consistency across modules
+  - Make attribute discovery and search less predictable
+
+  ## What can I do to fix this?
+  Rename to lisp-case, for example:
+
+  ```nix
+  straylight.foo-bar
+  ```

@@ -1,0 +1,20 @@
+id: with-lib
+snapshots:
+  ? |
+    with lib;
+    { options.foo = mkOption { }; }
+  : labels:
+      - source: |-
+          with lib;
+          { options.foo = mkOption { }; }
+        style: primary
+        start: 0
+        end: 41
+      - source: lib
+        style: secondary
+        start: 5
+        end: 8
+      - source: lib
+        style: secondary
+        start: 5
+        end: 8

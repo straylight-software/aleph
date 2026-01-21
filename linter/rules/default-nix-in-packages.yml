@@ -1,0 +1,18 @@
+id: default-nix-in-packages
+language: nix
+severity: error
+files:
+  - nix/packages/**/default.nix
+rule:
+  kind: source_code
+message: "WSN-E005: default.nix under nix/packages"
+note: |
+  ## What's wrong?
+  `nix/packages/*/default.nix` is forbidden.
+
+  Using `default.nix` too much makes it harder to search
+  for files and the semantic meaning of file names is lost.
+
+  ## What can I do to fix this?
+  Rename the file to `nix/packages/<name>.nix`
+  or `nix/packages/<name>/package.nix` instead.

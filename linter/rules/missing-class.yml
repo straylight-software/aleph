@@ -1,0 +1,28 @@
+id: missing-class
+language: nix
+severity: error
+files:
+  - nix/modules/*/**/*.nix
+rule:
+  kind: source_code
+  not:
+    regex: _class
+message: "WSN-E004: missing `_class` attribute"
+note: |
+  ## What's wrong?
+  Module files under `nix/modules/*/` must define `_class`.
+
+  This helps:
+  1. The reader tell instantly what type of module system
+  this can be used in.
+  2. Type checking which modules are compatible where.
+
+  ## What can I do to fix this?
+  Add `_class` to the module attrset, for example:
+
+  ```nix
+  {
+    _class = "nixos";
+    # ...
+  }
+  ```

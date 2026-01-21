@@ -1,0 +1,8 @@
+id: non-lisp-case
+valid:
+  - straylight.foo
+  - straylight.config.foo
+invalid:
+  - straylight.fooBar
+  - straylight.foo_bar
+  - straylight.config.fooBar

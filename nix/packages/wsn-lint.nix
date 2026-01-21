@@ -19,7 +19,6 @@ let
 
   sgconfigYml = writers.writeYAML "sgconfig.yaml" sgconfig;
 in
-with lib;
 writeShellApplication {
   name = "wsn-lint";
   runtimeInputs = [
@@ -27,9 +26,21 @@ writeShellApplication {
     tree-sitter
     tree-sitter-grammars.tree-sitter-nix
   ];
+  derivationArgs.postCheck = ''
+    ${lib.getExe ast-grep} \
+      --config ${sgconfigYml} \
+      test
+  '';
   text = ''
     cp --no-preserve=mode --force ${sgconfigYml} ./__sgconfig.yml
-    ${getExe ast-grep} --config ./__sgconfig.yml scan "$@" || true
+
+    ${lib.getExe ast-grep} \
+      --config ./__sgconfig.yml \
+      scan \
+      --context 2 \
+      "$@" \
+      || true
+
     rm ./__sgconfig.yml
   '';
 }
