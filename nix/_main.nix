@@ -116,6 +116,7 @@ in
     flakeModules.prelude-demos
     flakeModules.container
     flakeModules.build
+    flakeModules.lre
   ];
 
   perSystem =
@@ -301,5 +302,18 @@ in
 
     # Document all aleph-naught modules
     modules = [ flakeModules.options-only ];
+  };
+
+  # Local Remote Execution via NativeLink
+  # THE GUARANTEE: First command in dev shell = that command in build
+  aleph-naught.lre = {
+    enable = true;
+    worker = {
+      count = 4;
+      cpus = 4;
+      memory = 8192;
+      firecracker.enable = true;
+    };
+    buck2.config-prefix = "lre"; # buck2 build --config=lre //:foo
   };
 }
