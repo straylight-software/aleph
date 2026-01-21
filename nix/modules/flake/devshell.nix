@@ -221,6 +221,15 @@ in
           // nv-env
           // cfg.extra-env
         );
+        devShells.linter = pkgs.mkShell {
+          name = "linter-shell";
+
+          packages = [
+            pkgs.ast-grep
+            pkgs.tree-sitter
+            pkgs.tree-sitter-grammars.tree-sitter-nix
+          ];
+        };
       };
   };
 }

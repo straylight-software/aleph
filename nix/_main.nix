@@ -278,6 +278,7 @@ in
 
       packages = {
         mdspan = pkgs.mdspan or null;
+        wsn-lint = pkgs.callPackage ./packages/wsn-lint.nix { };
       }
       // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
         llvm-git = pkgs.llvm-git or null;
