@@ -46,71 +46,80 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    perSystem = {
-      treefmt = {
-        projectRootFile = "flake.nix";
-        programs.nixfmt.enable = true;
-        programs.deadnix = {
-          enable = true;
-          excludes = [ "nix/templates/*" ];
-        };
-        programs.statix.enable = true;
+    perSystem =
+      { system, ... }:
+      {
+        treefmt = {
+          projectRootFile = "flake.nix";
+          programs.nixfmt.enable = true;
+          programs.deadnix = {
+            enable = true;
+            excludes = [ "nix/templates/*" ];
+          };
+          programs.statix.enable = true;
 
-        programs.shfmt = {
-          enable = true;
-          indent_size = cfg.indent-width;
-        };
+          programs.shfmt = {
+            enable = true;
+            indent_size = cfg.indent-width;
+          };
 
-        programs.ruff-format = {
-          enable = true;
-          lineLength = cfg.line-length;
-        };
-
-        programs.ruff-check.enable = true;
-
-        programs.clang-format = {
-          enable = true;
-          includes = [
-            "*.c"
-            "*.h"
-            "*.cpp"
-            "*.hpp"
-            "*.cu"
-            "*.cuh"
-            "*.proto"
-          ];
-        };
-
-        programs.biome = {
-          enable = true;
           settings.formatter = {
-            indentStyle = "space";
-            indentWidth = cfg.indent-width;
-            lineWidth = cfg.line-length;
+            wsn-lint = {
+              command = lib.getExe inputs.self.packages.${system}.wsn-lint;
+              includes = [ "*.nix" ];
+            };
           };
-          settings.css.linter.enabled = false;
-        };
 
-        programs.stylua = {
-          enable = true;
-          settings = {
-            column_width = cfg.line-length;
-            indent_type = "Spaces";
-            indent_width = cfg.indent-width;
+          programs.ruff-format = {
+            enable = true;
+            lineLength = cfg.line-length;
           };
-        };
 
-        programs.taplo.enable = true;
-        programs.yamlfmt.enable = true;
-        programs.mdformat.enable = true;
-        programs.fourmolu.enable = true;
-        # hlint disabled - it's a linter, not a formatter, and treefmt-nix
-        # doesn't support the config file needed to suppress suggestions
-        # programs.hlint.enable = true;
-        programs.just.enable = true;
-        programs.keep-sorted.enable = true;
-        flakeCheck = cfg.enable-check;
+          programs.ruff-check.enable = true;
+
+          programs.clang-format = {
+            enable = true;
+            includes = [
+              "*.c"
+              "*.h"
+              "*.cpp"
+              "*.hpp"
+              "*.cu"
+              "*.cuh"
+              "*.proto"
+            ];
+          };
+
+          programs.biome = {
+            enable = true;
+            settings.formatter = {
+              indentStyle = "space";
+              indentWidth = cfg.indent-width;
+              lineWidth = cfg.line-length;
+            };
+            settings.css.linter.enabled = false;
+          };
+
+          programs.stylua = {
+            enable = true;
+            settings = {
+              column_width = cfg.line-length;
+              indent_type = "Spaces";
+              indent_width = cfg.indent-width;
+            };
+          };
+
+          programs.taplo.enable = true;
+          programs.yamlfmt.enable = true;
+          programs.mdformat.enable = true;
+          programs.fourmolu.enable = true;
+          # hlint disabled - it's a linter, not a formatter, and treefmt-nix
+          # doesn't support the config file needed to suppress suggestions
+          # programs.hlint.enable = true;
+          programs.just.enable = true;
+          programs.keep-sorted.enable = true;
+          flakeCheck = cfg.enable-check;
+        };
       };
-    };
   };
 }
