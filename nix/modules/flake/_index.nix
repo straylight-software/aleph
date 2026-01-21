@@ -27,6 +27,7 @@ let
   docs = import ./docs.nix { inherit inputs; };
   formatter = import ./formatter.nix { inherit inputs; };
   lint = import ./lint.nix { };
+  lre = import ./lre.nix { inherit inputs; };
   nix-conf = import ./nix-conf.nix { };
   nixpkgs = import ./nixpkgs.nix { inherit inputs; };
   std = import ./std.nix { inherit inputs; };
@@ -108,6 +109,7 @@ in
     docs
     formatter
     lint
+    lre
     nix-conf
     nixpkgs
     nv-sdk

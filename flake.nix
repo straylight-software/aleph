@@ -31,6 +31,10 @@
       url = "github:weyl-ai/straylight-buck2-prelude";
       flake = false;
     };
+
+    # NativeLink - RE backend for hermetic builds
+    # Provides Local Remote Execution (LRE) with Nix toolchains
+    nativelink.url = "github:TraceMachina/nativelink";
   };
 
   outputs =

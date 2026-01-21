@@ -186,4 +186,58 @@
       exec setsid cttyhack /bin/sh
     fi
   '';
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # // lre-worker init (NativeLink worker for remote execution) //
+  # ────────────────────────────────────────────────────────────────────────────
+
+  lre-worker-init = ''
+    #!/bin/sh
+    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/nix/store/bin
+    mount -t proc proc /proc
+    mount -t sysfs sys /sys
+    mount -t devtmpfs dev /dev 2>/dev/null || true
+    mkdir -p /dev/pts /dev/shm
+    mount -t devpts devpts /dev/pts 2>/dev/null || true
+    mount -t tmpfs tmpfs /tmp 2>/dev/null || true
+    mount -t tmpfs tmpfs /run 2>/dev/null || true
+    hostname lre-worker
+
+    # Network setup
+    ip link set lo up 2>/dev/null || true
+    if [ -e /sys/class/net/eth0 ]; then
+      ip link set eth0 up
+      ip addr add 172.16.0.2/24 dev eth0
+      ip route add default via 172.16.0.1
+      echo "nameserver 8.8.8.8" > /etc/resolv.conf
+      echo "nameserver 1.1.1.1" >> /etc/resolv.conf
+    fi
+
+    # Mount /nix/store from virtiofs if available
+    if grep -q virtiofs /proc/filesystems 2>/dev/null; then
+      mkdir -p /nix/store
+      mount -t virtiofs nix-store /nix/store -o ro 2>/dev/null || true
+    fi
+
+    # Create work directory for NativeLink
+    mkdir -p /tmp/nativelink
+
+    echo "════════════════════════════════════════════════════════"
+    echo " LRE Worker - NativeLink Remote Execution"
+    echo " CPUs: $(nproc)  RAM: $(free -h 2>/dev/null | awk '/Mem:/{print $2}' || echo '?')"
+    echo "════════════════════════════════════════════════════════"
+
+    # Start NativeLink worker if config exists
+    if [ -f /etc/nativelink/worker.json ]; then
+      echo ":: Starting NativeLink worker..."
+      exec /nix/store/bin/nativelink /etc/nativelink/worker.json
+    else
+      echo ":: No worker config found, dropping to shell"
+      if [ -x /bin/bash ]; then
+        exec setsid cttyhack /bin/bash -l
+      else
+        exec setsid cttyhack /bin/sh
+      fi
+    fi
+  '';
 }

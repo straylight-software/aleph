@@ -59,7 +59,7 @@
 
             # Shell hook from build module links prelude, toolchains,
             # and generates .buckconfig.local with Nix store paths
-            shellHook = config.straylight.build.shellHook;
+            inherit (config.straylight.build) shellHook;
           };
 
           packages.default = pkgs.hello;

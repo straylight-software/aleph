@@ -116,6 +116,7 @@ in
     flakeModules.prelude-demos
     flakeModules.container
     flakeModules.build
+    flakeModules.lre
   ];
 
   perSystem =
@@ -125,22 +126,19 @@ in
       ...
     }:
     let
+      # aleph-exec: zero-bash build executor (RFC-007)
+      # Defined first so it's available for buildFromSpec
+      aleph-exec = pkgs.callPackage ./packages/aleph-exec.nix { };
+
       # WASM infrastructure (internal)
       wasm-infra = import ./prelude/wasm-plugin.nix {
-        inherit lib;
+        inherit lib aleph-exec;
         inherit (pkgs) stdenv runCommand;
         inherit (inputs) ghc-wasm-meta;
       };
 
       # GHC WASM toolchain for compiling .hs packages
       ghc-wasm = inputs.ghc-wasm-meta.packages.${system}.all_9_12 or null;
-
-      # The aleph interface
-      # Usage: aleph.eval "Aleph.Packages.Nvidia.nccl" {}
-      aleph = import ./prelude/aleph.nix {
-        inherit lib pkgs;
-        wasmFile = wasm-infra.alephWasm;
-      };
 
       # ────────────────────────────────────────────────────────────────────────
       # // call-package for typed .hs files //
@@ -168,7 +166,7 @@ in
             module Main where
 
             import Aleph.Nix.Value (Value(..))
-            import Aleph.Nix.Derivation (drvToNixAttrs)
+            import Aleph.Nix.DrvSpec (drvToNix)
             import Aleph.Nix (nixWasmInit)
             import qualified Pkg (pkg)
 
@@ -181,7 +179,7 @@ in
 
             foreign export ccall "pkg" pkgExport :: Value -> IO Value
             pkgExport :: Value -> IO Value
-            pkgExport _args = drvToNixAttrs Pkg.pkg
+            pkgExport _args = drvToNix Pkg.pkg
           '';
 
           # Build single-file Haskell to WASM
@@ -213,6 +211,9 @@ in
                   -o plugin.wasm
                 wasm-opt -O3 plugin.wasm -o $out
               '';
+          # All builds go through buildFromSpec (F_ω path only)
+          # wasmDrv is passed to include it in derivation hash for cache invalidation
+          buildSpec = wasmDrv: spec: wasm-infra.buildFromSpec { inherit spec pkgs wasmDrv; };
         in
         if ext == "hs" then
           if ghc-wasm == null then
@@ -224,15 +225,12 @@ in
               wasmDrv = buildHsWasm path;
               spec = builtins.wasm wasmDrv "pkg" args;
             in
-            wasm-infra.buildFromSpec { inherit spec pkgs; }
+            buildSpec wasmDrv spec
         else if ext == "wasm" then
           if !(builtins ? wasm) then
             throw "call-package for .wasm files requires straylight-nix"
           else
-            wasm-infra.buildFromSpec {
-              spec = builtins.wasm path "pkg" args;
-              inherit pkgs;
-            }
+            buildSpec path (builtins.wasm path "pkg" args)
         else if ext == "nix" then
           pkgs.callPackage path args
         else
@@ -241,43 +239,29 @@ in
       # ────────────────────────────────────────────────────────────────────────
       # // typed packages //
       # ────────────────────────────────────────────────────────────────────────
-      # Packages defined in Haskell via call-package.
-      # Only available when using straylight-nix (builtins.wasm).
+      # MIGRATION IN PROGRESS (RFC-010 Aleph-1):
       #
-      typedPackages = lib.optionalAttrs (builtins ? wasm && ghc-wasm != null) {
-        # Test packages
-        test-hello = call-package ./packages/test-hello.hs { };
-        test-zlib-ng = call-package ./packages/test-zlib-ng.hs { };
-        test-tool-deps = call-package ./packages/test-tool-deps.hs { };
-        test-typed-tools = call-package ./packages/test-typed-tools.hs { };
-
-        # C++ libraries
-        catch2 = call-package ./packages/catch2.hs { };
-        fmt = call-package ./packages/fmt.hs { };
-        mdspan = call-package ./packages/mdspan.hs { };
-        nlohmann-json = call-package ./packages/nlohmann-json.hs { };
-        rapidjson = call-package ./packages/rapidjson.hs { };
-        spdlog = call-package ./packages/spdlog.hs { };
-        zlib-ng = call-package ./packages/zlib-ng.hs { };
-        # Note: abseil-cpp uses libmodern overlay (needs combine-archive)
-
-        # NVIDIA SDK (from PyPI wheels)
-        nvidia-nccl = call-package ./packages/nvidia-nccl.hs { };
-        nvidia-cudnn = call-package ./packages/nvidia-cudnn.hs { };
-        nvidia-tensorrt = call-package ./packages/nvidia-tensorrt.hs { };
-        nvidia-cutensor = call-package ./packages/nvidia-cutensor.hs { };
-        nvidia-cusparselt = call-package ./packages/nvidia-cusparselt.hs { };
-        nvidia-cutlass = call-package ./packages/nvidia-cutlass.hs { };
-      };
+      # The WASM-based .hs packages are being migrated to Aleph-1:
+      #   - Dhall specs: packages-dhall/*.dhall (source of truth)
+      #   - Haskell builders: builders/*.hs (build logic)
+      #   - Nix integration: build/from-dhall.nix (executor)
+      #
+      # For now, these packages are disabled. The .hs.condemned files contain
+      # valuable data (versions, hashes, flags) that will be migrated.
+      #
+      # TODO: Re-enable via buildFromDhall once migration is complete.
+      #
+      typedPackages = { };
     in
     {
       # Make aleph available to other modules via _module.args
       _module.args = {
-        inherit aleph call-package;
+        inherit call-package aleph-exec;
       };
 
       packages = {
         mdspan = pkgs.mdspan or null;
+        inherit aleph-exec;
       }
       // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
         llvm-git = pkgs.llvm-git or null;
@@ -318,5 +302,18 @@ in
 
     # Document all aleph-naught modules
     modules = [ flakeModules.options-only ];
+  };
+
+  # Local Remote Execution via NativeLink
+  # THE GUARANTEE: First command in dev shell = that command in build
+  aleph-naught.lre = {
+    enable = true;
+    worker = {
+      count = 4;
+      cpus = 4;
+      memory = 8192;
+      firecracker.enable = true;
+    };
+    buck2.config-prefix = "lre"; # buck2 build --config=lre //:foo
   };
 }

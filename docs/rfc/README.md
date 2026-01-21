@@ -9,10 +9,17 @@ Design decisions and rationale for aleph.
 | [001](./aleph-001-standard-nix.md) | Standard Nix | Implemented |
 | [002](./aleph-002-lint.md) | Linting | Implemented |
 | [003](./aleph-003-prelude.md) | The Prelude | Implemented |
-| [004](./aleph-004-typed-unix.md) | Aleph.Script | Implemented |
+| [004](./aleph-004-typed-unix.md) | Aleph.Script | Implemented (Part I-II), In Progress (Part III: Zero-Bash) |
 | [005](./aleph-005-profiles.md) | Nix Profiles | Implemented |
-| [006](./aleph-006-safe-bash.md) | Safe Bash | Implemented |
-| [007](./aleph-007-formalization.md) | Nix Formalization | Draft |
+| [006](./aleph-006-safe-bash.md) | Safe Bash | **Superseded** by zero-bash architecture |
+| [007](./aleph-007-formalization.md) | Nix Formalization | In Progress (Dhall + aleph-exec) |
+
+## Core Principles
+
+1. **Zero Bash** - No shell strings in derivations. Typed actions only.
+1. **Dhall Validation** - Store paths validated against Nix store at eval time.
+1. **Direct Execution** - `aleph-exec` runs actions, not bash interpreters.
+1. **Typed Everything** - Haskell/PureScript → WASM → Dhall → validated derivation.
 
 See also: [Conformance Report](./conformance-report.md)
 

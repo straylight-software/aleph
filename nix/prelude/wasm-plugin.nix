@@ -36,6 +36,7 @@
   stdenv,
   ghc-wasm-meta,
   runCommand,
+  aleph-exec ? null, # Zero-bash build executor (RFC-007)
 }:
 let
   # ──────────────────────────────────────────────────────────────────────────
@@ -77,6 +78,7 @@ let
       mainModule,
       extraModules ? [ ],
       ghcFlags ? [ ],
+
       # List of function names to export (must match foreign export ccall names)
       exports ? [ ],
     }:
@@ -135,208 +137,6 @@ let
       '';
 
   # ──────────────────────────────────────────────────────────────────────────
-  #                        // aleph wasm module //
-  # ──────────────────────────────────────────────────────────────────────────
-  # The compiled typed package definitions. Internal implementation detail.
-  #
-  alephWasm = buildWasmPlugin {
-    name = "aleph";
-    src = ../scripts;
-    # Use Main module to get proper GHC RTS initialization in reactor mode
-    mainModule = "Main";
-    extraModules = [
-      "Aleph.Nix"
-      "Aleph.Nix.FFI"
-      "Aleph.Nix.Types"
-      "Aleph.Nix.Value"
-      "Aleph.Nix.Derivation"
-      "Aleph.Nix.Syntax"
-      "Aleph.Script.Tools.CMake"
-      # Typed build tools
-      "Aleph.Nix.Tools"
-      "Aleph.Nix.Tools.Jq"
-      "Aleph.Nix.Tools.PatchElf"
-      "Aleph.Nix.Tools.Install"
-      "Aleph.Nix.Tools.Substitute"
-      # Packages
-      "Aleph.Nix.Packages.ZlibNg"
-      "Aleph.Nix.Packages.Fmt"
-      "Aleph.Nix.Packages.Mdspan"
-      "Aleph.Nix.Packages.Cutlass"
-      "Aleph.Nix.Packages.Rapidjson"
-      "Aleph.Nix.Packages.NlohmannJson"
-      "Aleph.Nix.Packages.Spdlog"
-      "Aleph.Nix.Packages.Catch2"
-      "Aleph.Nix.Packages.AbseilCpp"
-      # NVIDIA SDK
-      "Aleph.Nix.Packages.Nvidia"
-      # Test packages for typed actions
-      "Aleph.Nix.Packages.Jq"
-      "Aleph.Nix.Packages.HelloWrapped"
-    ];
-    # These must match the foreign export ccall names in Main.hs
-    exports = [
-      "nix_wasm_init_v1"
-      "zlib_ng"
-      "fmt"
-      "mdspan"
-      "cutlass"
-      "rapidjson"
-      "nlohmann_json"
-      "spdlog"
-      "catch2"
-      "abseil_cpp"
-      # NVIDIA SDK
-      "nvidia_nccl"
-      "nvidia_cudnn"
-      "nvidia_tensorrt"
-      "nvidia_cutensor"
-      "nvidia_cusparselt"
-      "nvidia_cutlass"
-      # Test packages
-      "jq"
-      "hello_wrapped"
-    ];
-  };
-
-  # ──────────────────────────────────────────────────────────────────────────
-  #                        // action-to-shell //
-  # ──────────────────────────────────────────────────────────────────────────
-  # Convert a typed Action to shell commands.
-  #
-  # This is the interpreter that makes typed phases work. Each Action variant
-  # becomes a safe, properly-quoted shell command. No string interpolation bugs.
-  #
-  actionToShell =
-    action:
-    if action.action == "writeFile" then
-      # WriteFile path content → write content to $out/path
-      # Use a content-addressed delimiter to prevent injection attacks.
-      # The delimiter includes a hash of the content, making it impossible
-      # for the content to contain the exact delimiter string.
-      let
-        contentHash = builtins.hashString "sha256" action.content;
-        delimiter = "__WEYL_EOF_${builtins.substring 0 16 contentHash}__";
-      in
-      ''
-        mkdir -p "$out/$(dirname '${action.path}')"
-        cat > "$out/${action.path}" << '${delimiter}'
-        ${action.content}
-        ${delimiter}
-      ''
-    else if action.action == "install" then
-      # Install mode src dst → install -m<mode> src $out/dst
-      let
-        modeStr = toString action.mode;
-      in
-      ''
-        mkdir -p "$out/$(dirname '${action.dst}')"
-        install -m${modeStr} '${action.src}' "$out/${action.dst}"
-      ''
-    else if action.action == "mkdir" then
-      # Mkdir path → mkdir -p $out/path
-      ''
-        mkdir -p "$out/${action.path}"
-      ''
-    else if action.action == "symlink" then
-      # Symlink target link → ln -s target $out/link
-      ''
-        mkdir -p "$out/$(dirname '${action.link}')"
-        ln -s '${action.target}' "$out/${action.link}"
-      ''
-    else if action.action == "copy" then
-      # Copy src dst → cp -r src $out/dst
-      ''
-        mkdir -p "$out/$(dirname '${action.dst}')"
-        cp -r '${action.src}' "$out/${action.dst}"
-      ''
-    else if action.action == "remove" then
-      # Remove path → rm -rf $out/path
-      ''
-        rm -rf "$out/${action.path}"
-      ''
-    else if action.action == "unzip" then
-      # Unzip $src to dest directory (for wheel extraction)
-      ''
-        unzip -q "$src" -d '${action.dest}'
-      ''
-    else if action.action == "patchelfRpath" then
-      # PatchElfRpath path rpaths → set rpath on binary
-      # Paths are relative to $out unless they start with /
-      let
-        resolveRpath = p: if lib.hasPrefix "/" p then p else "$out/${p}";
-        rpathStr = lib.concatMapStringsSep ":" resolveRpath action.rpaths;
-      in
-      ''
-        patchelf --set-rpath '${rpathStr}' "$out/${action.path}"
-      ''
-    else if action.action == "patchelfAddRpath" then
-      # PatchElfAddRpath path rpaths → add to rpath
-      let
-        rpathStr = lib.concatStringsSep ":" action.rpaths;
-      in
-      ''
-        patchelf --add-rpath '${rpathStr}' "$out/${action.path}"
-      ''
-    else if action.action == "substitute" then
-      # Substitute file replacements → substituteInPlace with typed pairs
-      let
-        replaceArgs = lib.concatMapStringsSep " " (
-          r: "--replace-fail ${lib.escapeShellArg r.from} ${lib.escapeShellArg r.to}"
-        ) action.replacements;
-      in
-      ''
-        substituteInPlace '${action.file}' ${replaceArgs}
-      ''
-    else if action.action == "wrap" then
-      # Wrap program wrapActions → wrapProgram with typed actions
-      let
-        wrapArg =
-          wa:
-          if wa.type == "prefix" then
-            "--prefix ${wa.var} : ${lib.escapeShellArg wa.value}"
-          else if wa.type == "suffix" then
-            "--suffix ${wa.var} : ${lib.escapeShellArg wa.value}"
-          else if wa.type == "set" then
-            "--set ${wa.var} ${lib.escapeShellArg wa.value}"
-          else if wa.type == "setDefault" then
-            "--set-default ${wa.var} ${lib.escapeShellArg wa.value}"
-          else if wa.type == "unset" then
-            "--unset ${wa.var}"
-          else if wa.type == "addFlags" then
-            "--add-flags ${lib.escapeShellArg wa.flags}"
-          else
-            throw "Unknown wrap action type: ${wa.type}";
-        wrapArgs = lib.concatMapStringsSep " " wrapArg action.wrapActions;
-      in
-      ''
-        wrapProgram "$out/${action.program}" ${wrapArgs}
-      ''
-    else if action.action == "run" then
-      # Run cmd args → escape hatch, run arbitrary command
-      # Don't escape args that look like shell variables ($foo)
-      let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
-      in
-      ''
-        ${action.cmd} ${lib.concatMapStringsSep " " escapeArg action.args}
-      ''
-    else if action.action == "toolRun" then
-      # ToolRun pkg args → typed tool invocation
-      # The tool is automatically added to nativeBuildInputs by extractToolDeps
-      let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
-      in
-      ''
-        ${action.pkg} ${lib.concatMapStringsSep " " escapeArg action.args}
-      ''
-    else
-      throw "Unknown action type: ${action.action}";
-
-  # Convert a list of actions to a shell script
-  actionsToShell = actions: lib.concatMapStringsSep "\n" actionToShell actions;
-
-  # ──────────────────────────────────────────────────────────────────────────
   #                        // build-from-spec //
   # ──────────────────────────────────────────────────────────────────────────
   # Convert a package spec (attrset from WASM) to an actual derivation.
@@ -346,6 +146,7 @@ let
       spec,
       pkgs,
       stdenvFn ? pkgs.stdenv.mkDerivation,
+      wasmDrv ? null, # WASM module path - included in derivation for cache invalidation
     }:
     let
       # Resolve source
@@ -397,6 +198,17 @@ let
       toolDeps = extractToolDeps allActions;
 
       deps = spec.deps or { };
+      # All dep names (for resolving Tool actions)
+      allDepNames = (deps.nativeBuildInputs or [ ]) ++ (deps.buildInputs or [ ]) ++ toolDeps;
+      # Map dep names to store paths for aleph-exec
+      depPaths = lib.listToAttrs (
+        map (name: {
+          # Convert dotted paths to underscore for env var names
+          name = builtins.replaceStrings [ "." ] [ "_" ] name;
+          value = resolveDep name;
+        }) allDepNames
+      );
+
       nativeBuildInputs = resolveDeps ((deps.nativeBuildInputs or [ ]) ++ toolDeps);
       buildInputs = resolveDeps (deps.buildInputs or [ ]);
       propagatedBuildInputs = resolveDeps (deps.propagatedBuildInputs or [ ]);
@@ -432,45 +244,60 @@ let
         else
           { };
 
-      # Typed phases → shell scripts
-      phases =
-        spec.phases or {
-          postPatch = [ ];
-          preConfigure = [ ];
-          installPhase = [ ];
-          postInstall = [ ];
-          postFixup = [ ];
-        };
+      # ────────────────────────────────────────────────────────────────────────
+      # Phase handling: Dhall → aleph-exec (F_ω only, no legacy shell path)
+      # ────────────────────────────────────────────────────────────────────────
 
-      phaseAttrs =
-        { }
-        // (
-          if (phases.postPatch or [ ]) != [ ] then { postPatch = actionsToShell phases.postPatch; } else { }
-        )
-        // (
-          if (phases.preConfigure or [ ]) != [ ] then
-            { preConfigure = actionsToShell phases.preConfigure; }
-          else
-            { }
-        )
-        // (
-          if (phases.installPhase or [ ]) != [ ] then
-            { installPhase = actionsToShell phases.installPhase; }
-          else
-            { }
-        )
-        // (
-          if (phases.postInstall or [ ]) != [ ] then
-            { postInstall = actionsToShell phases.postInstall; }
-          else
-            { }
-        )
-        // (
-          if (phases.postFixup or [ ]) != [ ] then { postFixup = actionsToShell phases.postFixup; } else { }
-        );
+      # spec.dhall is REQUIRED - no legacy shell path
+      dhallSpec = pkgs.writeText "${spec.pname}-spec.dhall" (
+        spec.dhall or (throw "spec.dhall required - all packages must emit Dhall via drvToDhall")
+      );
+
+      aleph-exec' =
+        if aleph-exec != null then aleph-exec else (throw "aleph-exec required for typed builds");
+
+      # All .hs packages run through aleph-exec. No detection, no fallbacks.
+      # We override configurePhase/buildPhase/installPhase to run aleph-exec.
+      #
+      # Dependency paths are passed via ALEPH_DEPS environment variable as
+      # a colon-separated list of name=path pairs for Tool action resolution.
+      depEnvStr = lib.concatStringsSep ":" (lib.mapAttrsToList (n: v: "${n}=${v}") depPaths);
+
+      phaseAttrs = {
+        configurePhase = ''
+          runHook preConfigure
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase patch
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase configure
+          runHook postConfigure
+        '';
+
+        buildPhase = ''
+          runHook preBuild
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase build
+          runHook postBuild
+        '';
+
+        checkPhase = ''
+          runHook preCheck
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase check
+          runHook postCheck
+        '';
+
+        installPhase = ''
+          runHook preInstall
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase install
+          ALEPH_DEPS="${depEnvStr}" ${aleph-exec'}/bin/aleph-exec --spec ${dhallSpec} --phase fixup
+          runHook postInstall
+        '';
+      };
 
       # Environment variables
       env = spec.env or { };
+
+      # Include WASM module in derivation hash for proper cache invalidation
+      # When the Haskell package definition changes, the WASM changes, which
+      # should invalidate any cached builds of the resulting derivation.
+      wasmHash = if wasmDrv != null then builtins.hashFile "sha256" wasmDrv else null;
 
     in
     stdenvFn (
@@ -483,7 +310,7 @@ let
           propagatedBuildInputs
           checkInputs
           ;
-        nativeBuildInputs = builderAttrs.nativeBuildInputs or nativeBuildInputs;
+        nativeBuildInputs = nativeBuildInputs ++ [ aleph-exec' ];
 
         strictDeps = spec.strictDeps or true;
         doCheck = spec.doCheck or false;
@@ -496,10 +323,16 @@ let
           platforms = if (spec.meta.platforms or [ ]) == [ ] then lib.platforms.all else spec.meta.platforms;
           mainProgram = spec.meta.mainProgram or null;
         };
+
+        passthru = {
+          inherit spec wasmHash;
+          inherit dhallSpec;
+        };
       }
-      // builderAttrs
       // phaseAttrs
       // env
+      # Include WASM hash in derivation to invalidate cache when WASM changes
+      // lib.optionalAttrs (wasmHash != null) { __wasmHash = wasmHash; }
     );
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -589,19 +422,8 @@ in
     # WASM plugin building (requires ghc-wasm-meta)
     buildWasmPlugin
 
-    # The compiled aleph WASM module (internal)
-    alephWasm
-
     # WASM plugin loading (requires straylight-nix with builtins.wasm)
     buildFromSpec
     loadWasmPackages
-
-    # Action interpreter - use this to interpret typed phases from any source
-    actionToShell
-    actionsToShell
     ;
-
-  # NOTE: The aleph interface (aleph.eval, aleph.import) is in ./aleph.nix
-  # Import it directly:
-  #   aleph = import ./prelude/aleph.nix { inherit lib pkgs; wasmFile = ...; };
 }

@@ -215,6 +215,9 @@ in
                 # Buck2 build system integration
               ${config.straylight.build.shellHook or ""}
 
+              # Local Remote Execution (NativeLink)
+              ${config.straylight.lre.shellHook or ""}
+
               ${cfg.extra-shell-hook}
             '';
           }

@@ -2,55 +2,66 @@
 
 {- | Haskell bindings for the Nix WASM host interface.
 
-This module provides everything needed to write Nix plugins in Haskell that
-compile to WASM and run inside Nix evaluation via @builtins.wasm@.
+This module provides everything needed to write Nix builders in Haskell that
+compile to WASM and run inside the Nix sandbox via the straylight-nix host.
 
-= Quick Start
+= Architecture (Aleph-1 / RFC-010)
 
-1. Write your plugin functions:
+Haskell owns the control flow:
 
 @
-module MyPlugin where
+main = do
+  -- Read the Dhall spec
+  spec <- readDhallSpec "zlib-ng.dhall"
+  
+  -- Call Nix for fetching (FFI)
+  src <- fetchGitHub (spec.src.owner) (spec.src.repo) ...
+  
+  -- Call Nix for dep resolution (FFI)
+  cmake <- resolveDep "cmake"
+  ninja <- resolveDep "ninja"
+  
+  -- Build
+  runCMake src cmake ninja
+@
+
+The WASI host (straylight-nix) exposes:
+  - Fetch primitives: fetchGitHub, fetchUrl, fetchGit
+  - Store primitives: resolveDep, addToStore, getOutPath
+  - Value primitives: mkInt, mkString, mkAttrs, etc.
+
+= Modules
+
+  * "Aleph.Nix.Fetch" - Fetch sources from GitHub, URLs, git
+  * "Aleph.Nix.Store" - Resolve dependencies, add to store
+  * "Aleph.Nix.Value" - Construct and inspect Nix values
+  * "Aleph.Nix.Types" - Type-safe newtypes (StorePath, System, etc.)
+  * "Aleph.Nix.DrvSpec" - Derivation spec types and Dhall emission
+  * "Aleph.Nix.FFI" - Low-level FFI bindings
+
+= Example
+
+@
+module MyBuilder where
 
 import Aleph.Nix
 
--- Export the init function (required)
-foreign export ccall "nix_wasm_init_v1" initPlugin :: IO ()
-initPlugin :: IO ()
-initPlugin = nixWasmInit
+-- The builder entry point
+foreign export ccall "build" build :: IO ()
 
--- Export your functions
-foreign export ccall "double" doubleInt :: Value -> IO Value
-doubleInt :: Value -> IO Value
-doubleInt v = do
-  n <- getInt v
-  mkInt (n * 2)
+build :: IO ()
+build = do
+  -- Get build context from host
+  out <- getOutPath "out"
+  cores <- getCores
+  
+  -- Resolve dependencies
+  cmake <- resolveDep "cmake"
+  ninja <- resolveDep "ninja"
+  
+  -- Run the build
+  -- ...
 @
-
-2. Compile to WASM:
-
-@
-wasm32-wasi-ghc -no-hs-main -optl-mexec-model=reactor MyPlugin.hs -o my_plugin.wasm
-@
-
-3. Use from Nix:
-
-@
-let wasm = builtins.wasm ./my_plugin.wasm;
-in wasm "double" 21  # => 42
-@
-
-= Architecture
-
-WASM modules run in a sandboxed environment provided by wasmtime inside the
-Nix evaluator (straylight-nix). The host provides functions for:
-
-* Creating and inspecting Nix values (integers, strings, lists, attrsets, etc.)
-* Calling Nix functions from WASM
-* Emitting warnings and aborting evaluation
-
-Values are represented as opaque 32-bit handles. The actual values live in
-the host's memory and are garbage-collected normally by Nix.
 -}
 module Aleph.Nix (
     -- * Value type
@@ -86,7 +97,23 @@ module Aleph.Nix (
 
     -- * Module initialization
     nixWasmInit,
+    
+    -- * Fetch primitives (Aleph-1)
+    fetchGitHub,
+    fetchUrl,
+    fetchTarball,
+    fetchGit,
+    
+    -- * Store primitives (Aleph-1)
+    resolveDep,
+    resolveDeps,
+    addToStore,
+    getSystem,
+    getCores,
+    getOutPath,
 ) where
 
 import Aleph.Nix.Types (NixType (..))
 import Aleph.Nix.Value
+import Aleph.Nix.Fetch
+import Aleph.Nix.Store
