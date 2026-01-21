@@ -1,59 +1,60 @@
 -- Drv/Triple.dhall
 -- Real target triples. Sum types, not strings.
+-- Constructor names match Haskell (PascalCase) for dhall-haskell compatibility.
 
-let Arch = < x86_64 | aarch64 | armv7 | riscv64 | wasm32 | powerpc64le >
+let Arch = < X86_64 | AArch64 | ARMv7 | RISCV64 | WASM32 | PowerPC64LE >
 
-let Vendor = < unknown | apple | pc | w64 | nvidia >
+let Vendor = < Unknown | Apple | PC | W64 | Nvidia >
 
-let OS = < linux | darwin | windows | wasi | none >
+let OS = < Linux | Darwin | Windows | WASI | NoOS >
 
-let ABI = < gnu | musl | msvc | eabi | android | none >
+let ABI = < GNU | Musl | MSVC | EABI | Android | NoABI >
 
 let Triple = { arch : Arch, vendor : Vendor, os : OS, abi : ABI }
 
 let archToText =
       \(a : Arch) ->
         merge
-          { x86_64 = "x86_64"
-          , aarch64 = "aarch64"
-          , armv7 = "armv7"
-          , riscv64 = "riscv64"
-          , wasm32 = "wasm32"
-          , powerpc64le = "powerpc64le"
+          { X86_64 = "x86_64"
+          , AArch64 = "aarch64"
+          , ARMv7 = "armv7"
+          , RISCV64 = "riscv64"
+          , WASM32 = "wasm32"
+          , PowerPC64LE = "powerpc64le"
           }
           a
 
 let vendorToText =
       \(v : Vendor) ->
         merge
-          { unknown = "unknown"
-          , apple = "apple"
-          , pc = "pc"
-          , w64 = "w64"
-          , nvidia = "nvidia"
+          { Unknown = "unknown"
+          , Apple = "apple"
+          , PC = "pc"
+          , W64 = "w64"
+          , Nvidia = "nvidia"
           }
           v
 
 let osToText =
       \(o : OS) ->
         merge
-          { linux = "linux"
-          , darwin = "darwin"
-          , windows = "windows"
-          , wasi = "wasi"
-          , none = "none"
+          { Linux = "linux"
+          , Darwin = "darwin"
+          , Windows = "windows"
+          , WASI = "wasi"
+          , NoOS = "none"
           }
           o
 
 let abiToText =
       \(a : ABI) ->
         merge
-          { gnu = "gnu"
-          , musl = "musl"
-          , msvc = "msvc"
-          , eabi = "eabi"
-          , android = "android"
-          , none = ""
+          { GNU = "gnu"
+          , Musl = "musl"
+          , MSVC = "msvc"
+          , EABI = "eabi"
+          , Android = "android"
+          , NoABI = ""
           }
           a
 
@@ -61,63 +62,63 @@ let toString =
       \(t : Triple) ->
         let base = "${archToText t.arch}-${vendorToText t.vendor}-${osToText t.os}"
         in  merge
-              { gnu = "${base}-gnu"
-              , musl = "${base}-musl"
-              , msvc = "${base}-msvc"
-              , eabi = "${base}-eabi"
-              , android = "${base}-android"
-              , none = base
+              { GNU = "${base}-gnu"
+              , Musl = "${base}-musl"
+              , MSVC = "${base}-msvc"
+              , EABI = "${base}-eabi"
+              , Android = "${base}-android"
+              , NoABI = base
               }
               t.abi
 
 -- Standard triples
 let x86_64-linux-gnu =
-      { arch = Arch.x86_64
-      , vendor = Vendor.unknown
-      , os = OS.linux
-      , abi = ABI.gnu
+      { arch = Arch.X86_64
+      , vendor = Vendor.Unknown
+      , os = OS.Linux
+      , abi = ABI.GNU
       }
 
 let x86_64-linux-musl =
-      { arch = Arch.x86_64
-      , vendor = Vendor.unknown
-      , os = OS.linux
-      , abi = ABI.musl
+      { arch = Arch.X86_64
+      , vendor = Vendor.Unknown
+      , os = OS.Linux
+      , abi = ABI.Musl
       }
 
 let aarch64-linux-gnu =
-      { arch = Arch.aarch64
-      , vendor = Vendor.unknown
-      , os = OS.linux
-      , abi = ABI.gnu
+      { arch = Arch.AArch64
+      , vendor = Vendor.Unknown
+      , os = OS.Linux
+      , abi = ABI.GNU
       }
 
 let aarch64-linux-musl =
-      { arch = Arch.aarch64
-      , vendor = Vendor.unknown
-      , os = OS.linux
-      , abi = ABI.musl
+      { arch = Arch.AArch64
+      , vendor = Vendor.Unknown
+      , os = OS.Linux
+      , abi = ABI.Musl
       }
 
 let x86_64-darwin =
-      { arch = Arch.x86_64
-      , vendor = Vendor.apple
-      , os = OS.darwin
-      , abi = ABI.none
+      { arch = Arch.X86_64
+      , vendor = Vendor.Apple
+      , os = OS.Darwin
+      , abi = ABI.NoABI
       }
 
 let aarch64-darwin =
-      { arch = Arch.aarch64
-      , vendor = Vendor.apple
-      , os = OS.darwin
-      , abi = ABI.none
+      { arch = Arch.AArch64
+      , vendor = Vendor.Apple
+      , os = OS.Darwin
+      , abi = ABI.NoABI
       }
 
 let wasm32-wasi =
-      { arch = Arch.wasm32
-      , vendor = Vendor.unknown
-      , os = OS.wasi
-      , abi = ABI.none
+      { arch = Arch.WASM32
+      , vendor = Vendor.Unknown
+      , os = OS.WASI
+      , abi = ABI.NoABI
       }
 
 in  { Arch

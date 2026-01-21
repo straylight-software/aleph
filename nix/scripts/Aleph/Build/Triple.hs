@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -36,6 +38,8 @@ module Aleph.Build.Triple
   ) where
 
 import Data.List (intercalate)
+import Dhall (FromDhall)
+import GHC.Generics (Generic)
 
 -- | CPU architecture
 data Arch
@@ -45,7 +49,7 @@ data Arch
   | RISCV64
   | WASM32
   | PowerPC64LE
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic, FromDhall)
 
 -- | Vendor
 data Vendor
@@ -54,7 +58,7 @@ data Vendor
   | PC
   | W64
   | Nvidia
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic, FromDhall)
 
 -- | Operating system
 data OS
@@ -63,7 +67,7 @@ data OS
   | Windows
   | WASI
   | NoOS
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic, FromDhall)
 
 -- | ABI
 data ABI
@@ -73,7 +77,7 @@ data ABI
   | EABI
   | Android
   | NoABI
-  deriving (Show, Eq, Ord, Enum, Bounded)
+  deriving (Show, Eq, Ord, Enum, Bounded, Generic, FromDhall)
 
 -- | Complete target triple
 data Triple = Triple
@@ -82,7 +86,7 @@ data Triple = Triple
   , os :: OS
   , abi :: ABI
   }
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Generic, FromDhall)
 
 --------------------------------------------------------------------------------
 -- Conversion

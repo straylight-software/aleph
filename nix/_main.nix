@@ -238,39 +238,19 @@ in
       # ────────────────────────────────────────────────────────────────────────
       # // typed packages //
       # ────────────────────────────────────────────────────────────────────────
-      # Packages defined in Haskell via call-package using DrvSpec types.
-      # Only available when using straylight-nix (builtins.wasm).
+      # MIGRATION IN PROGRESS (RFC-010 Aleph-1):
       #
-      # F_ω Architecture (RFC-007): All packages use Aleph.Nix.DrvSpec.
-      # Dhall is the substrate - Haskell emits Dhall, Nix resolves paths,
-      # aleph-exec executes typed actions.
+      # The WASM-based .hs packages are being migrated to Aleph-1:
+      #   - Dhall specs: packages-dhall/*.dhall (source of truth)
+      #   - Haskell builders: builders/*.hs (build logic)
+      #   - Nix integration: build/from-dhall.nix (executor)
       #
-      typedPackages = lib.optionalAttrs (builtins ? wasm && ghc-wasm != null) {
-        # C++ Libraries
-        zlib-ng = call-package ./packages/zlib-ng.hs { };
-        fmt = call-package ./packages/fmt.hs { };
-        mdspan = call-package ./packages/mdspan.hs { };
-        rapidjson = call-package ./packages/rapidjson.hs { };
-        nlohmann-json = call-package ./packages/nlohmann-json.hs { };
-        catch2 = call-package ./packages/catch2.hs { };
-        spdlog = call-package ./packages/spdlog.hs { };
-        libsodium = call-package ./packages/libsodium.hs { };
-
-        # NVIDIA SDK components
-        nvidia-cudnn = call-package ./packages/nvidia-cudnn.hs { };
-        nvidia-cusparselt = call-package ./packages/nvidia-cusparselt.hs { };
-        nvidia-cutensor = call-package ./packages/nvidia-cutensor.hs { };
-        nvidia-cutlass = call-package ./packages/nvidia-cutlass.hs { };
-        nvidia-nccl = call-package ./packages/nvidia-nccl.hs { };
-        nvidia-tensorrt = call-package ./packages/nvidia-tensorrt.hs { };
-
-        # Test packages
-        test-hello = call-package ./packages/test-hello.hs { };
-        test-tool-deps = call-package ./packages/test-tool-deps.hs { };
-        test-typed-tools = call-package ./packages/test-typed-tools.hs { };
-        test-zero-bash = call-package ./packages/test-zero-bash.hs { };
-        test-zlib-ng = call-package ./packages/test-zlib-ng.hs { };
-      };
+      # For now, these packages are disabled. The .hs.condemned files contain
+      # valuable data (versions, hashes, flags) that will be migrated.
+      #
+      # TODO: Re-enable via buildFromDhall once migration is complete.
+      #
+      typedPackages = { };
     in
     {
       # Make aleph available to other modules via _module.args

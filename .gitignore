@@ -8,3 +8,15 @@ result-*
 
 # Buck2 build artifacts
 buck-out/
+
+# Haskell compilation artifacts
+*.hi
+*.o
+*.hi-boot
+*.o-boot
+
+# Build outputs
+outputs/
+
+# Compiled builder binaries (created during local dev)
+nix/builders/std/cmake

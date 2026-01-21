@@ -9,9 +9,13 @@ module Aleph.Build
     module Aleph.Build.Flags
   , module Aleph.Build.Triple
 
-    -- Context
+    -- Context  
+  , BuildContext (..)
   , Ctx (..)
   , getCtx
+  , getCtxFromFile
+  , readContext
+  , toCtx
 
     -- Paths
   , out
@@ -66,6 +70,7 @@ module Aleph.Build
 
 import Aleph.Build.Flags
 import Aleph.Build.Triple
+import Aleph.Build.Context (BuildContext, Ctx(..), readContext, toCtx)
 
 import Control.Monad (forM_, unless, when, void)
 import Data.List (intercalate)
@@ -84,20 +89,23 @@ import System.Process (callProcess, readProcess, readProcessWithExitCode, spawnP
 -- Context
 --------------------------------------------------------------------------------
 
--- | Build context - everything a builder needs
-data Ctx = Ctx
-  { ctxOut :: FilePath
-  , ctxSrc :: FilePath
-  , ctxDeps :: Map String FilePath
-  , ctxHost :: Triple
-  , ctxTarget :: Maybe Triple
-  , ctxCores :: Int
-  }
-  deriving (Show)
+-- | Get build context from Dhall file (the new way)
+getCtxFromFile :: FilePath -> IO Ctx
+getCtxFromFile path = toCtx <$> readContext path
 
--- | Get build context from environment
+-- | Get build context from ALEPH_CONTEXT environment variable.
+-- This is the only supported way to get context in Aleph-1.
+-- Fails with clear error if ALEPH_CONTEXT is not set.
 getCtx :: IO Ctx
 getCtx = do
+  mContextFile <- lookupEnv "ALEPH_CONTEXT"
+  case mContextFile of
+    Just path -> getCtxFromFile path
+    Nothing -> failBuild "ALEPH_CONTEXT environment variable not set. Set it to the path of a BuildContext.dhall file."
+
+-- | Legacy: parse context from environment variables
+getCtxFromEnv :: IO Ctx
+getCtxFromEnv = do
   ctxOut <- getEnv "out"
   ctxSrc <- fromMaybe "." <$> lookupEnv "src"
   ctxDeps <- parseDeps . fromMaybe "" <$> lookupEnv "ALEPH_DEPS"
