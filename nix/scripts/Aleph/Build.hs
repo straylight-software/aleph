@@ -67,15 +67,15 @@ module Aleph.Build
 import Aleph.Build.Flags
 import Aleph.Build.Triple
 
-import Control.Monad (forM_, unless, when)
+import Control.Monad (forM_, unless, when, void)
 import Data.List (intercalate)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import System.Directory
 import System.Environment (getEnv, lookupEnv)
 import System.Exit (ExitCode (..), exitFailure)
-import System.FilePath ((</>), takeExtension)
-import qualified System.FilePath.Glob as Glob
+import System.FilePath ((</>), takeExtension, takeDirectory)
 import System.IO (hPutStrLn, stderr)
 import System.Posix.Files (createSymbolicLink, setFileMode)
 import System.Process (callProcess, readProcess, readProcessWithExitCode, spawnProcess, waitForProcess)
@@ -99,14 +99,22 @@ data Ctx = Ctx
 getCtx :: IO Ctx
 getCtx = do
   ctxOut <- getEnv "out"
-  ctxSrc <- getEnv "src"
-  ctxDeps <- parseDeps <$> getEnv "ALEPH_DEPS"
+  ctxSrc <- fromMaybe "." <$> lookupEnv "src"
+  ctxDeps <- parseDeps . fromMaybe "" <$> lookupEnv "ALEPH_DEPS"
   ctxHost <- parseTripleEnv "ALEPH_HOST"
-  ctxTarget <- traverse parseTripleEnv =<< lookupEnv "ALEPH_TARGET"
+  ctxTarget <- do
+    mt <- lookupEnv "ALEPH_TARGET"
+    case mt of
+      Nothing -> pure Nothing
+      Just "" -> pure Nothing
+      Just t -> case parse t of
+        Just triple -> pure (Just triple)
+        Nothing -> error $ "Invalid target triple: " <> t
   ctxCores <- maybe 1 read <$> lookupEnv "NIX_BUILD_CORES"
   pure Ctx {..}
   where
     parseDeps :: String -> Map String FilePath
+    parseDeps "" = Map.empty
     parseDeps s = Map.fromList $ map parsePair $ filter (not . null) $ splitOn ':' s
       where
         parsePair p = case break (== '=') p of
@@ -121,10 +129,12 @@ getCtx = do
 
     parseTripleEnv :: String -> IO Triple
     parseTripleEnv var = do
-      s <- getEnv var
-      case parse s of
-        Just t -> pure t
-        Nothing -> error $ "Invalid triple in " <> var <> ": " <> s
+      ms <- lookupEnv var
+      case ms of
+        Nothing -> pure x86_64_linux_gnu  -- default
+        Just s -> case parse s of
+          Just t -> pure t
+          Nothing -> error $ "Invalid triple in " <> var <> ": " <> s
 
 --------------------------------------------------------------------------------
 -- Paths
@@ -214,9 +224,17 @@ write path content = do
   where
     takeDirectory = reverse . dropWhile (/= '/') . reverse
 
--- | Glob files
+-- | Glob files (simplified - just list directory for now)
 glob :: FilePath -> IO [FilePath]
-glob = Glob.glob
+glob pattern = do
+  -- Simple implementation: list directory matching pattern suffix
+  let dir = takeDirectory pattern
+  exists <- doesDirectoryExist dir
+  if exists
+    then do
+      entries <- listDirectory dir
+      pure $ map (dir </>) entries
+    else pure []
 
 --------------------------------------------------------------------------------
 -- Exec
