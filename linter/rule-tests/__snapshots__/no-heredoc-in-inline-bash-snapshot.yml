@@ -1,0 +1,26 @@
+id: no-heredoc-in-inline-bash
+snapshots:
+  ? |
+    ''
+      cat <<'EOF'
+      hello
+      EOF
+    ''
+  : labels:
+    - source: |2
+
+          cat <<'EOF'
+          hello
+          EOF
+      style: primary
+      start: 2
+      end: 31
+    - source: |-
+        ''
+          cat <<'EOF'
+          hello
+          EOF
+        ''
+      style: secondary
+      start: 0
+      end: 33

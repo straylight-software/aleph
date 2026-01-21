@@ -1,0 +1,9 @@
+id: rec-anywhere
+snapshots:
+  ? |
+    rec { foo = 1; }
+  : labels:
+      - source: rec { foo = 1; }
+        style: primary
+        start: 0
+        end: 16

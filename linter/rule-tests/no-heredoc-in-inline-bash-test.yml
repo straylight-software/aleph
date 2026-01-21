@@ -1,0 +1,14 @@
+id: no-heredoc-in-inline-bash
+valid:
+  - |
+    ''
+      echo "no heredoc"
+      cat file.txt
+    ''
+invalid:
+  - |
+    ''
+      cat <<'EOF'
+      hello
+      EOF
+    ''

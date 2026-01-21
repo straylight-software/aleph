@@ -1,0 +1,44 @@
+id: missing-description
+snapshots:
+  ? |
+    lib.mkOption rec { type = lib.types.bool; }
+  : labels:
+      - source: lib.mkOption rec { type = lib.types.bool; }
+        style: primary
+        start: 0
+        end: 43
+      - source: mkOption
+        style: secondary
+        start: 4
+        end: 12
+      - source: mkOption
+        style: secondary
+        start: 4
+        end: 12
+      - source: lib.mkOption
+        style: secondary
+        start: 0
+        end: 12
+      - source: rec { type = lib.types.bool; }
+        style: secondary
+        start: 13
+        end: 43
+  ? |
+    mkOption { type = lib.types.bool; }
+  : labels:
+      - source: mkOption { type = lib.types.bool; }
+        style: primary
+        start: 0
+        end: 35
+      - source: mkOption
+        style: secondary
+        start: 0
+        end: 8
+      - source: mkOption
+        style: secondary
+        start: 0
+        end: 8
+      - source: '{ type = lib.types.bool; }'
+        style: secondary
+        start: 9
+        end: 35

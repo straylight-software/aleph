@@ -1,0 +1,89 @@
+id: missing-description
+language: nix
+severity: warning
+rule:
+  kind: apply_expression
+  all:
+    - any:
+        - has:
+            field: function
+            kind: variable_expression
+            has:
+              kind: identifier
+              regex: ^mkOption$
+        - has:
+            field: function
+            kind: select_expression
+            has:
+              field: attrpath
+              kind: attrpath
+              has:
+                kind: identifier
+                regex: ^mkOption$
+    - any:
+        - has:
+            field: argument
+            kind: attrset_expression
+            not:
+              has:
+                kind: binding_set
+                any:
+                  - has:
+                      kind: binding
+                      has:
+                        field: attrpath
+                        kind: attrpath
+                        has:
+                          kind: identifier
+                          regex: ^description$
+                  - has:
+                      kind: inherit
+                      has:
+                        field: attrs
+                        kind: inherited_attrs
+                        has:
+                          kind: identifier
+                          regex: ^description$
+        - has:
+            field: argument
+            kind: rec_attrset_expression
+            not:
+              has:
+                kind: binding_set
+                any:
+                  - has:
+                      kind: binding
+                      has:
+                        field: attrpath
+                        kind: attrpath
+                        has:
+                          kind: identifier
+                          regex: ^description$
+                  - has:
+                      kind: inherit
+                      has:
+                        field: attrs
+                        kind: inherited_attrs
+                        has:
+                          kind: identifier
+                          regex: ^description$
+message: "WSN-W005: missing description attribute"
+note: |
+  ## What's wrong?
+  `mkOption` was called without a `description` attribute.
+
+  We use these to generate documentation for consumption later
+  on. Hence if you don't document them people can't read
+  the options list and tell what's going on without
+  opening the source.
+
+  ## What can I do to fix this?
+  Add a human-readable `description` for the option.
+
+  ```nix
+  mkOption {
+    description = ''
+      Does x, y and z
+    '';
+  };
+  ```

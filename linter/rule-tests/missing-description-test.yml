@@ -1,0 +1,18 @@
+id: missing-description
+valid:
+  - |
+    mkOption {
+      type = lib.types.bool;
+      description = "Enable the feature";
+    }
+  - |
+    mkOption {
+      type = lib.types.bool;
+      default = false;
+      inherit description;
+    }
+invalid:
+  - |
+    mkOption { type = lib.types.bool; }
+  - |
+    lib.mkOption rec { type = lib.types.bool; }

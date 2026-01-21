@@ -1,0 +1,17 @@
+id: missing-meta
+valid:
+  - |
+    stdenv.mkDerivation {
+      pname = "foo";
+      meta = { description = "test"; };
+    }
+  - |
+    stdenv.mkDerivation {
+      pname = "foo";
+      inherit meta;
+    }
+invalid:
+  - |
+    stdenv.mkDerivation { pname = "foo"; }
+  - |
+    pkgs.stdenv.mkDerivation rec { pname = "foo"; }
