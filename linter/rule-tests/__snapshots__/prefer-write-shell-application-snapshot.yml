@@ -1,0 +1,40 @@
+id: prefer-write-shell-application
+snapshots:
+  ? |
+    pkgs.writeShellScript "foo" "echo hi"
+  : labels:
+      - source: pkgs.writeShellScript "foo"
+        style: primary
+        start: 0
+        end: 27
+      - source: writeShellScript
+        style: secondary
+        start: 5
+        end: 21
+      - source: writeShellScript
+        style: secondary
+        start: 5
+        end: 21
+      - source: pkgs.writeShellScript
+        style: secondary
+        start: 0
+        end: 21
+  ? |
+    pkgs.writeShellScriptBin "foo" "echo hi"
+  : labels:
+      - source: pkgs.writeShellScriptBin "foo"
+        style: primary
+        start: 0
+        end: 30
+      - source: writeShellScriptBin
+        style: secondary
+        start: 5
+        end: 24
+      - source: writeShellScriptBin
+        style: secondary
+        start: 5
+        end: 24
+      - source: pkgs.writeShellScriptBin
+        style: secondary
+        start: 0
+        end: 24

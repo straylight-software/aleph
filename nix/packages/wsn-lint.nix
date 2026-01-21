@@ -27,6 +27,8 @@ writeShellApplication {
     tree-sitter-grammars.tree-sitter-nix
   ];
   derivationArgs.postCheck = ''
+    echo "Checking config ${sgconfigYml}"
+
     ${lib.getExe ast-grep} \
       --config ${sgconfigYml} \
       test

@@ -1,0 +1,12 @@
+id: prefer-write-shell-application
+valid:
+  - |
+    pkgs.writeShellApplication {
+      name = "foo";
+      text = "echo hi";
+    }
+invalid:
+  - |
+    pkgs.writeShellScript "foo" "echo hi"
+  - |
+    pkgs.writeShellScriptBin "foo" "echo hi"
