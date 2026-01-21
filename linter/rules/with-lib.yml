@@ -1,0 +1,28 @@
+id: with-lib
+language: nix
+severity: error
+rule:
+  kind: with_expression
+  has:
+    field: environment
+    kind: variable_expression
+    has:
+      kind: identifier
+      regex: ^lib$
+message: Use of `with lib;` detected
+note: |
+  ## What's wrong?
+  Usage of the `with lib;` construct was detected.
+
+  This is forbidden because it:
+  - Obscures where names come from
+  - Breaks tooling (no go-to-definition, no accurate autocomplete)
+  - Creates shadowing hazards when lib adds new attributes
+  - Makes code review require mental scope tracking
+
+  ## What can I do to fix this?
+  Try something like this instead:
+
+  ```nix
+  inherit (lib) types mkOption;
+  ```
