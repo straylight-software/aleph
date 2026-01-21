@@ -41,6 +41,7 @@ writeShellApplication {
       --config ./__sgconfig.yml \
       scan \
       --context 2 \
+      --color always \
       "$@"
   '';
 }
