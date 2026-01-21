@@ -245,6 +245,11 @@ in
           ''}
         '';
 
+        # lre-start script
+        lre-start = pkgs.callPackage ../../packages/lre-start.nix {
+          nativelink = nativelink;
+        };
+
       in
       lib.mkIf isLinux {
         straylight.lre = {
@@ -254,7 +259,7 @@ in
 
         # Add to packages
         packages = lib.optionalAttrs (nativelink != null) {
-          inherit nativelink;
+          inherit nativelink lre-start;
           lre-worker-image = worker-image;
         };
       };
