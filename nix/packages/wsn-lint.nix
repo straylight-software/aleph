@@ -35,14 +35,12 @@ writeShellApplication {
   '';
   text = ''
     cp --no-preserve=mode --force ${sgconfigYml} ./__sgconfig.yml
+    trap 'rm -f ./__sgconfig.yml' EXIT
 
     ${lib.getExe ast-grep} \
       --config ./__sgconfig.yml \
       scan \
       --context 2 \
-      "$@" \
-      || true
-
-    rm ./__sgconfig.yml
+      "$@"
   '';
 }
