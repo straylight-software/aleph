@@ -6,18 +6,18 @@
 #
 #     "The matrix has its roots in primitive arcade games..."
 #
-# Replaces Nix's broken sandbox network blocking with a proper proxy-based
-# approach. All network traffic from nix-daemon goes through mitmproxy,
-# which can cache, log, and enforce policy.
+# Routes Nix build network traffic through mitmproxy for caching, logging,
+# and policy enforcement. This is for builds that need CAS server access
+# (non-sandboxed builds, FODs, etc).
 #
-# The Nix sandbox's network isolation (unshare CLONE_NEWNET) is disabled
-# because it's security theater - FODs get network anyway, and everything
-# else is just broken. Instead, we route through a proxy that:
+# Uses Nix's `impure-env` to inject proxy environment variables directly
+# into build environments. This requires the `configurable-impure-env`
+# experimental feature.
 #
-#   1. Caches fetched content (content-addressed, to R2)
+# The proxy:
+#   1. Caches fetched content (content-addressed, syncs to R2)
 #   2. Logs all fetches (attestation)
-#   3. Enforces allowlist policy
-#   4. Actually works
+#   3. Enforces domain allowlist policy
 #
 # USAGE:
 #
@@ -40,114 +40,30 @@ let
   cfg = config.services.nix-proxy;
 
   # mitmproxy addon script for caching/logging
-  proxyAddon = pkgs.writeText "nix-proxy-addon.py" ''
-    """
-    mitmproxy addon for Nix fetch caching and logging.
+  proxyAddon = ./scripts/nix-proxy-addon.py;
 
-    - Caches responses by content hash
-    - Logs all fetches for attestation
-    - Enforces domain allowlist (optional)
-    """
-    import hashlib
-    import json
-    import os
-    import time
-    from datetime import datetime
-    from pathlib import Path
-    from mitmproxy import http, ctx
-
-    CACHE_DIR = Path(os.environ.get("NIX_PROXY_CACHE_DIR", "/var/cache/nix-proxy"))
-    LOG_DIR = Path(os.environ.get("NIX_PROXY_LOG_DIR", "/var/log/nix-proxy"))
-    ALLOWLIST = os.environ.get("NIX_PROXY_ALLOWLIST", "").split(",")
-    ALLOWLIST = [d.strip() for d in ALLOWLIST if d.strip()]
-
-    class NixProxyAddon:
-        def __init__(self):
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            LOG_DIR.mkdir(parents=True, exist_ok=True)
-            self.log_file = LOG_DIR / f"fetches-{datetime.now():%Y%m%d}.jsonl"
-
-        def _hash_content(self, content: bytes) -> str:
-            """SHA256 hash of content."""
-            return hashlib.sha256(content).hexdigest()
-
-        def _cache_path(self, hash: str) -> Path:
-            """Two-level cache path like git objects."""
-            return CACHE_DIR / hash[:2] / hash[2:]
-
-        def _log_fetch(self, url: str, hash: str, size: int, cached: bool):
-            """Append fetch to log file."""
-            entry = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "url": url,
-                "sha256": hash,
-                "size": size,
-                "cached": cached,
-            }
-            with open(self.log_file, "a") as f:
-                f.write(json.dumps(entry) + "\n")
-
-        def _check_allowlist(self, host: str) -> bool:
-            """Check if host is in allowlist (empty = allow all)."""
-            if not ALLOWLIST:
-                return True
-            return any(
-                host == allowed or host.endswith("." + allowed)
-                for allowed in ALLOWLIST
-            )
-
-        def request(self, flow: http.HTTPFlow):
-            """Check allowlist before forwarding request."""
-            host = flow.request.host
-            if not self._check_allowlist(host):
-                flow.response = http.Response.make(
-                    403,
-                    f"Host {host} not in allowlist",
-                    {"Content-Type": "text/plain"}
-                )
-                ctx.log.warn(f"Blocked request to {host} (not in allowlist)")
-
-        def response(self, flow: http.HTTPFlow):
-            """Cache successful responses."""
-            if flow.response.status_code != 200:
-                return
-
-            content = flow.response.content
-            if not content:
-                return
-
-            hash = self._hash_content(content)
-            cache_path = self._cache_path(hash)
-            url = flow.request.pretty_url
-
-            # Check if already cached
-            cached = cache_path.exists()
-            if not cached:
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                cache_path.write_bytes(content)
-                ctx.log.info(f"Cached {url} -> {hash[:16]}... ({len(content)} bytes)")
-
-            self._log_fetch(url, hash, len(content), cached)
-
-    addons = [NixProxyAddon()]
-  '';
+  # Proxy URL used throughout
+  proxyUrl = "http://${cfg.listenAddress}:${toString cfg.port}";
 
   # Wrapper script to start mitmproxy with our addon
-  proxyScript = pkgs.writeShellScript "nix-proxy" ''
-    set -euo pipefail
-
-    export NIX_PROXY_CACHE_DIR="${cfg.cacheDir}"
-    export NIX_PROXY_LOG_DIR="${cfg.logDir}"
-    export NIX_PROXY_ALLOWLIST="${lib.concatStringsSep "," cfg.allowlist}"
-
-    exec ${pkgs.mitmproxy}/bin/mitmdump \
-      --listen-host ${cfg.listenAddress} \
-      --listen-port ${toString cfg.port} \
-      --set confdir=${cfg.certDir} \
-      --scripts ${proxyAddon} \
-      ${lib.optionalString cfg.quiet "--quiet"} \
-      "$@"
-  '';
+  proxyScript = pkgs.writeShellApplication {
+    name = "nix-proxy";
+    runtimeInputs = [ pkgs.mitmproxy ];
+    runtimeEnv = {
+      NIX_PROXY_CACHE_DIR = "${cfg.cacheDir}";
+      NIX_PROXY_LOG_DIR = "${cfg.logDir}";
+      NIX_PROXY_ALLOWLIST = lib.concatStringsSep "," cfg.allowlist;
+    };
+    text = ''
+      exec mitmdump \
+        --listen-host ${cfg.listenAddress} \
+        --listen-port ${toString cfg.port} \
+        --set confdir=${cfg.certDir} \
+        --scripts ${proxyAddon} \
+        ${lib.optionalString cfg.quiet "--quiet"} \
+        "$@"
+    '';
+  };
 
 in
 {
@@ -242,26 +158,24 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Relax Nix sandbox - we're replacing its network blocking with the proxy
+    # Enable the experimental feature required for impure-env
     nix.settings = {
-      # Allow network in sandbox (we control it via proxy)
-      sandbox = "relaxed";
+      extra-experimental-features = [ "configurable-impure-env" ];
 
-      # Trust our CA for HTTPS interception
-      ssl-cert-file = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      # Inject proxy environment into builds
+      # This is what actually makes builds use the proxy
+      impure-env = [
+        "http_proxy=${proxyUrl}"
+        "https_proxy=${proxyUrl}"
+        "HTTP_PROXY=${proxyUrl}"
+        "HTTPS_PROXY=${proxyUrl}"
+        "SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+        "NIX_SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+        "CURL_CA_BUNDLE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+      ];
 
-      # Ensure cert is available in sandbox
+      # Make cert dir available inside sandbox for builds that need it
       extra-sandbox-paths = [ cfg.certDir ];
-    };
-
-    # Set proxy via environment for nix-daemon
-    systemd.services.nix-daemon.environment = {
-      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
-      NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
 
     # Create directories
@@ -298,7 +212,7 @@ in
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = proxyScript;
+        ExecStart = lib.getExe proxyScript;
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -321,11 +235,17 @@ in
       serviceConfig = {
         Type = "oneshot";
         EnvironmentFile = lib.mkIf (cfg.cache.r2.credentialsFile != null) cfg.cache.r2.credentialsFile;
-        ExecStart = pkgs.writeShellScript "nix-proxy-sync" ''
-          ${pkgs.awscli2}/bin/aws s3 sync \
-            --endpoint-url ${cfg.cache.r2.endpoint} \
-            ${cfg.cacheDir}/ s3://${cfg.cache.r2.bucket}/
-        '';
+        ExecStart = lib.getExe (
+          pkgs.writeShellApplication {
+            name = "nix-proxy-sync";
+            runtimeInputs = [ pkgs.awscli2 ];
+            text = ''
+              aws s3 sync \
+                --endpoint-url ${cfg.cache.r2.endpoint} \
+                ${cfg.cacheDir}/ s3://${cfg.cache.r2.bucket}/
+            '';
+          }
+        );
       };
     };
 
@@ -338,18 +258,20 @@ in
       };
     };
 
-    # Add package to system for CLI access
     environment.systemPackages = [ pkgs.mitmproxy ];
 
-    # Set proxy env vars system-wide so nix client uses proxy too
-    # (not just daemon - flake fetching happens in client)
-    environment.sessionVariables = {
-      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+    # Nix fetcher uses ssl-cert-file for HTTPS verification (set above in nix.settings)
+    # For evaluation-time fetches, the daemon's environment is used.
+    # This only affects nix-daemon, not other programs on the system.
+    systemd.services.nix-daemon.environment = {
+      http_proxy = proxyUrl;
+      https_proxy = proxyUrl;
+      HTTP_PROXY = proxyUrl;
+      HTTPS_PROXY = proxyUrl;
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      # mkForce needed to override the default set by nix-daemon.nix
+      CURL_CA_BUNDLE = lib.mkForce "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
   };
 }
