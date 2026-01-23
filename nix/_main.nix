@@ -437,19 +437,24 @@ in
       nv.enable = true;
       haskell = {
         enable = true;
-        # Packages available to Buck2 haskell_binary rules
+        # Core packages for Buck2 haskell_binary rules
+        # Devshell adds testing/scripting packages via extra-haskell-packages
         packages =
           hp:
           builtins.filter (p: p != null) [
+            # Core
             hp.text or null
             hp.bytestring or null
             hp.containers or null
-            hp.aeson or null
-            hp.aeson-pretty or null
-            hp.optparse-applicative or null
             hp.directory or null
             hp.filepath or null
             hp.process or null
+            hp.time or null
+
+            # CLI / scripting
+            hp.aeson or null
+            hp.aeson-pretty or null
+            hp.optparse-applicative or null
             hp.megaparsec or null
             hp.prettyprinter or null
           ];

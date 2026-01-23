@@ -14,11 +14,15 @@
 # Development shell. Env vars at mkShell level only, not in shellHook.
 # We say "nv" not "cuda". See: docs/languages/nix/philosophy/nvidia-not-cuda.md
 #
+# Haskell packages: The build.nix module defines toolchain.haskell.packages
+# as the single source of truth. Devshell adds testing/dev packages on top.
+#
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 _:
 { config, lib, ... }:
 let
   cfg = config.aleph-naught.devshell;
+  buildCfg = config.aleph-naught.build;
 in
 {
   _class = "flake";
@@ -33,6 +37,43 @@ in
       type = lib.types.functionTo (lib.types.listOf lib.types.package);
       default = _: [ ];
       description = "Extra packages (receives pkgs)";
+    };
+
+    extra-haskell-packages = lib.mkOption {
+      type = lib.types.functionTo (lib.types.listOf lib.types.package);
+      default =
+        hp:
+        lib.filter (p: p != null) [
+          # Scripting extras (not needed for Buck2 builds)
+          hp.turtle or null
+          hp.yaml or null
+          hp.shelly or null
+          hp.foldl or null
+          hp.dhall or null
+          hp.unix or null
+          hp.async or null
+
+          # Crypto (for Aleph.Script.Oci etc)
+          hp.crypton or null
+          hp.memory or null
+
+          # Data structures
+          hp.unordered-containers or null
+          hp.vector or null
+
+          # Testing frameworks
+          hp.hedgehog or null
+          hp.QuickCheck or null
+          hp.quickcheck-instances or null
+          hp.tasty or null
+          hp.tasty-quickcheck or null
+          hp.tasty-hunit or null
+
+          # Development utilities
+          hp.lens or null
+          hp.raw-strings-qq or null
+        ];
+      description = "Extra Haskell packages for devshell (on top of build.toolchain.haskell.packages)";
     };
 
     extra-shell-hook = lib.mkOption {
@@ -60,8 +101,11 @@ in
           NVIDIA_SDK = "${pkgs.nvidia-sdk}";
         };
 
-        # Haskell: use ghc912 with all packages baked in via ghcWithPackages
-        # No GHC_PACKAGE_PATH, no runtime package db - just a GHC that has everything
+        # ────────────────────────────────────────────────────────────────────────
+        # Haskell Configuration
+        # ────────────────────────────────────────────────────────────────────────
+        # Single source of truth: build.toolchain.haskell.packages from _main.nix
+        # Devshell adds testing/dev packages on top via extra-haskell-packages.
         #
         # HLS go-to-definition:
         # - For YOUR code: works via hie.yaml (generated in shellHook)
@@ -70,39 +114,12 @@ in
         #   For library source nav, use haskell-src-exts or M-. in Emacs haskell-mode.
         hsPkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
 
-        # Packages for devshell GHC (interactive use, HLS, etc.)
-        # Buck2 uses its own GHC from build.nix with its own package set
-        ghcWithAllDeps = hsPkgs.ghcWithPackages (hp: [
-          # Core
-          hp.text
-          hp.bytestring
-          hp.containers
-          hp.directory
-          hp.filepath
-          hp.process
-          hp.time
-
-          # CLI / scripting
-          hp.aeson
-          hp.aeson-pretty
-          hp.optparse-applicative
-          hp.turtle
-          hp.megaparsec
-          hp.prettyprinter
-          hp.yaml
-
-          # Testing
-          hp.hedgehog
-          hp.QuickCheck
-          hp.quickcheck-instances
-          hp.tasty
-          hp.tasty-quickcheck
-          hp.tasty-hunit
-
-          # Other
-          hp.lens
-          hp.raw-strings-qq
-        ]);
+        # Combine build toolchain packages + devshell extras
+        # build.toolchain.haskell.packages: core packages for Buck2 builds
+        # cfg.extra-haskell-packages: testing, scripting, dev tools
+        ghcWithAllDeps = hsPkgs.ghcWithPackages (
+          hp: (buildCfg.toolchain.haskell.packages hp) ++ (cfg.extra-haskell-packages hp)
+        );
 
         # System libraries GHC needs at runtime
         ghcRuntimeLibs = [
@@ -176,8 +193,9 @@ in
               ]
             )
             ++ (cfg.extra-packages pkgs)
-            # Buck2 build system packages (includes toolchain-specific LSPs like rust-analyzer)
-            ++ (config.straylight.build.packages or [ ])
+            # Buck2 build system packages (excludes GHC since devshell has its own ghcWithAllDeps)
+            # This includes llvm-git, nvidia-sdk, rustc, lean4, python, etc.
+            ++ lib.filter (p: !(lib.hasPrefix "ghc-" (p.name or ""))) (config.straylight.build.packages or [ ])
             # LRE packages (nativelink, lre-start)
             ++ (config.straylight.lre.packages or [ ]);
 

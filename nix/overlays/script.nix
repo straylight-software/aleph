@@ -30,7 +30,8 @@ let
   inherit (prev) lib;
 
   # Source directories for Aleph.Script
-  # Library modules (Aleph.*) are in src/haskell/
+  # Library modules (Aleph.*) are in src/haskell/Aleph/
+  # The -i flag should point to src/haskell so GHC finds Aleph/Script.hs etc.
   # Executable scripts are in src/tools/scripts/
   alephSrc = ../../src/haskell;
   scriptSrc = ../../src/tools/scripts;

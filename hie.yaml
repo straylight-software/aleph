@@ -1,0 +1,12 @@
+# HLS configuration
+#
+# Uses a single direct cradle with all source paths.
+# After editing, restart HLS: M-x lsp-workspace-restart
+
+cradle:
+  direct:
+    arguments:
+      - -isrc/haskell
+      - -isrc/tools/scripts
+      - -isrc/tools/compdb
+      - -isrc/examples/haskell
