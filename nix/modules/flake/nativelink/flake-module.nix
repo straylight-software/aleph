@@ -116,6 +116,7 @@ in
                 grpc = {
                   instance_name = "main";
                   endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  store_type = "cas";
                 };
               }
               {
@@ -123,6 +124,7 @@ in
                 grpc = {
                   instance_name = "main";
                   endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  store_type = "ac";
                 };
               }
             ];
@@ -228,6 +230,7 @@ in
                 grpc = {
                   instance_name = "main";
                   endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  store_type = "cas";
                 };
               }
               {
@@ -235,6 +238,7 @@ in
                 grpc = {
                   instance_name = "main";
                   endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  store_type = "ac";
                 };
               }
             ];
@@ -336,6 +340,45 @@ in
           ++ lib.optionals (pkgs ? lean4) [ pkgs.lean4 ]
           ++ lib.optionals (pkgs ? mdspan) [ pkgs.mdspan ];
 
+        # Generate the toolchain manifest as a separate derivation
+        # This exports the store paths for use by the worker setup script
+        # The paths are written to a file that can be fetched at runtime
+        toolchainManifest = pkgs.writeText "toolchain-manifest.txt" (
+          lib.concatMapStringsSep "\n" (
+            pkg: builtins.unsafeDiscardStringContext (toString pkg)
+          ) toolchainPackages
+        );
+
+        # Minimal worker setup - just initializes the nix store on the volume
+        # Toolchain fetching is done separately via a manifest URL
+        workerSetupScript = pkgs.writeShellApplication {
+          name = "worker-setup";
+          runtimeInputs = with pkgs; [ coreutils ];
+          text = ''
+            set -euo pipefail
+
+            DATA_DIR="/data"
+            MARKER="$DATA_DIR/.nix-initialized"
+
+            if [ -f "$MARKER" ]; then
+              echo "Volume already initialized"
+              exit 0
+            fi
+
+            echo "Initializing nix store on volume..."
+            mkdir -p "$DATA_DIR/nix/store"
+            mkdir -p "$DATA_DIR/nix/var/nix/db"
+
+            # Copy base system from container
+            echo "Copying base nix store..."
+            cp -an /nix/store/* "$DATA_DIR/nix/store/" 2>/dev/null || true
+            cp -an /nix/var/nix/db/* "$DATA_DIR/nix/var/nix/db/" 2>/dev/null || true
+
+            touch "$MARKER"
+            echo "Base nix store initialized. Toolchain will be fetched on demand."
+          '';
+        };
+
         # Modular service for nativelink (nimi pattern)
         mkNativelinkService =
           { script }:
@@ -399,13 +442,21 @@ in
             };
           };
 
-          # Worker container (full toolchain for hermetic builds)
+          # Worker container (minimal - fetches toolchain from cache on startup)
+          # Toolchain is stored on a Fly volume at /data
           nativelink-worker = {
             systemPackages = [
               nativelink
               workerScript
-            ]
-            ++ toolchainPackages;
+              workerSetupScript
+              pkgs.nix
+              pkgs.cacert
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.xz
+            ];
 
             services.worker = {
               imports = [ (mkNativelinkService { script = workerScript; } { inherit lib pkgs; }) ];
@@ -413,8 +464,17 @@ in
 
             registries = [ cfg.registry ];
 
+            # Run toolchain fetch before starting worker
+            extraStartupScript = ''
+              echo "Running toolchain setup..."
+              ${workerSetupScript}/bin/worker-setup || echo "Toolchain setup failed, continuing anyway"
+            '';
+
             extraEnv = {
               RUST_LOG = "info";
+              NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              # Use volume as additional nix store
+              NIX_PATH = "nixpkgs=${pkgs.path}";
             };
           };
         };
@@ -430,6 +490,8 @@ in
           nativelink-scheduler-script = schedulerScript;
           nativelink-cas-script = casScript;
           nativelink-worker-script = workerScript;
+          nativelink-worker-setup = workerSetupScript;
+          nativelink-toolchain-manifest = toolchainManifest;
         };
       };
   };

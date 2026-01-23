@@ -1,0 +1,44 @@
+# fly.toml for aleph-cas  
+# NativeLink CAS - content-addressed storage with LZ4 compression
+
+app = "aleph-cas"
+primary_region = "iad"
+
+[build]
+  image = "registry.fly.io/aleph-cas:latest"
+
+[env]
+  RUST_LOG = "info"
+
+[http_service]
+  internal_port = 50052
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 1000
+    soft_limit = 800
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 50052
+
+  [[services.ports]]
+    port = 50052
+    handlers = ["tls"]
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+
+[mounts]
+  source = "cas_data"
+  destination = "/data"
+
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2

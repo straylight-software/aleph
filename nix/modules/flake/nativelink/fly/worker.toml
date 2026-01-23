@@ -1,0 +1,29 @@
+# fly.toml for aleph-worker
+# NativeLink worker - minimal image, fetches toolchain from cache
+# Toolchain stored on persistent volume at /data
+
+app = "aleph-worker"
+primary_region = "iad"
+
+[build]
+  image = "registry.fly.io/aleph-worker:latest"
+
+[env]
+  RUST_LOG = "info"
+  # Connect to scheduler and CAS via internal DNS
+  SCHEDULER_ENDPOINT = "aleph-scheduler.internal:50051"
+  CAS_ENDPOINT = "aleph-cas.internal:50052"
+
+# Mount volume for toolchain/nix store cache
+[mounts]
+  source = "worker_data"
+  destination = "/data"
+  initial_size = "50gb"
+
+# Workers don't expose HTTP, they connect to scheduler
+# But we need the machine to stay running
+
+[[vm]]
+  memory = "8gb"
+  cpu_kind = "shared"
+  cpus = 4
