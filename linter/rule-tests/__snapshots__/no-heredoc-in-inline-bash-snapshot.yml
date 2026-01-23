@@ -7,7 +7,7 @@ snapshots:
       EOF
     ''
   : labels:
-      - source: |2
+      - source: |2+
 
             cat <<'EOF'
             hello

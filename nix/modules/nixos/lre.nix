@@ -320,7 +320,7 @@ in
   config = lib.mkIf cfg.enable {
     users.users.${cfg.user} = lib.mkIf (cfg.user == "nativelink") {
       isSystemUser = true;
-      group = cfg.group;
+      inherit (cfg) group;
       description = "NativeLink service user";
       home = cfg.persistence.directory;
     };

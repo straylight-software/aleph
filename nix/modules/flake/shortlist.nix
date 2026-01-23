@@ -35,7 +35,7 @@
 #   aleph-naught.shortlist.enable = true;
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{ inputs }:
+_:
 {
   config,
   lib,
@@ -120,17 +120,17 @@ in
         # For true hermetic builds with LLVM 22, we'd override stdenv
         # Note: Many packages split headers into .dev output
         libraries = {
-          zlib-ng = pkgs.zlib-ng;
-          fmt = pkgs.fmt;
+          inherit (pkgs) zlib-ng;
+          inherit (pkgs) fmt;
           fmt-dev = pkgs.fmt.dev;
           catch2 = pkgs.catch2_3;
           catch2-dev = pkgs.catch2_3.dev or pkgs.catch2_3;
-          spdlog = pkgs.spdlog;
+          inherit (pkgs) spdlog;
           spdlog-dev = pkgs.spdlog.dev or pkgs.spdlog;
-          mdspan = pkgs.mdspan;
-          rapidjson = pkgs.rapidjson;
+          inherit (pkgs) mdspan;
+          inherit (pkgs) rapidjson;
           nlohmann-json = pkgs.nlohmann_json;
-          libsodium = pkgs.libsodium;
+          inherit (pkgs) libsodium;
           libsodium-dev = pkgs.libsodium.dev or pkgs.libsodium;
         };
 
