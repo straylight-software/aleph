@@ -29,6 +29,7 @@ let
   formatter = import ./formatter.nix { inherit inputs; };
   lint = import ./lint.nix { };
   lre = import ./lre.nix { inherit inputs; };
+  nativelink = import ./nativelink/flake-module.nix { inherit inputs; };
   nix-conf = import ./nix-conf.nix { };
   nixpkgs = import ./nixpkgs.nix { inherit inputs; };
   shortlist = import ./shortlist.nix { inherit inputs; };
@@ -166,6 +167,7 @@ in
     full
     lint
     lre
+    nativelink
     nix-conf
     nixpkgs
     nv-sdk

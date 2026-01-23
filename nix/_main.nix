@@ -37,6 +37,7 @@ in
         full
         lint
         lre
+        nativelink
         nix-conf
         nixpkgs
         nv-sdk
@@ -128,16 +129,22 @@ in
     flakeModules.buck2
     flakeModules.shortlist
     flakeModules.lre
+    # nix2gpu.flakeModule must be imported before nativelink module
+    # (provides perSystem.nix2gpu options)
+    inputs.nix2gpu.flakeModule
+    flakeModules.nativelink
   ];
 
-  # Enable shortlist and LRE for aleph itself
+  # Enable shortlist, LRE, and NativeLink containers for aleph itself
   aleph-naught.shortlist.enable = true;
   aleph-naught.lre.enable = true;
+  aleph-naught.nativelink.enable = true;
 
   perSystem =
     {
       pkgs,
       system,
+      config,
       ...
     }:
     let
@@ -418,6 +425,9 @@ in
       // typedPackages;
 
       checks = import ./checks/default.nix { inherit pkgs system lib; };
+
+      # nix2gpu requires explicit empty default (upstream bug - no default in option)
+      nix2gpu = { };
     };
 
   aleph-naught.devshell = {
@@ -438,7 +448,7 @@ in
       haskell = {
         enable = true;
         # Core packages for Buck2 haskell_binary rules
-        # Devshell adds testing/scripting packages via extra-haskell-packages
+        # Includes Aleph.Script dependencies for typed CLI tools
         packages =
           hp:
           builtins.filter (p: p != null) [
@@ -457,6 +467,19 @@ in
             hp.optparse-applicative or null
             hp.megaparsec or null
             hp.prettyprinter or null
+
+            # Aleph.Script dependencies
+            hp.shelly or null
+            hp.foldl or null
+            hp.dhall or null
+            hp.crypton or null
+            hp.memory or null
+            hp.unordered-containers or null
+            hp.vector or null
+            hp.unix or null
+            hp.async or null
+            hp.transformers or null
+            hp.mtl or null
           ];
       };
       rust.enable = true;

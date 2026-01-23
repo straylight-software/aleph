@@ -35,6 +35,13 @@
     # NativeLink - Local Remote Execution for Buck2
     # Provides CAS, scheduler, and worker for build caching
     nativelink.url = "github:TraceMachina/nativelink";
+
+    # nix2gpu - NixOS containers for GPU compute (vast.ai, runpod, fly.io)
+    # Uses nimi as PID 1 for modular services
+    nix2gpu = {
+      url = "github:fleek-sh/nix2gpu";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

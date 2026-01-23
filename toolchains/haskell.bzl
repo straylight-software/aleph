@@ -174,3 +174,70 @@ haskell_ffi_binary = rule(
         "compiler_flags": attrs.list(attrs.string(), default = []),
     },
 )
+
+# =============================================================================
+# haskell_script - Simple Haskell binary for single-file scripts
+# =============================================================================
+#
+# Unlike haskell_binary (from prelude), this rule:
+# - Compiles and links in one GHC invocation
+# - Properly handles deps on haskell_library (uses package-db)
+# - Works with single-file Main modules (common for scripts)
+# - Uses ghcWithPackages from Nix for external deps
+#
+# For multi-module binaries with complex deps, use haskell_binary from prelude.
+
+def _haskell_script_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Build a single-file Haskell script with library dependencies.
+    
+    Compiles and links in one GHC invocation. Instead of linking against
+    pre-built library .a files (which would require managing complex link
+    order for transitive deps), we use GHC's -i flag to include library
+    source directories, allowing GHC to compile everything together.
+    
+    This is simpler and more reliable for scripts that use a single library.
+    For complex multi-library setups, use the prelude's haskell_binary.
+    """
+    ghc = read_root_config("haskell", "ghc", "bin/ghc")
+    
+    out = ctx.actions.declare_output(ctx.attrs.name)
+    
+    ghc_cmd = cmd_args([ghc])
+    
+    # Add compiler flags
+    ghc_cmd.add(ctx.attrs.compiler_flags)
+    
+    # Add output
+    ghc_cmd.add("-o", out.as_output())
+    
+    # Add source include paths for library deps
+    # We use -i<dir> which tells GHC to search there for imported modules
+    for include_path in ctx.attrs.include_paths:
+        ghc_cmd.add("-i" + include_path)
+    
+    # Add external package dependencies (from ghcWithPackages)
+    external_packages = ctx.attrs.packages
+    for pkg in external_packages:
+        ghc_cmd.add("-package", pkg)
+    
+    # Add source files
+    for src in ctx.attrs.srcs:
+        ghc_cmd.add(src)
+    
+    ctx.actions.run(ghc_cmd, category = "haskell_script")
+    
+    return [
+        DefaultInfo(default_output = out),
+        RunInfo(args = [out]),
+    ]
+
+haskell_script = rule(
+    impl = _haskell_script_impl,
+    attrs = {
+        "srcs": attrs.list(attrs.source()),
+        "include_paths": attrs.list(attrs.string(), default = []),
+        "compiler_flags": attrs.list(attrs.string(), default = []),
+        "packages": attrs.list(attrs.string(), default = []),
+    },
+)

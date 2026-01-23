@@ -6,6 +6,12 @@ files:
 ignores:
   - nix/modules/*/_index.nix
   - nix/modules/flake/options-schema.nix
+  # Helper files (not module entry points)
+  - nix/modules/**/options.nix
+  - nix/modules/**/toolchains.nix
+  - nix/modules/**/buckconfig.nix
+  - nix/modules/**/shell-hook.nix
+  - nix/modules/**/scripts/**/*.nix
 rule:
   kind: source_code
   not:

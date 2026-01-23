@@ -1,0 +1,89 @@
+# src/haskell/BUCK
+#
+# Aleph Haskell library - typed scripting and Nix package generation.
+#
+# Modules:
+#   Aleph.Script    - Batteries-included shell scripting (shelly + turtle ergonomics)
+#   Aleph.Nix       - Typed Nix package generation (for builtins.wasm)
+#
+# Dependencies come from ghcWithPackages in the Nix devshell.
+
+# Aleph.Script source files (explicit list, no globs per WSN lint rules)
+SCRIPT_SRCS = [
+    "Aleph/Script.hs",
+    "Aleph/Script/Clap.hs",
+    "Aleph/Script/Config.hs",
+    "Aleph/Script/Getopt.hs",
+    "Aleph/Script/Nvidia/Config.hs",
+    "Aleph/Script/Nvidia/Container.hs",
+    "Aleph/Script/Nvidia/Versions.hs",
+    "Aleph/Script/Nvidia/Wheel.hs",
+    "Aleph/Script/Oci.hs",
+    "Aleph/Script/Tools.hs",
+    "Aleph/Script/Tools/Bat.hs",
+    "Aleph/Script/Tools/Bwrap.hs",
+    "Aleph/Script/Tools/CMake.hs",
+    "Aleph/Script/Tools/Crane.hs",
+    "Aleph/Script/Tools/Deadnix.hs",
+    "Aleph/Script/Tools/Delta.hs",
+    "Aleph/Script/Tools/Dust.hs",
+    "Aleph/Script/Tools/Fd.hs",
+    "Aleph/Script/Tools/Find.hs",
+    "Aleph/Script/Tools/Grep.hs",
+    "Aleph/Script/Tools/Gzip.hs",
+    "Aleph/Script/Tools/Hyperfine.hs",
+    "Aleph/Script/Tools/Jq.hs",
+    "Aleph/Script/Tools/Ls.hs",
+    "Aleph/Script/Tools/Rg.hs",
+    "Aleph/Script/Tools/Rsync.hs",
+    "Aleph/Script/Tools/Sed.hs",
+    "Aleph/Script/Tools/Statix.hs",
+    "Aleph/Script/Tools/Stylua.hs",
+    "Aleph/Script/Tools/Taplo.hs",
+    "Aleph/Script/Tools/Tar.hs",
+    "Aleph/Script/Tools/Tokei.hs",
+    "Aleph/Script/Tools/Wget.hs",
+    "Aleph/Script/Tools/Xargs.hs",
+    "Aleph/Script/Tools/Zoxide.hs",
+    "Aleph/Script/Vfio.hs",
+    "Aleph/Script/Vm.hs",
+    "Aleph/Script/Vm/Config.hs",
+]
+
+# Packages required by Aleph.Script (from ghcWithPackages in devshell)
+ALEPH_SCRIPT_PACKAGES = [
+    "-package", "text",
+    "-package", "shelly",
+    "-package", "foldl",
+    "-package", "aeson",
+    "-package", "dhall",
+    "-package", "directory",
+    "-package", "filepath",
+    "-package", "bytestring",
+    "-package", "megaparsec",
+    "-package", "crypton",
+    "-package", "memory",
+    "-package", "unordered-containers",
+    "-package", "vector",
+    "-package", "unix",
+    "-package", "async",
+    "-package", "process",
+    "-package", "containers",
+    "-package", "transformers",
+    "-package", "mtl",
+    "-package", "time",
+]
+
+# Core library - Aleph.Script for shell scripting
+haskell_library(
+    name = "aleph-script",
+    srcs = SCRIPT_SRCS,
+    compiler_flags = [
+        "-O2",
+        "-Wall",
+        "-Wno-unused-imports",
+    ] + ALEPH_SCRIPT_PACKAGES,
+    # Expose packages to dependents
+    linker_flags = ALEPH_SCRIPT_PACKAGES,
+    visibility = ["PUBLIC"],
+)
