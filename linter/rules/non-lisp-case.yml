@@ -2,8 +2,10 @@ id: non-lisp-case
 language: nix
 severity: error
 # Exclude prelude (defines the standard library identifiers)
+# Exclude modules (use NixOS module system API directly)
 ignores:
   - nix/prelude/**/*.nix
+  - nix/modules/**/*.nix
 rule:
   kind: identifier
   regex: "^[a-z].*(_|[A-Z]).*"

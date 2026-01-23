@@ -40,6 +40,9 @@ let
   #                              // imports //
   # ──────────────────────────────────────────────────────────────────────────
 
+  # Typed foundation (Dhall -> Nix at build time)
+  types = import ./types { pkgs = final; };
+
   platform = import ./platform.nix { inherit lib final; };
   gpu = import ./gpu.nix { inherit lib; };
   turing-registry = import ./turing-registry.nix { inherit lib platform; };
@@ -97,6 +100,7 @@ let
     // builders
     // {
       inherit
+        types
         platform
         gpu
         turing-registry
@@ -117,6 +121,7 @@ in
   straylight = {
     inherit
       prelude
+      types
       platform
       gpu
       turing-registry

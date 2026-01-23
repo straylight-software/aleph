@@ -251,6 +251,32 @@ in
         Set to true for downstream projects that don't have their own .buckconfig.
       '';
     };
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # IDE Integration
+    # ──────────────────────────────────────────────────────────────────────────
+    compdb = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Generate compile_commands.json for clangd/clang-tidy";
+      };
+
+      targets = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ "//..." ];
+        description = "Buck2 targets to include in compile_commands.json";
+      };
+
+      auto-generate = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Auto-generate compile_commands.json on shell entry.
+          Can be slow for large projects. Use bin/compdb manually instead.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -644,10 +670,48 @@ in
               exec "$CXX" "''${INCLUDE_ARGS[@]}" "$@"
               CXX_WRAPPER_EOF
                 chmod +x bin/cxx
+
+                # compile_commands.json generator for clangd/clang-tidy
+                cat > bin/compdb << 'COMPDB_EOF'
+              #!/usr/bin/env bash
+              # Generate compile_commands.json for clangd/clang-tidy
+              # Usage: compdb [targets...]
+              # If no targets, generates for all C++ targets in the project
+              set -euo pipefail
+
+              TARGETS="''${@:-//...}"
+
+              echo "Generating compile_commands.json for: $TARGETS"
+              COMPDB_PATH=$(buck2 bxl prelude//cxx/tools/compilation_database.bxl:generate -- --targets $TARGETS 2>/dev/null | tail -1)
+
+              if [ -n "$COMPDB_PATH" ] && [ -f "$COMPDB_PATH" ]; then
+                cp "$COMPDB_PATH" compile_commands.json
+                echo "Generated compile_commands.json ($(jq length compile_commands.json) entries)"
+              else
+                echo "Failed to generate compile_commands.json" >&2
+                exit 1
+              fi
+              COMPDB_EOF
+                chmod +x bin/compdb
             ''}
 
             echo "Generated bin/ wrappers for Buck2 toolchains"
-          '';
+          ''
+          +
+            lib.optionalString
+              (isLinux && cfg.toolchain.cxx.enable && cfg.compdb.enable && cfg.compdb.auto-generate)
+              ''
+                # Auto-generate compile_commands.json for clangd
+                if command -v buck2 &>/dev/null; then
+                  echo "Generating compile_commands.json..."
+                  TARGETS="${lib.concatStringsSep " " cfg.compdb.targets}"
+                  COMPDB_PATH=$(buck2 bxl prelude//cxx/tools/compilation_database.bxl:generate -- --targets $TARGETS 2>/dev/null | tail -1) || true
+                  if [ -n "$COMPDB_PATH" ] && [ -f "$COMPDB_PATH" ]; then
+                    cp "$COMPDB_PATH" compile_commands.json
+                    echo "Generated compile_commands.json ($(jq length compile_commands.json 2>/dev/null || echo '?') entries)"
+                  fi
+                fi
+              '';
       in
       {
         # Export toolchain configuration for other modules

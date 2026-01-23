@@ -125,6 +125,10 @@ haskell_toolchain(
     visibility = ["PUBLIC"],
 )
 
+# NOTE: haskell_toolchain_library rules require a prelude that exports them.
+# The straylight-buck2-prelude has these, but the stock prelude may not.
+# Add them back when the prelude is updated.
+
 # ════════════════════════════════════════════════════════════════════════════════
 # RUST
 # ════════════════════════════════════════════════════════════════════════════════

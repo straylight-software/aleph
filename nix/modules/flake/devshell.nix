@@ -129,6 +129,8 @@ in
               pkgs.just
               pkgs.buck2
               mercuryGhc
+              # LSP servers
+              mercuryHsPkgs.haskell-language-server
             ]
             ++ haskellPkgs
             ++ mercuryGhcLibs
