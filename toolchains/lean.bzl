@@ -88,10 +88,10 @@ def lean_binary(
         deps: list[str] = [],
         visibility: list[str] = []):
     """
-    Build a Lean 4 executable using lean --run.
+    Build a Lean 4 executable.
 
-    This is a simple approach that verifies compilation and creates
-    a wrapper script. For production use, consider using Lake.
+    Compiles a Lean source file to a native executable using leanc.
+    For multi-file projects, consider using Lake.
 
     Args:
         name: Target name
@@ -100,13 +100,26 @@ def lean_binary(
         visibility: Visibility specification
     """
     lean = read_root_config("lean", "lean", "lean")
-    src_name = srcs[0].split("/")[-1] if "/" in srcs[0] else srcs[0]
+    leanc = read_root_config("lean", "leanc", "leanc")
 
-    # Create a simple output that confirms the file type-checks
+    # Compile Lean to C, then to native binary
+    # Note: Only single-file binaries supported; for multi-file, use Lake
+    src_file = srcs[0]
+    src_basename = src_file.split("/")[-1] if "/" in src_file else src_file
+
     native.genrule(
         name = name,
         srcs = srcs,
-        out = name + ".verified",
-        bash = "{lean} --threads=1 $SRCS && echo 'verified' > $OUT".format(lean = lean),
+        out = name,
+        bash = """
+set -e
+# Copy source to scratch (Lean requires source in root dir)
+cp "$SRCDIR/{src_basename}" "$BUCK_SCRATCH_PATH/{src_basename}"
+# Compile Lean source to C
+{lean} --threads=1 --root="$BUCK_SCRATCH_PATH" --c="$BUCK_SCRATCH_PATH/out.c" "$BUCK_SCRATCH_PATH/{src_basename}"
+# Compile C to native executable
+{leanc} -o "$OUT" "$BUCK_SCRATCH_PATH/out.c"
+""".format(lean = lean, leanc = leanc, src_basename = src_basename),
+        executable = True,
         visibility = visibility,
     )
