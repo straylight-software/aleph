@@ -121,7 +121,9 @@ nv_toolchain(
 
 haskell_toolchain(
     name = "haskell",
-    compiler_flags = ["-package-env=-"],
+    # ghcWithPackages provides packages via the default package env
+    # Don't use -package-env=- as it disables all packages
+    compiler_flags = [],
     visibility = ["PUBLIC"],
 )
 

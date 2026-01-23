@@ -1,0 +1,11 @@
+# src/examples/haskell/BUCK
+#
+# Simple Haskell examples for Buck2
+
+haskell_binary(
+    name = "hello",
+    srcs = ["Main.hs"],
+    main = "Main",
+    compiler_flags = ["-O2", "-Wall"],
+    visibility = ["PUBLIC"],
+)

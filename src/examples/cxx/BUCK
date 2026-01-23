@@ -1,0 +1,23 @@
+# src/examples/cxx/BUCK
+#
+# C++ examples using LLVM 22 toolchain
+
+cxx_binary(
+    name = "hello",
+    srcs = ["hello.cpp"],
+    visibility = ["PUBLIC"],
+)
+
+cxx_binary(
+    name = "mdspan_test",
+    srcs = ["mdspan_test.cpp"],
+    visibility = ["PUBLIC"],
+)
+
+# TODO: Enable when shortlist is configured in buckconfig.local
+# cxx_binary(
+#     name = "fmt_test",
+#     srcs = ["fmt_test.cpp"],
+#     deps = ["toolchains//:fmt"],
+#     visibility = ["PUBLIC"],
+# )

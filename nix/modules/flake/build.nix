@@ -370,7 +370,50 @@ in
 
         # Haskell
         hsPkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
-        ghcForBuck2 = hsPkgs.ghcWithPackages cfg.toolchain.haskell.packages;
+        ghcVersion = hsPkgs.ghc.version;
+
+        # The Haskell package universe - each package is a derivation
+        # that gets built on demand when referenced
+        hsPackageList = cfg.toolchain.haskell.packages hsPkgs;
+
+        # GHC with all packages from the universe baked in
+        ghcForBuck2 = hsPkgs.ghcWithPackages (_: hsPackageList);
+
+        # Extract package info for buckconfig.local
+        # Each package provides: path, db, libdir, id (read from package.conf)
+        hsPackageInfo =
+          pkg:
+          let
+            name = pkg.pname or (builtins.parseDrvName pkg.name).name;
+            version = pkg.version or "0";
+            # Standard GHC package layout from Nix
+            libdir = "${pkg}/lib/ghc-${ghcVersion}/lib";
+            confDir = "${libdir}/package.conf.d";
+            # Read the package ID from the .conf file
+            # The conf file is named <id>.conf
+            confFiles = builtins.attrNames (builtins.readDir confDir);
+            confFile = lib.head (lib.filter (f: lib.hasSuffix ".conf" f) confFiles);
+            id = lib.removeSuffix ".conf" confFile;
+          in
+          {
+            inherit name version id;
+            path = "${pkg}";
+            db = confDir;
+            libdir = libdir;
+          };
+
+        # Generate buckconfig entries for all packages
+        hsPackagesConfig = lib.concatMapStringsSep "\n" (
+          pkg:
+          let
+            info = hsPackageInfo pkg;
+          in
+          ''
+            ${info.name} = ${info.path}
+            ${info.name}.db = ${info.db}
+            ${info.name}.libdir = ${info.libdir}
+            ${info.name}.id = ${info.id}''
+        ) hsPackageList;
 
         # Python
         python = pkgs.python312 or pkgs.python311;
@@ -462,8 +505,12 @@ in
             ghc = ${ghcForBuck2}/bin/ghc
             ghc_pkg = ${ghcForBuck2}/bin/ghc-pkg
             haddock = ${ghcForBuck2}/bin/haddock
-            ghc_lib_dir = ${ghcForBuck2}/lib/ghc-${hsPkgs.ghc.version}/lib
-            global_package_db = ${ghcForBuck2}/lib/ghc-${hsPkgs.ghc.version}/lib/package.conf.d
+            ghc_version = ${ghcVersion}
+            ghc_lib_dir = ${ghcForBuck2}/lib/ghc-${ghcVersion}/lib
+            global_package_db = ${ghcForBuck2}/lib/ghc-${ghcVersion}/lib/package.conf.d
+
+            [haskell.packages]
+            ${hsPackagesConfig}
           ''
           + lib.optionalString (cfg.toolchain.rust.enable && pkgs ? rustc) ''
 
@@ -589,55 +636,82 @@ in
             mkdir -p bin
 
             ${lib.optionalString cfg.toolchain.haskell.enable ''
-                # GHC wrapper - filters Mercury-specific flags for stock GHC
-                cat > bin/ghc << 'GHC_WRAPPER_EOF'
-              #!/usr/bin/env bash
-              # Buck2 GHC wrapper - filters Mercury-specific flags for stock GHC
-              filter_args() {
-                  local skip_next=false
-                  while IFS= read -r arg || [[ -n "$arg" ]]; do
-                      if $skip_next; then skip_next=false; continue; fi
-                      case "$arg" in
-                          -dep-json) skip_next=true ;;
-                          -fpackage-db-byte-code|-fprefer-byte-code|-fbyte-code-and-object-code|-hide-all-packages) ;;
-                          *) echo "$arg" ;;
-                      esac
-                  done
-              }
-              final_args=()
-              for arg in "$@"; do
-                  if [[ "$arg" == @* ]]; then
-                      response_file="''${arg:1}"
-                      if [[ -f "$response_file" ]]; then
-                          filtered_file=$(mktemp)
-                          filter_args < "$response_file" > "$filtered_file"
-                          final_args+=("@$filtered_file")
-                          trap "rm -f '$filtered_file'" EXIT
-                      else
-                          final_args+=("$arg")
-                      fi
-                  else
-                      case "$arg" in
-                          -dep-json|-fpackage-db-byte-code|-fprefer-byte-code|-fbyte-code-and-object-code|-hide-all-packages) ;;
-                          *) final_args+=("$arg") ;;
-                      esac
-                  fi
-              done
-              exec ghc "''${final_args[@]}"
-              GHC_WRAPPER_EOF
-                chmod +x bin/ghc
+                              # GHC wrapper - filters Mercury-specific flags for stock GHC
+                              cat > bin/ghc << 'GHC_WRAPPER_EOF'
+                            #!/usr/bin/env bash
+                            # Buck2 GHC wrapper - filters Mercury-specific flags for stock GHC
+                            filter_args() {
+                                local skip_next=false
+                                while IFS= read -r arg || [[ -n "$arg" ]]; do
+                                    if $skip_next; then skip_next=false; continue; fi
+                                    case "$arg" in
+                                        -dep-json) skip_next=true ;;
+                                        -fpackage-db-byte-code|-fprefer-byte-code|-fbyte-code-and-object-code|-hide-all-packages) ;;
+                                        *) echo "$arg" ;;
+                                    esac
+                                done
+                            }
+                            final_args=()
+                            for arg in "$@"; do
+                                if [[ "$arg" == @* ]]; then
+                                    response_file="''${arg:1}"
+                                    if [[ -f "$response_file" ]]; then
+                                        filtered_file=$(mktemp)
+                                        filter_args < "$response_file" > "$filtered_file"
+                                        final_args+=("@$filtered_file")
+                                        trap "rm -f '$filtered_file'" EXIT
+                                    else
+                                        final_args+=("$arg")
+                                    fi
+                                else
+                                    case "$arg" in
+                                        -dep-json|-fpackage-db-byte-code|-fprefer-byte-code|-fbyte-code-and-object-code|-hide-all-packages) ;;
+                                        *) final_args+=("$arg") ;;
+                                    esac
+                                fi
+                            done
+                            exec ghc "''${final_args[@]}"
+                            GHC_WRAPPER_EOF
+                              chmod +x bin/ghc
 
-                cat > bin/ghc-pkg << 'EOF'
-              #!/usr/bin/env bash
-              exec ghc-pkg "$@"
-              EOF
-                chmod +x bin/ghc-pkg
+                              cat > bin/ghc-pkg << 'EOF'
+                            #!/usr/bin/env bash
+                            exec ghc-pkg "$@"
+                            EOF
+                              chmod +x bin/ghc-pkg
 
-                cat > bin/haddock << 'EOF'
-              #!/usr/bin/env bash
-              exec haddock "$@"
-              EOF
-                chmod +x bin/haddock
+                              cat > bin/haddock << 'EOF'
+                            #!/usr/bin/env bash
+                            exec haddock "$@"
+                            EOF
+                              chmod +x bin/haddock
+
+                              # Generate hie.yaml for HLS (go-to-definition support)
+                              # Uses "direct" cradle - GHC with all packages from ghcWithPackages
+                              if [ ! -e "hie.yaml" ]; then
+                                cat > hie.yaml << 'HIE_YAML_EOF'
+              # HLS configuration for Buck2 Haskell projects
+              # Generated by aleph.build module
+              #
+              # Uses a "direct" cradle - HLS invokes GHC directly with our ghcWithPackages.
+              # This provides go-to-definition for all packages in the Nix devshell.
+              #
+              # For per-file customization, use multi-cradle:
+              # https://haskell-language-server.readthedocs.io/en/latest/configuration.html
+
+              cradle:
+                direct:
+                  arguments:
+                    - -Wall
+                    - -Wno-unused-imports
+                    # Source directories
+                    - -isrc/haskell
+                    - -isrc/tools/compdb
+                    - -isrc/tools/scripts
+                    - -isrc/examples/haskell
+              HIE_YAML_EOF
+                                echo "Generated hie.yaml for HLS"
+                              fi
             ''}
 
             ${lib.optionalString cfg.toolchain.lean.enable ''
@@ -729,6 +803,7 @@ in
               pkgs.cargo
               pkgs.clippy
               pkgs.rustfmt
+              pkgs.rust-analyzer # LSP for Rust - go-to-definition works with source
             ]
             ++ lib.optionals (cfg.toolchain.lean.enable && pkgs ? lean4) [ pkgs.lean4 ]
             ++ lib.optionals cfg.toolchain.python.enable [ pythonEnv ]

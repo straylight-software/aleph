@@ -29,8 +29,12 @@ final: prev:
 let
   inherit (prev) lib;
 
-  # Source directory for Aleph.Script
-  scriptSrc = ../scripts;
+  # Source directories for Aleph.Script
+  # Library modules (Aleph.*) are in src/haskell/
+  # Executable scripts are in src/tools/scripts/
+  alephSrc = ../../src/haskell;
+  scriptSrc = ../../src/tools/scripts;
+  corpusSrc = ../../src/tools/corpus;
 
   # Haskell dependencies for Aleph.Script
   hsDeps =
@@ -99,7 +103,8 @@ let
         runHook preBuild
         ghc -O2 -Wall -Wno-unused-imports \
           -hidir . -odir . \
-          -i$src -o ${name} $src/${name}.hs
+          -i${alephSrc} -i${scriptSrc} \
+          -o ${name} ${scriptSrc}/${name}.hs
         runHook postBuild
       '';
 
@@ -142,6 +147,8 @@ in
       # ──────────────────────────────────────────────────────────────────────
 
       src = scriptSrc;
+      lib = alephSrc;
+      corpus = corpusSrc;
 
       # ──────────────────────────────────────────────────────────────────────
       # // ghc //
@@ -166,8 +173,7 @@ in
         name = "straylight-gen-wrapper";
         runtimeInputs = [ ghcWithScript ];
         text = ''
-          cd ${scriptSrc}
-          exec runghc -i. gen-wrapper.hs "$@"
+          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/gen-wrapper.hs "$@"
         '';
       };
 
@@ -181,8 +187,7 @@ in
         name = "straylight-script-check";
         runtimeInputs = [ ghcWithScript ];
         text = ''
-          cd ${scriptSrc}
-          exec runghc -i. check.hs "$@"
+          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/check.hs "$@"
         '';
       };
 
@@ -196,8 +201,7 @@ in
         name = "straylight-script-props";
         runtimeInputs = [ ghcWithTests ];
         text = ''
-          cd ${scriptSrc}
-          exec runghc -i. Props.hs "$@"
+          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/Props.hs "$@"
         '';
       };
 
@@ -223,11 +227,10 @@ in
           final.statix
         ];
         shellHook = ''
-          cd ${scriptSrc}
           echo "Aleph.Script development shell"
-          echo "  runghc -i. check.hs     # quick validation"
-          echo "  runghc -i. Props.hs     # property tests"
-          echo "  runghc -i. gen-wrapper.hs <tool>"
+          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/check.hs"
+          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/Props.hs"
+          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/gen-wrapper.hs <tool>"
         '';
       };
 
@@ -460,7 +463,7 @@ in
           final.nix
         ];
         text = ''
-          exec runghc -i${scriptSrc} ${scriptSrc}/nix-dev.hs "$@"
+          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/nix-dev.hs "$@"
         '';
       };
 
@@ -471,7 +474,7 @@ in
           final.nix
         ];
         text = ''
-          exec runghc -i${scriptSrc} ${scriptSrc}/nix-ci.hs "$@"
+          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/nix-ci.hs "$@"
         '';
       };
     };

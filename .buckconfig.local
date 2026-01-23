@@ -27,11 +27,34 @@ mdspan_include = /nix/store/15h676cngqhyxblg74lqr1cg58nqa8q3-mdspan-0.6.0/includ
 
 
 [haskell]
-ghc = /nix/store/wakwzwg538l88lwf4yd6irw3v1k9kc6k-ghc-9.12.2-with-packages/bin/ghc
-ghc_pkg = /nix/store/wakwzwg538l88lwf4yd6irw3v1k9kc6k-ghc-9.12.2-with-packages/bin/ghc-pkg
-haddock = /nix/store/wakwzwg538l88lwf4yd6irw3v1k9kc6k-ghc-9.12.2-with-packages/bin/haddock
-ghc_lib_dir = /nix/store/wakwzwg538l88lwf4yd6irw3v1k9kc6k-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
-global_package_db = /nix/store/wakwzwg538l88lwf4yd6irw3v1k9kc6k-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
+ghc = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/ghc
+ghc_pkg = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/ghc-pkg
+haddock = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/haddock
+ghc_version = 9.12.2
+ghc_lib_dir = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
+global_package_db = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
+
+[haskell.packages]
+aeson = /nix/store/l1i7ia2krj1ab16w28935nsrm7dk626p-aeson-2.2.3.0
+aeson.db = /nix/store/l1i7ia2krj1ab16w28935nsrm7dk626p-aeson-2.2.3.0/lib/ghc-9.12.2/lib/package.conf.d
+aeson.libdir = /nix/store/l1i7ia2krj1ab16w28935nsrm7dk626p-aeson-2.2.3.0/lib/ghc-9.12.2/lib
+aeson.id = aeson-2.2.3.0-8z1D81st0iIFYWqNszwTQl
+aeson-pretty = /nix/store/6sbfclmrs2mwmfslckcngw1rxz06jz0v-aeson-pretty-0.8.10
+aeson-pretty.db = /nix/store/6sbfclmrs2mwmfslckcngw1rxz06jz0v-aeson-pretty-0.8.10/lib/ghc-9.12.2/lib/package.conf.d
+aeson-pretty.libdir = /nix/store/6sbfclmrs2mwmfslckcngw1rxz06jz0v-aeson-pretty-0.8.10/lib/ghc-9.12.2/lib
+aeson-pretty.id = aeson-pretty-0.8.10-6Z85EUgiOuZ6oKag2uCzEh
+optparse-applicative = /nix/store/jcrkbbd7q5rb3sghqijyhmwmf260abil-optparse-applicative-0.18.1.0
+optparse-applicative.db = /nix/store/jcrkbbd7q5rb3sghqijyhmwmf260abil-optparse-applicative-0.18.1.0/lib/ghc-9.12.2/lib/package.conf.d
+optparse-applicative.libdir = /nix/store/jcrkbbd7q5rb3sghqijyhmwmf260abil-optparse-applicative-0.18.1.0/lib/ghc-9.12.2/lib
+optparse-applicative.id = optparse-applicative-0.18.1.0-HKmlNMWnnO7E1tJC67pjyv
+megaparsec = /nix/store/m9wjak03jqx1l8c7zps60r9q3w2fi8x4-megaparsec-9.7.0
+megaparsec.db = /nix/store/m9wjak03jqx1l8c7zps60r9q3w2fi8x4-megaparsec-9.7.0/lib/ghc-9.12.2/lib/package.conf.d
+megaparsec.libdir = /nix/store/m9wjak03jqx1l8c7zps60r9q3w2fi8x4-megaparsec-9.7.0/lib/ghc-9.12.2/lib
+megaparsec.id = megaparsec-9.7.0-FGI0fTlY3zr5CY7C6qh91a
+prettyprinter = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1
+prettyprinter.db = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1/lib/ghc-9.12.2/lib/package.conf.d
+prettyprinter.libdir = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1/lib/ghc-9.12.2/lib
+prettyprinter.id = prettyprinter-1.7.1-8RGLAoNLo4i7Zpj1EyCJGX
 
 [rust]
 rustc = /nix/store/lvdr3nws8gs2qcgm3rnwvjprcx55kx7l-rustc-wrapper-1.91.1/bin/rustc
@@ -58,40 +81,3 @@ nanobind_cmake = /nix/store/va8nkra5vfp8lds47w3ywn39z2jgpyj2-python3.12-nanobind
 nvidia_sdk_path = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk
 nvidia_sdk_include = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/include
 nvidia_sdk_lib = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/lib
-
-[shortlist]
-# Hermetic C++ libraries
-# Format: lib = /nix/store/..., lib_dev = /nix/store/...-dev (for headers)
-zlib_ng = /nix/store/kmwphwsmk0ik37v4jbxq6say0sb2az1q-zlib-ng-2.2.5
-fmt = /nix/store/s8x491axlnm309ppwpfr0yv19rivw33h-fmt-12.0.0
-fmt_dev = /nix/store/xqhfjy7z1i43yx7zv00dxhwy7g5yaqrh-fmt-12.0.0-dev
-catch2 = /nix/store/3dv40152ibwzvk4c1cxlj9fx2ms8dsw8-catch2-3.11.0
-catch2_dev = /nix/store/3dv40152ibwzvk4c1cxlj9fx2ms8dsw8-catch2-3.11.0
-spdlog = /nix/store/kqp0y77cn17sbxfk4p51m0z1zkryvj0l-spdlog-1.16.0
-spdlog_dev = /nix/store/0m6yg5i5bvsq16vcyysm9m2z1y4hww0h-spdlog-1.16.0-dev
-mdspan = /nix/store/15h676cngqhyxblg74lqr1cg58nqa8q3-mdspan-0.6.0
-rapidjson = /nix/store/0k7lqs1am14y5amcqlbdxhnlk8hf2xpg-rapidjson-1.1.0-unstable-2025-02-05
-nlohmann_json = /nix/store/sd346f4fszi73jg949y77r9hpdipsxa6-nlohmann_json-3.12.0
-libsodium = /nix/store/n0jc1q20m3ar8q0vyi0mvz7cmvf0gwsh-libsodium-1.0.20
-libsodium_dev = /nix/store/vijkvg4k07mlrb9446yz3pmqh2x62ixj-libsodium-1.0.20-dev
-
-
-# ────────────────────────────────────────────────────────────────────────
-# NativeLink Remote Execution (LRE)
-# ────────────────────────────────────────────────────────────────────────
-# Usage: lre-start --workers=4 && buck2 build --prefer-remote //:target
-
-[build]
-execution_platforms = toolchains//:lre
-
-[buck2_re_client]
-engine_address = grpc://127.0.0.1:50051
-cas_address = grpc://127.0.0.1:50051
-action_cache_address = grpc://127.0.0.1:50051
-tls = false
-instance_name = main
-
-[buck2_re_client.platform_properties]
-OSFamily = linux
-container-image = nix-lre-worker
-

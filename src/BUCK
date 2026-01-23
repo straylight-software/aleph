@@ -1,0 +1,15 @@
+# src/BUCK
+#
+# Aleph source tree - everything Buck2 builds lives here.
+#
+# Structure:
+#   src/tools/      - Developer tooling (compdb, etc.)
+#   src/haskell/    - Haskell library code
+#   src/examples/   - Example code for each language
+
+# Re-export tools for convenience
+alias(
+    name = "compdb",
+    actual = "//src/tools/compdb:compdb",
+    visibility = ["PUBLIC"],
+)

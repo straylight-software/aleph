@@ -1,0 +1,32 @@
+# src/tools/compdb/BUCK
+#
+# compdb: Generate compile_commands.json for clangd
+#
+# This tool wraps buck2 bxl to generate a flattened compilation database
+# that clangd can use for code intelligence.
+
+haskell_binary(
+    name = "compdb",
+    srcs = ["Main.hs"],
+    main = "Main",
+    compiler_flags = [
+        "-O2",
+        "-Wall",
+        # Packages from ghcWithPackages
+        "-package", "aeson",
+        "-package", "aeson-pretty",
+        "-package", "bytestring",
+        "-package", "directory",
+        "-package", "optparse-applicative",
+        "-package", "process",
+    ],
+    linker_flags = [
+        "-package", "aeson",
+        "-package", "aeson-pretty",
+        "-package", "bytestring",
+        "-package", "directory",
+        "-package", "optparse-applicative",
+        "-package", "process",
+    ],
+    visibility = ["PUBLIC"],
+)

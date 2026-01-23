@@ -24,6 +24,11 @@ target_platform_detector_spec = target:root//...->prelude//platforms:default
 materializations = deferred
 digest_algorithms = BLAKE3
 
+[build]
+# Use local execution by default. For remote execution with NativeLink:
+#   lre-start && buck2 build --config build.execution_platforms=toolchains//:lre //...
+execution_platforms = toolchains//:local
+
 # C++ toolchain configuration
 # Paths are set via Nix in .buckconfig.local
 # Example:

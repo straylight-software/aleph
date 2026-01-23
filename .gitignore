@@ -8,3 +8,4 @@ result-*
 
 # Buck2 build artifacts
 buck-out/
+.ghc-pkg-db
