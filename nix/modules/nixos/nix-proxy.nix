@@ -265,10 +265,11 @@ in
     };
 
     # Create directories
+    # certDir needs 0755 so nix-daemon can read the CA cert
     systemd.tmpfiles.rules = [
       "d ${cfg.cacheDir} 0755 root root -"
       "d ${cfg.logDir} 0755 root root -"
-      "d ${cfg.certDir} 0700 root root -"
+      "d ${cfg.certDir} 0755 root root -"
     ];
 
     # Generate CA cert on first boot
@@ -339,5 +340,16 @@ in
 
     # Add package to system for CLI access
     environment.systemPackages = [ pkgs.mitmproxy ];
+
+    # Set proxy env vars system-wide so nix client uses proxy too
+    # (not just daemon - flake fetching happens in client)
+    environment.sessionVariables = {
+      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
+      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
+      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+      SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+    };
   };
 }
