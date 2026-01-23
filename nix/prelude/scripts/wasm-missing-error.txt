@@ -1,0 +1,26 @@
+================================================================================
+WASM plugin loading requires straylight-nix with builtins.wasm support.
+================================================================================
+
+Current status: @status@
+
+To enable WASM plugin support:
+
+  1. Install straylight-nix:
+     nix build github:straylight-software/straylight-nix
+
+  2. Use it as your Nix binary:
+     export PATH="$HOME/.nix-profile/bin:$PATH"
+     # or add to your shell configuration
+
+  3. Verify WASM support:
+     nix eval --expr 'builtins ? wasm'
+     # Should return: true
+
+Until then, you can:
+  - Use the Haskell types as documentation
+  - Write manual Nix package definitions based on the type signatures
+  - Build WASM plugins (just not load them)
+
+See: https://github.com/straylight-software/straylight-nix
+================================================================================

@@ -1,6 +1,9 @@
 id: long-inline-string
 language: nix
-severity: warning
+severity: error
+# Exclude prelude (doc comments are legitimately long)
+ignores:
+  - nix/prelude/**/*.nix
 rule:
   kind: indented_string_expression
   regex: "(?s)(?:.*\\n){12,}"

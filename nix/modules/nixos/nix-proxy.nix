@@ -40,97 +40,7 @@ let
   cfg = config.services.nix-proxy;
 
   # mitmproxy addon script for caching/logging
-  proxyAddon = pkgs.writeText "nix-proxy-addon.py" ''
-    """
-    mitmproxy addon for Nix fetch caching and logging.
-
-    - Caches responses by content hash
-    - Logs all fetches for attestation
-    - Enforces domain allowlist (optional)
-    """
-    import hashlib
-    import json
-    import os
-    import time
-    from datetime import datetime
-    from pathlib import Path
-    from mitmproxy import http, ctx
-
-    CACHE_DIR = Path(os.environ.get("NIX_PROXY_CACHE_DIR", "/var/cache/nix-proxy"))
-    LOG_DIR = Path(os.environ.get("NIX_PROXY_LOG_DIR", "/var/log/nix-proxy"))
-    ALLOWLIST = os.environ.get("NIX_PROXY_ALLOWLIST", "").split(",")
-    ALLOWLIST = [d.strip() for d in ALLOWLIST if d.strip()]
-
-    class NixProxyAddon:
-        def __init__(self):
-            CACHE_DIR.mkdir(parents=True, exist_ok=True)
-            LOG_DIR.mkdir(parents=True, exist_ok=True)
-            self.log_file = LOG_DIR / f"fetches-{datetime.now():%Y%m%d}.jsonl"
-
-        def _hash_content(self, content: bytes) -> str:
-            """SHA256 hash of content."""
-            return hashlib.sha256(content).hexdigest()
-
-        def _cache_path(self, hash: str) -> Path:
-            """Two-level cache path like git objects."""
-            return CACHE_DIR / hash[:2] / hash[2:]
-
-        def _log_fetch(self, url: str, hash: str, size: int, cached: bool):
-            """Append fetch to log file."""
-            entry = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "url": url,
-                "sha256": hash,
-                "size": size,
-                "cached": cached,
-            }
-            with open(self.log_file, "a") as f:
-                f.write(json.dumps(entry) + "\n")
-
-        def _check_allowlist(self, host: str) -> bool:
-            """Check if host is in allowlist (empty = allow all)."""
-            if not ALLOWLIST:
-                return True
-            return any(
-                host == allowed or host.endswith("." + allowed)
-                for allowed in ALLOWLIST
-            )
-
-        def request(self, flow: http.HTTPFlow):
-            """Check allowlist before forwarding request."""
-            host = flow.request.host
-            if not self._check_allowlist(host):
-                flow.response = http.Response.make(
-                    403,
-                    f"Host {host} not in allowlist",
-                    {"Content-Type": "text/plain"}
-                )
-                ctx.log.warn(f"Blocked request to {host} (not in allowlist)")
-
-        def response(self, flow: http.HTTPFlow):
-            """Cache successful responses."""
-            if flow.response.status_code != 200:
-                return
-
-            content = flow.response.content
-            if not content:
-                return
-
-            hash = self._hash_content(content)
-            cache_path = self._cache_path(hash)
-            url = flow.request.pretty_url
-
-            # Check if already cached
-            cached = cache_path.exists()
-            if not cached:
-                cache_path.parent.mkdir(parents=True, exist_ok=True)
-                cache_path.write_bytes(content)
-                ctx.log.info(f"Cached {url} -> {hash[:16]}... ({len(content)} bytes)")
-
-            self._log_fetch(url, hash, len(content), cached)
-
-    addons = [NixProxyAddon()]
-  '';
+  proxyAddon = ./scripts/nix-proxy-addon.py;
 
   # Wrapper script to start mitmproxy with our addon
   proxyScript = pkgs.writeShellScript "nix-proxy" ''
@@ -262,6 +172,8 @@ in
       HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      # Override CURL_CA_BUNDLE set by nix-daemon.nix / Determinate Nix
+      CURL_CA_BUNDLE = lib.mkForce "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
 
     # Create directories
@@ -350,6 +262,7 @@ in
       HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      CURL_CA_BUNDLE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
   };
 }

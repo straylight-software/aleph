@@ -1,33 +1,32 @@
 id: non-lisp-case
 language: nix
 severity: error
+# Exclude prelude (defines the standard library identifiers)
+ignores:
+  - nix/prelude/**/*.nix
 rule:
-  kind: select_expression
-  all:
-    - has:
-        field: expression
-        kind: variable_expression
-        has:
-          kind: identifier
-          regex: ^straylight$
-    - has:
-        field: attrpath
-        kind: attrpath
-        has:
-          kind: identifier
-          regex: .*[A-Z_].*
-message: "WSN-E003: non-lisp-case identifier in `straylight.*`"
+  kind: identifier
+  regex: "^[a-z].*(_|[A-Z]).*"
+  not:
+    inside:
+      any:
+        # Allow in string interpolations (paths, commands)
+        - kind: interpolation
+        # Allow in inherit statements
+        - kind: inherit
+message: "WSN-E003: non-lisp-case identifier"
 note: |
   ## What's wrong?
-  Identifiers in the `straylight.*` namespace must use lisp-case.
+  All identifiers must use lisp-case (kebab-case): `foo-bar`, not `fooBar` or `foo_bar`.
 
-  CamelCase or snake_case names are forbidden because they:
-  - Break naming consistency across modules
-  - Make attribute discovery and search less predictable
+  This forces all code through the prelude, which provides well-typed paths.
+  Direct nixpkgs/lib/builtins usage is forbidden.
 
   ## What can I do to fix this?
-  Rename to lisp-case, for example:
+  Use the prelude equivalent:
 
-  ```nix
-  straylight.foo-bar
-  ```
+  - `pkgs.stdenv.mkDerivation` → `prelude.mk-derivation`
+  - `lib.optionalString` → `prelude.optional-string`
+  - `buildInputs` → `build-inputs`
+
+  See nix/prelude/ for available functions.

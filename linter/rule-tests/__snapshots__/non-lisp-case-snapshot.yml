@@ -1,68 +1,26 @@
 id: non-lisp-case
 snapshots:
-  straylight.config.fooBar:
+  fooBar:
     labels:
-      - source: straylight.config.fooBar
+      - source: fooBar
         style: primary
         start: 0
-        end: 24
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
-      - source: fooBar
-        style: secondary
-        start: 18
-        end: 24
-      - source: config.fooBar
-        style: secondary
-        start: 11
-        end: 24
-  straylight.fooBar:
+        end: 6
+  foo_bar:
     labels:
-      - source: straylight.fooBar
-        style: primary
-        start: 0
-        end: 17
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
-      - source: fooBar
-        style: secondary
-        start: 11
-        end: 17
-      - source: fooBar
-        style: secondary
-        start: 11
-        end: 17
-  straylight.foo_bar:
-    labels:
-      - source: straylight.foo_bar
-        style: primary
-        start: 0
-        end: 18
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
-      - source: straylight
-        style: secondary
-        start: 0
-        end: 10
       - source: foo_bar
-        style: secondary
-        start: 11
-        end: 18
-      - source: foo_bar
-        style: secondary
-        start: 11
-        end: 18
+        style: primary
+        start: 0
+        end: 7
+  myFunctionName:
+    labels:
+      - source: myFunctionName
+        style: primary
+        start: 0
+        end: 14
+  let fooBar = 1; in fooBar:
+    labels:
+      - source: fooBar
+        style: primary
+        start: 4
+        end: 10

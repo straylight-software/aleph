@@ -1,6 +1,6 @@
 id: missing-meta
 language: nix
-severity: warning
+severity: error
 rule:
   kind: apply_expression
   all:

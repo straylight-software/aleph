@@ -1,6 +1,11 @@
 id: rec-anywhere
 language: nix
-severity: warning
+severity: error
+# Exclude prelude (functional programming patterns legitimately use rec)
+# Exclude lib (utility functions may use rec for self-reference)
+ignores:
+  - nix/prelude/**/*.nix
+  - nix/lib/**/*.nix
 rule:
   kind: rec_attrset_expression
 message: "WSN-W001: recursive attrset"

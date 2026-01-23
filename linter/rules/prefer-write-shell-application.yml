@@ -1,6 +1,6 @@
 id: prefer-write-shell-application
 language: nix
-severity: warning
+severity: error
 rule:
   kind: apply_expression
   any:
