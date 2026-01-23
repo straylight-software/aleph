@@ -247,17 +247,22 @@ in
       # Allow network in sandbox (we control it via proxy)
       sandbox = "relaxed";
 
-      # Use our proxy for all fetches
-      proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-
       # Trust our CA for HTTPS interception
       ssl-cert-file = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+
+      # Ensure cert is available in sandbox
+      extra-sandbox-paths = [ cfg.certDir ];
     };
 
-    # Ensure cert is available in sandbox
-    nix.settings.extra-sandbox-paths = [
-      cfg.certDir
-    ];
+    # Set proxy via environment for nix-daemon
+    systemd.services.nix-daemon.environment = {
+      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
+      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
+      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+      SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+    };
 
     # Create directories
     systemd.tmpfiles.rules = [
