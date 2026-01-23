@@ -9,3 +9,9 @@ lean_binary(
     srcs = ["Hello.lean"],
     visibility = ["PUBLIC"],
 )
+
+lean_binary(
+    name = "hashmap",
+    srcs = ["HashMap.lean"],
+    visibility = ["PUBLIC"],
+)
