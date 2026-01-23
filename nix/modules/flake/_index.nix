@@ -23,12 +23,15 @@ let
   # ──────────────────────────────────────────────────────────────────────────
 
   build = import ./build.nix { inherit inputs; };
+  buck2 = import ./buck2.nix { inherit inputs; };
   devshell = import ./devshell.nix { };
   docs = import ./docs.nix { inherit inputs; };
   formatter = import ./formatter.nix { inherit inputs; };
   lint = import ./lint.nix { };
+  lre = import ./lre.nix { inherit inputs; };
   nix-conf = import ./nix-conf.nix { };
   nixpkgs = import ./nixpkgs.nix { inherit inputs; };
+  shortlist = import ./shortlist.nix { inherit inputs; };
   std = import ./std.nix { inherit inputs; };
   nv-sdk = import ./nv-sdk.nix;
   container = import ./container { inherit lib; };
@@ -96,10 +99,63 @@ let
     ];
   };
 
+  # ──────────────────────────────────────────────────────────────────────────
+  #                                                // shortlist module export
+  # ──────────────────────────────────────────────────────────────────────────
+  # Standalone shortlist module: hermetic C++ libraries + Buck2 toolchain
+  # Usage:
+  #   imports = [ aleph.modules.flake.shortlist-standalone ];
+  #   aleph-naught.shortlist.enable = true;
+  shortlist-standalone = {
+    _class = "flake";
+
+    imports = [
+      build
+      shortlist
+      nixpkgs # Required for overlays
+    ];
+  };
+
+  # ──────────────────────────────────────────────────────────────────────────
+  #                                                    // full stack export
+  # ──────────────────────────────────────────────────────────────────────────
+  # Complete aleph build infrastructure for downstream flakes:
+  #   - LLVM 22 hermetic toolchain (Buck2 integration)
+  #   - Shortlist C++ libraries (fmt, spdlog, etc.)
+  #   - NativeLink Local Remote Execution
+  #
+  # Usage in downstream flake.nix:
+  #
+  #   inputs.aleph.url = "github:straylight/aleph";
+  #
+  #   outputs = { self, aleph, ... }:
+  #     aleph.inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+  #       imports = [ aleph.modules.flake.full ];
+  #
+  #       aleph-naught = {
+  #         build.enable = true;
+  #         shortlist.enable = true;
+  #         lre.enable = true;
+  #       };
+  #     };
+  #
+  full = {
+    _class = "flake";
+
+    imports = [
+      build
+      shortlist
+      lre
+      devshell
+      nixpkgs
+    ];
+  };
+
 in
 {
   inherit
     build
+    buck2
     build-standalone
     container
     default
@@ -107,13 +163,17 @@ in
     devshell
     docs
     formatter
+    full
     lint
+    lre
     nix-conf
     nixpkgs
     nv-sdk
     options-only
     prelude
     prelude-demos
+    shortlist
+    shortlist-standalone
     std
     ;
 }

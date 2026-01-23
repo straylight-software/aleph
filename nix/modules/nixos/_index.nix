@@ -6,4 +6,6 @@
 #
 {
   nv-driver = import ./nv-driver.nix;
+  lre = import ./lre.nix;
+  nix-proxy = import ./nix-proxy.nix;
 }

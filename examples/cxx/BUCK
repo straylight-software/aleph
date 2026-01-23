@@ -13,3 +13,10 @@ cxx_binary(
     srcs = ["mdspan_test.cpp"],
     visibility = ["PUBLIC"],
 )
+
+cxx_binary(
+    name = "fmt_test",
+    srcs = ["fmt_test.cpp"],
+    deps = ["toolchains//:fmt"],
+    visibility = ["PUBLIC"],
+)

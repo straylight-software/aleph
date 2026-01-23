@@ -13,6 +13,7 @@ Design decisions and rationale for aleph.
 | [005](./aleph-005-profiles.md) | Nix Profiles | Implemented |
 | [006](./aleph-006-safe-bash.md) | Safe Bash | Implemented |
 | [007](./aleph-007-formalization.md) | Nix Formalization | Draft |
+| [008](./aleph-008-continuity/) | The Continuity Project | Draft |
 
 See also: [Conformance Report](./conformance-report.md)
 

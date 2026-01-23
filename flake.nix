@@ -31,6 +31,10 @@
       url = "github:weyl-ai/straylight-buck2-prelude";
       flake = false;
     };
+
+    # NativeLink - Local Remote Execution for Buck2
+    # Provides CAS, scheduler, and worker for build caching
+    nativelink.url = "github:TraceMachina/nativelink";
   };
 
   outputs =

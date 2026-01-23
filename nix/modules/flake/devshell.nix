@@ -160,7 +160,9 @@ in
                 pkgs.straylight.nix.nix
               ]
             )
-            ++ (cfg.extra-packages pkgs);
+            ++ (cfg.extra-packages pkgs)
+            # LRE packages (nativelink, lre-start)
+            ++ (config.straylight.lre.packages or [ ]);
 
             shellHook = ''
                 echo "━━━ aleph-naught devshell ━━━"
@@ -214,6 +216,12 @@ in
                 ''}
                 # Buck2 build system integration
               ${config.straylight.build.shellHook or ""}
+
+              # Shortlist hermetic C++ libraries
+              ${config.straylight.shortlist.shellHook or ""}
+
+              # Local Remote Execution (NativeLink)
+              ${config.straylight.lre.shellHook or ""}
 
               ${cfg.extra-shell-hook}
             '';

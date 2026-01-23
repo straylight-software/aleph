@@ -27,20 +27,25 @@ in
     flake = {
       inherit (flakeModules)
         build
+        buck2
         build-standalone
         default
         default-with-demos
         devshell
         docs
         formatter
+        full
         lint
+        lre
         nix-conf
         nixpkgs
-        std
         nv-sdk
         container
         prelude
         prelude-demos
+        shortlist
+        shortlist-standalone
+        std
         options-only
         ;
     };
@@ -64,7 +69,11 @@ in
   # Pure functions. No pkgs, no system.
   # ════════════════════════════════════════════════════════════════════════════
 
-  flake.lib = import ./lib { inherit lib; };
+  flake.lib = import ./lib { inherit lib; } // {
+    # Buck2 builder - use from downstream flakes:
+    #   packages.myapp = aleph.lib.buck2.build pkgs { target = "//src:myapp"; };
+    buck2 = import ./lib/buck2.nix { inherit inputs lib; };
+  };
 
   # ════════════════════════════════════════════════════════════════════════════
   # TEMPLATES
@@ -116,7 +125,14 @@ in
     flakeModules.prelude-demos
     flakeModules.container
     flakeModules.build
+    flakeModules.buck2
+    flakeModules.shortlist
+    flakeModules.lre
   ];
+
+  # Enable shortlist and LRE for aleph itself
+  aleph-naught.shortlist.enable = true;
+  aleph-naught.lre.enable = true;
 
   perSystem =
     {
@@ -155,12 +171,25 @@ in
       #
       # The FFI boilerplate is generated automatically.
       #
+      # IFD AVOIDANCE: If a pre-built .wasm file exists alongside the .hs file,
+      # we use it directly instead of building at evaluation time. This avoids
+      # the "import from derivation" warning in `nix flake show`.
+      #
+      # To pre-build all .wasm files:
+      #   nix build .#wasm-packages -o result-wasm
+      #   cp result-wasm/*.wasm nix/packages/
+      #
       call-package =
         path: args:
         let
           pathStr = toString path;
           ext = lib.last (lib.splitString "." pathStr);
           alephModules = ./scripts;
+
+          # Check for pre-built WASM file (avoids IFD)
+          baseName = lib.removeSuffix ".hs" (baseNameOf pathStr);
+          prebuiltWasm = ./packages + "/${baseName}.wasm";
+          hasPrebuiltWasm = builtins.pathExists prebuiltWasm;
 
           # Generated Main.hs that wraps the user's package module
           wrapperMain = pkgs.writeText "Main.hs" ''
@@ -215,10 +244,17 @@ in
               '';
         in
         if ext == "hs" then
-          if ghc-wasm == null then
-            throw "call-package for .hs files requires ghc-wasm-meta input"
-          else if !(builtins ? wasm) then
+          if !(builtins ? wasm) then
             throw "call-package for .hs files requires straylight-nix with builtins.wasm"
+          # Use pre-built WASM if available (no IFD)
+          else if hasPrebuiltWasm then
+            wasm-infra.buildFromSpec {
+              spec = builtins.wasm prebuiltWasm "pkg" args;
+              inherit pkgs;
+            }
+          # Fall back to building at eval time (causes IFD warning)
+          else if ghc-wasm == null then
+            throw "call-package for .hs files requires ghc-wasm-meta input (or pre-built ${baseName}.wasm)"
           else
             let
               wasmDrv = buildHsWasm path;
@@ -244,31 +280,103 @@ in
       # Packages defined in Haskell via call-package.
       # Only available when using straylight-nix (builtins.wasm).
       #
-      typedPackages = lib.optionalAttrs (builtins ? wasm && ghc-wasm != null) {
-        # Test packages
-        test-hello = call-package ./packages/test-hello.hs { };
-        test-zlib-ng = call-package ./packages/test-zlib-ng.hs { };
-        test-tool-deps = call-package ./packages/test-tool-deps.hs { };
-        test-typed-tools = call-package ./packages/test-typed-tools.hs { };
+      # List of all .hs package files (used for both building and pre-building WASM)
+      hsPackageFiles = [
+        "test-hello"
+        "test-zlib-ng"
+        "test-tool-deps"
+        "test-typed-tools"
+        "catch2"
+        "fmt"
+        "mdspan"
+        "nlohmann-json"
+        "rapidjson"
+        "spdlog"
+        "zlib-ng"
+        "nvidia-nccl"
+        "nvidia-cudnn"
+        "nvidia-tensorrt"
+        "nvidia-cutensor"
+        "nvidia-cusparselt"
+        "nvidia-cutlass"
+      ];
 
-        # C++ libraries
-        catch2 = call-package ./packages/catch2.hs { };
-        fmt = call-package ./packages/fmt.hs { };
-        mdspan = call-package ./packages/mdspan.hs { };
-        nlohmann-json = call-package ./packages/nlohmann-json.hs { };
-        rapidjson = call-package ./packages/rapidjson.hs { };
-        spdlog = call-package ./packages/spdlog.hs { };
-        zlib-ng = call-package ./packages/zlib-ng.hs { };
-        # Note: abseil-cpp uses libmodern overlay (needs combine-archive)
+      # Build WASM from a single .hs file (for pre-building)
+      buildHsWasmStandalone =
+        name:
+        let
+          hsPath = ./packages + "/${name}.hs";
+          wrapperMain = pkgs.writeText "Main.hs" ''
+            {-# LANGUAGE ForeignFunctionInterface #-}
+            module Main where
 
-        # NVIDIA SDK (from PyPI wheels)
-        nvidia-nccl = call-package ./packages/nvidia-nccl.hs { };
-        nvidia-cudnn = call-package ./packages/nvidia-cudnn.hs { };
-        nvidia-tensorrt = call-package ./packages/nvidia-tensorrt.hs { };
-        nvidia-cutensor = call-package ./packages/nvidia-cutensor.hs { };
-        nvidia-cusparselt = call-package ./packages/nvidia-cusparselt.hs { };
-        nvidia-cutlass = call-package ./packages/nvidia-cutlass.hs { };
+            import Aleph.Nix.Value (Value(..))
+            import Aleph.Nix.Derivation (drvToNixAttrs)
+            import Aleph.Nix (nixWasmInit)
+            import qualified Pkg (pkg)
+
+            main :: IO ()
+            main = pure ()
+
+            foreign export ccall "nix_wasm_init_v1" initPlugin :: IO ()
+            initPlugin :: IO ()
+            initPlugin = nixWasmInit
+
+            foreign export ccall "pkg" pkgExport :: Value -> IO Value
+            pkgExport :: Value -> IO Value
+            pkgExport _args = drvToNixAttrs Pkg.pkg
+          '';
+        in
+        pkgs.runCommand "${name}.wasm"
+          {
+            src = hsPath;
+            nativeBuildInputs = [ ghc-wasm ];
+          }
+          ''
+            mkdir -p build
+            cd build
+            cp -r ${./scripts}/Aleph Aleph
+            chmod -R u+w Aleph
+            cp $src Pkg.hs
+            cp ${wrapperMain} Main.hs
+            wasm32-wasi-ghc \
+              -optl-mexec-model=reactor \
+              -optl-Wl,--allow-undefined \
+              -optl-Wl,--export=hs_init \
+              -optl-Wl,--export=nix_wasm_init_v1 \
+              -optl-Wl,--export=pkg \
+              -O2 \
+              Main.hs \
+              -o plugin.wasm
+            wasm-opt -O3 plugin.wasm -o $out
+          '';
+
+      # All WASM files bundled together (for easy copying to repo)
+      wasmPackagesBundle = lib.optionalAttrs (ghc-wasm != null) {
+        wasm-packages = pkgs.runCommand "wasm-packages" { } ''
+          mkdir -p $out
+          ${lib.concatMapStringsSep "\n" (name: ''
+            cp ${buildHsWasmStandalone name} $out/${name}.wasm
+          '') hsPackageFiles}
+        '';
       };
+
+      typedPackages = lib.optionalAttrs (builtins ? wasm) (
+        lib.listToAttrs (
+          map (name: {
+            inherit name;
+            value = call-package (./packages + "/${name}.hs") { };
+          }) hsPackageFiles
+        )
+      );
+
+      # NativeLink from inputs (for LRE)
+      nativelink =
+        if inputs ? nativelink then
+          inputs.nativelink.packages.${system}.default or inputs.nativelink.packages.${system}.nativelink
+            or null
+        else
+          null;
     in
     {
       # Make aleph available to other modules via _module.args
@@ -276,14 +384,37 @@ in
         inherit aleph call-package;
       };
 
+      # Wire up shortlist paths to buck2 config
+      buck2.shortlist = {
+        fmt = "${pkgs.fmt}";
+        fmt_dev = "${pkgs.fmt.dev}";
+        zlib_ng = "${pkgs.zlib-ng}";
+        catch2 = "${pkgs.catch2_3}";
+        catch2_dev = "${pkgs.catch2_3.dev or pkgs.catch2_3}";
+        spdlog = "${pkgs.spdlog}";
+        spdlog_dev = "${pkgs.spdlog.dev or pkgs.spdlog}";
+        mdspan = "${pkgs.mdspan}";
+        rapidjson = "${pkgs.rapidjson}";
+        nlohmann_json = "${pkgs.nlohmann_json}";
+        libsodium = "${pkgs.libsodium}";
+        libsodium_dev = "${pkgs.libsodium.dev or pkgs.libsodium}";
+      };
+
       packages = {
         mdspan = pkgs.mdspan or null;
         wsn-lint = pkgs.callPackage ./packages/wsn-lint.nix { };
+
+        # Buck2 built packages - these can be used in NixOS, containers, etc.
+        # fmt-test = config.buck2.build { target = "//examples/cxx:fmt_test"; };
       }
       // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
         llvm-git = pkgs.llvm-git or null;
         nvidia-sdk = pkgs.nvidia-sdk or null;
       }
+      // lib.optionalAttrs (nativelink != null) {
+        inherit nativelink;
+      }
+      // wasmPackagesBundle
       // typedPackages;
 
       checks = import ./checks/default.nix { inherit pkgs system lib; };
