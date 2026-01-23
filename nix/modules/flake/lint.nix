@@ -30,7 +30,7 @@ let
   };
 
   # Script source directory
-  scriptSrc = ../../scripts;
+  scriptSrc = ../../../src/tools/scripts;
 in
 { config, lib, ... }:
 let
@@ -136,6 +136,10 @@ in
                 --add-flags "${configsDir}"
               runHook postInstall
             '';
+
+            meta = {
+              description = "Lint configuration script for code formatting and style checks";
+            };
           };
       in
       {

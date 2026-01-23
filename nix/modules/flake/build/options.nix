@@ -164,7 +164,7 @@ in
       };
 
       python = {
-        enable = lib.mkEnableOption "Python toolchain (with nanobind)";
+        enable = lib.mkEnableOption "Python toolchain (with nanobind/pybind11)";
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
@@ -172,6 +172,7 @@ in
             ps:
             lib.filter (p: p != null) [
               ps.nanobind or null
+              ps.pybind11 or null
               ps.numpy or null
             ];
           description = "Python packages for Buck2 toolchain";

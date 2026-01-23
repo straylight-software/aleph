@@ -103,6 +103,7 @@ let
       python_lib = ${buck2-toolchain.python-lib}
       nanobind_include = ${buck2-toolchain.nanobind-include}
       nanobind_cmake = ${buck2-toolchain.nanobind-cmake}
+      pybind11_include = ${buck2-toolchain.pybind11-include}
     ''
     + lib.optionalString (cfg.toolchain.nv.enable && buck2-toolchain ? nvidia-sdk-path) ''
 
@@ -110,6 +111,7 @@ let
       nvidia_sdk_path = ${buck2-toolchain.nvidia-sdk-path}
       nvidia_sdk_include = ${buck2-toolchain.nvidia-sdk-include}
       nvidia_sdk_lib = ${buck2-toolchain.nvidia-sdk-lib}
+      archs = ${buck2-toolchain.nv-archs}
     ''
   );
 in

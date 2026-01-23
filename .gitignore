@@ -9,3 +9,6 @@ result-*
 # Buck2 build artifacts
 buck-out/
 .ghc-pkg-db
+src/examples/lean-continuity/.lake/
+*.hi
+*.o

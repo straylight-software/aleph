@@ -40,6 +40,10 @@
         mkdir -p $out
         crane export --platform ${platform} "${ref}" - | tar -xf - -C $out
       '';
+
+      meta = {
+        description = "OCI container image rootfs extracted to Nix store";
+      };
     };
 
   # Run OCI images in a namespace — compiled Haskell, not bash

@@ -3,6 +3,9 @@ language: nix
 severity: error
 files:
   - nix/modules/*/**/*.nix
+ignores:
+  - nix/modules/*/_index.nix
+  - nix/modules/flake/options-schema.nix
 rule:
   kind: source_code
   not:

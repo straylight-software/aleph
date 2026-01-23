@@ -100,5 +100,9 @@
         mkdir -p $out/lib
         cp ${name} $out/lib/
       '';
+
+      meta = {
+        description = "Stub library providing symbol definitions for linking";
+      };
     };
 }

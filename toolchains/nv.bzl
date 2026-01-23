@@ -118,6 +118,10 @@ def nv_binary(name: str, srcs: list[str], deps: list[str] = [], visibility: list
     nvidia_sdk_path = read_root_config("nv", "nvidia_sdk_path", "/usr/local/cuda")
     nvidia_sdk_include = read_root_config("nv", "nvidia_sdk_include", "/usr/local/cuda/include")
     nvidia_sdk_lib = read_root_config("nv", "nvidia_sdk_lib", "/usr/local/cuda/lib64")
+    
+    # Target architectures from config (comma-separated)
+    nv_archs_str = read_root_config("nv", "archs", "sm_90")
+    arch_flags = ["--cuda-gpu-arch=" + arch.strip() for arch in nv_archs_str.split(",")]
 
     native.cxx_binary(
         name = name,
@@ -127,10 +131,8 @@ def nv_binary(name: str, srcs: list[str], deps: list[str] = [], visibility: list
             "-x", "cuda",
             "--cuda-path=" + nvidia_sdk_path,
             "-isystem", nvidia_sdk_include,
-            "--cuda-gpu-arch=sm_90",
-            "--cuda-gpu-arch=sm_100",
             "-std=c++23",
-        ],
+        ] + arch_flags,
         linker_flags = [
             "-L" + nvidia_sdk_lib,
             "-Wl,-rpath," + nvidia_sdk_lib,
@@ -138,3 +140,98 @@ def nv_binary(name: str, srcs: list[str], deps: list[str] = [], visibility: list
         ],
         visibility = visibility,
     )
+
+# Provider for nv_library outputs
+NvLibraryInfo = provider(
+    doc = "Information about compiled NVIDIA library",
+    fields = {
+        "objects": provider_field(list),  # List of .o files
+        "headers": provider_field(list),  # List of header files
+        "include_dir": provider_field(str),  # Directory containing headers
+    },
+)
+
+def _nv_library_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Compile CUDA source files into object files.
+    
+    Uses clang with -x cuda to compile .cu files into position-independent
+    object code that can be linked into shared libraries.
+    """
+    # Get tools from config
+    cxx = read_root_config("cxx", "cxx", "clang++")
+    nvidia_sdk_path = read_root_config("nv", "nvidia_sdk_path", "/usr/local/cuda")
+    nvidia_sdk_include = read_root_config("nv", "nvidia_sdk_include", "/usr/local/cuda/include")
+    
+    # C++ stdlib paths for unwrapped clang
+    gcc_include = read_root_config("cxx", "gcc_include", "")
+    gcc_include_arch = read_root_config("cxx", "gcc_include_arch", "")
+    glibc_include = read_root_config("cxx", "glibc_include", "")
+    clang_resource_dir = read_root_config("cxx", "clang_resource_dir", "")
+    
+    # Target architectures from config (comma-separated, e.g. "sm_90,sm_100,sm_120")
+    nv_archs_str = read_root_config("nv", "archs", "sm_90")
+    nv_archs = nv_archs_str.split(",")
+    
+    # Compile flags for CUDA
+    compile_flags = [
+        "-x", "cuda",
+        "--cuda-path=" + nvidia_sdk_path,
+        "-isystem", nvidia_sdk_include,
+        "-std=c++17",  # Use c++17 for broader compatibility
+        "-fPIC",       # Required for shared library
+        "-c",          # Compile only, don't link
+    ]
+    
+    # Add target architectures
+    for arch in nv_archs:
+        compile_flags.extend(["--cuda-gpu-arch=" + arch.strip()])
+    
+    # Add stdlib paths for unwrapped clang
+    if gcc_include:
+        compile_flags.extend(["-isystem", gcc_include])
+    if gcc_include_arch:
+        compile_flags.extend(["-isystem", gcc_include_arch])
+    if glibc_include:
+        compile_flags.extend(["-isystem", glibc_include])
+    if clang_resource_dir:
+        compile_flags.extend(["-resource-dir=" + clang_resource_dir])
+    
+    # Compile each source file to object
+    objects = []
+    for src in ctx.attrs.srcs:
+        obj_name = src.short_path.replace(".cu", ".o").replace(".cpp", ".o")
+        obj = ctx.actions.declare_output(obj_name)
+        
+        cmd = cmd_args([cxx] + compile_flags + [
+            "-o", obj.as_output(),
+            src,
+        ])
+        
+        ctx.actions.run(cmd, category = "nv_compile", identifier = src.short_path)
+        objects.append(obj)
+    
+    # Get include directory for headers
+    include_dir = ""
+    if ctx.attrs.exported_headers:
+        # Use the directory containing the first header
+        first_header = ctx.attrs.exported_headers[0]
+        include_dir = first_header.short_path.rsplit("/", 1)[0] if "/" in first_header.short_path else "."
+    
+    return [
+        DefaultInfo(default_output = objects[0] if objects else None, other_outputs = objects[1:] if len(objects) > 1 else []),
+        NvLibraryInfo(
+            objects = objects,
+            headers = ctx.attrs.exported_headers,
+            include_dir = include_dir,
+        ),
+    ]
+
+nv_library = rule(
+    impl = _nv_library_impl,
+    attrs = {
+        "srcs": attrs.list(attrs.source()),
+        "exported_headers": attrs.list(attrs.source(), default = []),
+        "deps": attrs.list(attrs.dep(), default = []),
+    },
+)

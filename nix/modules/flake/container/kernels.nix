@@ -134,4 +134,7 @@ let
   };
 
 in
-evaluated.config
+{
+  _class = "flake";
+}
+// evaluated.config

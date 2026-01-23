@@ -96,116 +96,147 @@ in
         # This replaces the Mercury GHC approach which had package.cache.lock bugs.
         hsPkgs = pkgs.haskell.packages.ghc912;
 
-        python = rec {
-          version = straylight.versions.python;
-          pkg = pkgs.python312;
-          pkgs' = pkgs.python312Packages;
-          interpreter = pkg;
-          build = attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs);
-          app = attrs: pkgs'.buildPythonApplication (straylight.translate-attrs attrs);
-          lib =
-            attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs // { format = "setuptools"; });
-        };
+        python =
+          let
+            version = straylight.versions.python;
+            pkg = pkgs.python312;
+            pkgs' = pkgs.python312Packages;
+          in
+          {
+            inherit version pkg pkgs';
+            interpreter = pkg;
+            build = attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs);
+            app = attrs: pkgs'.buildPythonApplication (straylight.translate-attrs attrs);
+            lib =
+              attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs // { format = "setuptools"; });
+          };
 
-        ghc = rec {
-          version = straylight.versions.ghc;
-          pkg = hsPkgs.ghc;
-          compiler = pkg;
-          pkgs' = hsPkgs;
-          build = attrs: pkgs'.mkDerivation (straylight.translate-attrs attrs);
-          app = build;
-          lib = build;
+        ghc =
+          let
+            version = straylight.versions.ghc;
+            pkg = hsPkgs.ghc;
+            pkgs' = hsPkgs;
+            build = attrs: pkgs'.mkDerivation (straylight.translate-attrs attrs);
+          in
+          {
+            inherit
+              version
+              pkg
+              pkgs'
+              build
+              ;
+            compiler = pkg;
+            app = build;
+            lib = build;
 
-          # Turtle shell scripts - compiled Haskell with bash-like ergonomics
-          # Benefits over bash:
-          #   - Type-safe path/text manipulation
-          #   - Proper error handling with ExceptT/Either
-          #   - Identical startup time to bash (~2ms compiled vs ~160ms interpreted)
-          #   - No shellcheck needed - types catch more
-          #
-          # Usage:
-          #   ghc.turtle-script {
-          #     name = "my-script";
-          #     src = ./my-script.hs;
-          #     deps = [ pkgs.crane pkgs.bwrap ];  # Runtime deps
-          #     hs-deps = p: [ p.aeson p.optparse-applicative ];  # Haskell deps
-          #   }
-          turtle-script =
-            {
-              name,
-              src,
-              deps ? [ ],
-              hs-deps ? _: [ ],
-            }:
-            let
-              # Base turtle dependencies (always included)
-              baseDeps =
-                p: with p; [
-                  turtle # The Haskell package, not ghc.turtle-script
-                  text
-                  bytestring
-                  foldl
-                  unix
-                ];
+            # Turtle shell scripts - compiled Haskell with bash-like ergonomics
+            # Benefits over bash:
+            #   - Type-safe path/text manipulation
+            #   - Proper error handling with ExceptT/Either
+            #   - Identical startup time to bash (~2ms compiled vs ~160ms interpreted)
+            #   - No shellcheck needed - types catch more
+            #
+            # Usage:
+            #   ghc.turtle-script {
+            #     name = "my-script";
+            #     src = ./my-script.hs;
+            #     deps = [ pkgs.crane pkgs.bwrap ];  # Runtime deps
+            #     hs-deps = p: [ p.aeson p.optparse-applicative ];  # Haskell deps
+            #   }
+            turtle-script =
+              {
+                name,
+                src,
+                deps ? [ ],
+                hs-deps ? _: [ ],
+              }:
+              let
+                # Base turtle dependencies (always included)
+                baseDeps =
+                  p: with p; [
+                    turtle # The Haskell package, not ghc.turtle-script
+                    text
+                    bytestring
+                    foldl
+                    unix
+                  ];
 
-              # Combined Haskell dependencies
-              allHsDeps = p: baseDeps p ++ hs-deps p;
+                # Combined Haskell dependencies
+                allHsDeps = p: baseDeps p ++ hs-deps p;
 
-              # GHC with turtle and user's Haskell deps (using ghc912 from nixpkgs)
-              ghcWithDeps = hsPkgs.ghcWithPackages allHsDeps;
-            in
-            pkgs.stdenv.mkDerivation {
-              inherit name src;
-              dontUnpack = true;
+                # GHC with turtle and user's Haskell deps (using ghc912 from nixpkgs)
+                ghcWithDeps = hsPkgs.ghcWithPackages allHsDeps;
+              in
+              pkgs.stdenv.mkDerivation {
+                inherit name src;
+                dontUnpack = true;
 
-              nativeBuildInputs = [ ghcWithDeps ] ++ pkgs.lib.optional (deps != [ ]) pkgs.makeWrapper;
-              buildInputs = deps;
+                nativeBuildInputs = [ ghcWithDeps ] ++ pkgs.lib.optional (deps != [ ]) pkgs.makeWrapper;
+                buildInputs = deps;
 
-              buildPhase = ''
-                runHook preBuild
-                ghc -O2 -Wall -o ${name} $src
-                runHook postBuild
-              '';
+                buildPhase = ''
+                  runHook preBuild
+                  ghc -O2 -Wall -o ${name} $src
+                  runHook postBuild
+                '';
 
-              installPhase = ''
-                runHook preInstall
-                mkdir -p $out/bin
-                cp ${name} $out/bin/
-                runHook postInstall
-              '';
+                installPhase = ''
+                  runHook preInstall
+                  mkdir -p $out/bin
+                  cp ${name} $out/bin/
+                  runHook postInstall
+                '';
 
-              # Wrap with runtime deps
-              postFixup = pkgs.lib.optionalString (deps != [ ]) ''
-                wrapProgram $out/bin/${name} \
-                  --prefix PATH : ${pkgs.lib.makeBinPath deps}
-              '';
-            };
-        };
+                # Wrap with runtime deps
+                postFixup = pkgs.lib.optionalString (deps != [ ]) ''
+                  wrapProgram $out/bin/${name} \
+                    --prefix PATH : ${pkgs.lib.makeBinPath deps}
+                '';
 
-        lean = rec {
-          version = straylight.versions.lean;
-          pkg = pkgs.lean4;
-          build =
-            attrs:
-            straylight.stdenv.default (
-              attrs
-              // {
-                native-deps = (attrs.native-deps or [ ]) ++ [ pkg ];
-              }
-            );
-          lib = build;
-        };
+                meta = {
+                  description = "Compiled Turtle shell script with type-safe path handling";
+                };
+              };
+          };
 
-        rust = rec {
-          version = straylight.versions.rust;
-          pkg = pkgs.rustc;
-          toolchain = pkgs.rustPlatform;
-          crates = pkgs.rustPackages;
-          build = attrs: pkgs.rustPlatform.buildRustPackage (straylight.translate-attrs attrs);
-          bin = build;
-          lib = build;
-          staticlib = build;
-        };
+        lean =
+          let
+            version = straylight.versions.lean;
+            pkg = pkgs.lean4;
+            build =
+              attrs:
+              straylight.stdenv.default (
+                attrs
+                // {
+                  native-deps = (attrs.native-deps or [ ]) ++ [ pkg ];
+                }
+              );
+          in
+          {
+            inherit version pkg build;
+            lib = build;
+          };
+
+        rust =
+          let
+            version = straylight.versions.rust;
+            pkg = pkgs.rustc;
+            toolchain = pkgs.rustPlatform;
+            crates = pkgs.rustPackages;
+            build = attrs: pkgs.rustPlatform.buildRustPackage (straylight.translate-attrs attrs);
+          in
+          {
+            inherit
+              version
+              pkg
+              toolchain
+              crates
+              build
+              ;
+            bin = build;
+            lib = build;
+            staticlib = build;
+          };
 
         cpp = {
           bin = straylight.stdenv.default;
@@ -823,7 +854,7 @@ in
           let
             pathStr = toString path;
             ext = lib.last (lib.splitString "." pathStr);
-            alephModules = ../../scripts;
+            alephModules = ../../../src/tools/scripts;
 
             # Generated Main.hs that wraps the user's Pkg module
             # User files just need: module Pkg where ... pkg = mkDerivation [...]

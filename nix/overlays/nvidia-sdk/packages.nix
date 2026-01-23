@@ -44,13 +44,17 @@ let
     ]);
 
   # libxml2 2.9.14 - needed because the container uses an older version
-  libxml2-legacy = final.libxml2.overrideAttrs (_old: rec {
-    version = "2.9.14";
-    src = fetchurl {
-      url = "https://download.gnome.org/sources/libxml2/${lib.versions.majorMinor version}/libxml2-${version}.tar.xz";
-      sha256 = "sha256-YNdKJX0czsBHXnScui8hVZ5IE577pv8oIkNXx8eY3+4=";
-    };
-  });
+  libxml2-legacy =
+    let
+      version = "2.9.14";
+    in
+    final.libxml2.overrideAttrs (_old: {
+      inherit version;
+      src = fetchurl {
+        url = "https://download.gnome.org/sources/libxml2/${lib.versions.majorMinor version}/libxml2-${version}.tar.xz";
+        sha256 = "sha256-YNdKJX0czsBHXnScui8hVZ5IE577pv8oIkNXx8eY3+4=";
+      };
+    });
 
   # Comprehensive runtime deps for tritonserver (mirrors libmodern-nvidia-sdk)
   tritonRuntimeDeps = with final; [

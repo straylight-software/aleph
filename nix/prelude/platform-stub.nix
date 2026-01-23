@@ -78,17 +78,21 @@ rec {
             ${lib.concatMapStringsSep "\n" (alt: "echo \"  - ${alt}\" >&2") alternatives}
           '';
     in
-    pkgs.writeShellScriptBin name ''
-      echo "ERROR: '${name}' is not available on this platform." >&2
-      echo "" >&2
-      echo "  Description: ${description}" >&2
-      echo "  Requires:    ${requires}" >&2
-      echo "  Current:     ${pkgs.stdenv.hostPlatform.system}" >&2
-      ${alternativeLines}
-      echo "" >&2
-      echo "This is a stub. The real '${name}' cannot run here." >&2
-      exit 1
-    '';
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [ ];
+      text = ''
+        echo "ERROR: '${name}' is not available on this platform." >&2
+        echo "" >&2
+        echo "  Description: ${description}" >&2
+        echo "  Requires:    ${requires}" >&2
+        echo "  Current:     ${pkgs.stdenv.hostPlatform.system}" >&2
+        ${alternativeLines}
+        echo "" >&2
+        echo "This is a stub. The real '${name}' cannot run here." >&2
+        exit 1
+      '';
+    };
 
   /**
     Create a stub for a missing feature (not platform-specific).
@@ -119,17 +123,21 @@ rec {
       feature,
       install-hint ? "",
     }:
-    pkgs.writeShellScriptBin name ''
-      echo "ERROR: '${name}' requires the '${feature}' feature." >&2
-      echo "" >&2
-      ${lib.optionalString (install-hint != "") ''
-        echo "To enable this feature:" >&2
-        echo "  ${install-hint}" >&2
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [ ];
+      text = ''
+        echo "ERROR: '${name}' requires the '${feature}' feature." >&2
         echo "" >&2
-      ''}
-      echo "This is a stub. The feature is not available in your Nix installation." >&2
-      exit 1
-    '';
+        ${lib.optionalString (install-hint != "") ''
+          echo "To enable this feature:" >&2
+          echo "  ${install-hint}" >&2
+          echo "" >&2
+        ''}
+        echo "This is a stub. The feature is not available in your Nix installation." >&2
+        exit 1
+      '';
+    };
 
   /**
     Create a stub that explains a package isn't available.
@@ -150,15 +158,19 @@ rec {
       package ? name,
       reason ? "not available in nixpkgs for this platform",
     }:
-    pkgs.writeShellScriptBin name ''
-      echo "ERROR: '${name}' is not available." >&2
-      echo "" >&2
-      echo "  Package: ${package}" >&2
-      echo "  Reason:  ${reason}" >&2
-      echo "  System:  ${pkgs.stdenv.hostPlatform.system}" >&2
-      echo "" >&2
-      exit 1
-    '';
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [ ];
+      text = ''
+        echo "ERROR: '${name}' is not available." >&2
+        echo "" >&2
+        echo "  Package: ${package}" >&2
+        echo "  Reason:  ${reason}" >&2
+        echo "  System:  ${pkgs.stdenv.hostPlatform.system}" >&2
+        echo "" >&2
+        exit 1
+      '';
+    };
 
   # ─────────────────────────────────────────────────────────────────────────
   # Conditional Package Builders

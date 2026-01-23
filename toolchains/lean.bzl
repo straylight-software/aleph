@@ -605,3 +605,80 @@ system_lean_toolchain = rule(
     attrs = {},
     is_toolchain_rule = True,
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LEAN LAKE PROJECT RULE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_lake() -> str:
+    """Get lake (Lean package manager) path from config."""
+    path = read_root_config("lean", "lake", None)
+    if path == None:
+        fail("lake not configured. See [lean] section in .buckconfig")
+    return path
+
+def _get_elan() -> str:
+    """Get elan (Lean version manager) path from config."""
+    return read_root_config("lean", "elan", "elan")
+
+def _lean_lake_build_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Build a Lean project using Lake (Lean's package manager).
+    
+    Builds directly in the source directory to leverage Lake's .lake cache.
+    This is intentionally non-hermetic because Mathlib downloads are ~2GB
+    and rebuilds take 10+ minutes. The tradeoff is acceptable for proof
+    verification targets.
+    
+    For projects with Mathlib or other large Lake dependencies.
+    """
+    result_file = ctx.actions.declare_output(ctx.attrs.name + "_result.txt")
+    
+    # Get source directory from package path
+    src_dir = ctx.label.package
+    
+    cmd = cmd_args()
+    cmd.add("/bin/sh")
+    cmd.add("-c")
+    
+    # Use $PWD to get absolute path for output file before cd
+    shell_script = cmd_args(delimiter = "")
+    shell_script.add("set -e && ")
+    shell_script.add("OUT=\"$PWD/")
+    shell_script.add(result_file.as_output())
+    shell_script.add("\" && ")
+    shell_script.add("mkdir -p \"$(dirname \"$OUT\")\" && ")
+    shell_script.add("cd ")
+    shell_script.add(src_dir)
+    shell_script.add(" && ")
+    shell_script.add("lake build 2>&1 | tee \"$OUT\" && ")
+    shell_script.add("echo 'Build complete' >> \"$OUT\"")
+    
+    cmd.add(shell_script)
+    
+    # Track source files as inputs for cache invalidation
+    hidden = list(ctx.attrs.srcs)
+    if ctx.attrs.lakefile:
+        hidden.append(ctx.attrs.lakefile)
+    if ctx.attrs.toolchain_file:
+        hidden.append(ctx.attrs.toolchain_file)
+    
+    ctx.actions.run(
+        cmd_args(cmd, hidden = hidden),
+        category = "lake_build",
+        identifier = ctx.attrs.name,
+        local_only = True,
+    )
+    
+    return [
+        DefaultInfo(default_output = result_file),
+    ]
+
+lean_lake_build = rule(
+    impl = _lean_lake_build_impl,
+    attrs = {
+        "srcs": attrs.list(attrs.source(), default = [], doc = "Lean source files"),
+        "lakefile": attrs.option(attrs.source(), default = None, doc = "lakefile.lean"),
+        "toolchain_file": attrs.option(attrs.source(), default = None, doc = "lean-toolchain file"),
+    },
+)

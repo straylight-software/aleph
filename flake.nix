@@ -1,5 +1,5 @@
 {
-  description = "FREESIDEフリーサイド — WHY WAIT?";
+  description = "// straylight // aleph // continuity project";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

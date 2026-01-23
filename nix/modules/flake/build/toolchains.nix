@@ -112,6 +112,7 @@ let
       nvidia-sdk-path = "${nvidia-sdk}";
       nvidia-sdk-include = "${nvidia-sdk}/include";
       nvidia-sdk-lib = "${nvidia-sdk}/lib";
+      nv-archs = lib.concatStringsSep "," cfg.toolchain.nv.archs;
     }
     // lib.optionalAttrs (isLinux && cfg.toolchain.python.enable) {
       python-interpreter = "${pythonEnv}/bin/python3";
@@ -119,6 +120,7 @@ let
       python-lib = "${python}/lib";
       nanobind-include = "${python.pkgs.nanobind}/lib/python3.12/site-packages/nanobind/include";
       nanobind-cmake = "${python.pkgs.nanobind}/lib/python3.12/site-packages/nanobind";
+      pybind11-include = "${python.pkgs.pybind11}/lib/python3.12/site-packages/pybind11/include";
     };
 
   # ────────────────────────────────────────────────────────────────────────────

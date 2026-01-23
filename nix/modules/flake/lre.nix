@@ -150,6 +150,10 @@ in
                 --replace-fail "@nativelink@" "${nativelinkBin}"
               chmod +x $out/bin/lre-start
             '';
+
+            meta = {
+              description = "Start NativeLink for local remote execution with Buck2";
+            };
           };
 
         # Shell hook to append RE config to .buckconfig.local

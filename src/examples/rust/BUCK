@@ -1,10 +1,36 @@
 # examples/rust/BUCK
 #
 # Rust examples using hermetic Nix toolchain
+#
+# Demonstrates:
+#   - rust_binary: standalone executable
+#   - rust_library: reusable library crate
+#   - Dependency chaining between targets
 
+# Simple hello world binary
 rust_binary(
     name = "hello",
     srcs = ["hello.rs"],
     edition = "2021",
     visibility = ["PUBLIC"],
 )
+
+# Math library demonstrating rust_library
+rust_library(
+    name = "mathlib",
+    srcs = ["mathlib.rs"],
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)
+
+# Binary that depends on mathlib - demonstrates dependency chaining
+rust_binary(
+    name = "math_demo",
+    srcs = ["math_demo.rs"],
+    deps = [":mathlib"],
+    edition = "2021",
+    visibility = ["PUBLIC"],
+)
+
+# NOTE: rust_test requires test toolchain setup
+# Run tests via: cargo test (in Nix devshell)

@@ -18,6 +18,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib }:
 {
+
   # ────────────────────────────────────────────────────────────────────────────
   # // formatter //
   # ────────────────────────────────────────────────────────────────────────────
@@ -236,11 +237,12 @@
       };
       lean.enable = lib.mkEnableOption "Lean 4 toolchain";
       python = {
-        enable = lib.mkEnableOption "Python toolchain (with nanobind)";
+        enable = lib.mkEnableOption "Python toolchain (with nanobind/pybind11)";
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
           default = ps: [
             ps.nanobind
+            ps.pybind11
             ps.numpy
           ];
           description = "Python packages for Buck2 toolchain";

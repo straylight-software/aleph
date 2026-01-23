@@ -178,7 +178,7 @@ auto test_submdspan() -> bool {
   return true;
 }
 
-auto main_impl() -> int {
+auto implementation() -> int {
   int failures = 0;
 
   std::printf("mdspan tests (gcc15 libstdc++ c++23):\n");
@@ -229,4 +229,4 @@ auto main_impl() -> int {
 
 } // namespace straylight::examples
 
-auto main() -> int { return straylight::examples::main_impl(); }
+auto main(int argc, char* argv[]) -> int { return straylight::examples::implementation(); }

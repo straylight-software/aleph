@@ -7,6 +7,10 @@
 # that stock GHC doesn't understand.
 #
 # Paths are read from .buckconfig.local [haskell] section.
+#
+# Rules:
+#   haskell_toolchain - toolchain definition
+#   haskell_ffi_binary - Haskell binary with C/C++ FFI
 
 load("@prelude//haskell:toolchain.bzl", "HaskellToolchainInfo", "HaskellPlatformInfo")
 
@@ -57,4 +61,116 @@ haskell_toolchain = rule(
         "script_template_processor": attrs.option(attrs.exec_dep(providers = [RunInfo]), default = None),
     },
     is_toolchain_rule = True,
+)
+
+# =============================================================================
+# haskell_ffi_binary - Haskell binary with C/C++ FFI
+# =============================================================================
+
+def _haskell_ffi_binary_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Build a Haskell binary that calls C/C++ code via FFI.
+    
+    Steps:
+      1. Compile C++ sources to .o files with clang
+      2. Compile and link Haskell sources with GHC, including the C++ objects
+    """
+    # Get tools from config
+    ghc = read_root_config("haskell", "ghc", "ghc")
+    cxx = read_root_config("cxx", "cxx", "clang++")
+    
+    # C++ stdlib paths for unwrapped clang
+    gcc_include = read_root_config("cxx", "gcc_include", "")
+    gcc_include_arch = read_root_config("cxx", "gcc_include_arch", "")
+    glibc_include = read_root_config("cxx", "glibc_include", "")
+    clang_resource_dir = read_root_config("cxx", "clang_resource_dir", "")
+    
+    # Library paths for linking
+    gcc_lib = read_root_config("cxx", "gcc_lib", "")
+    gcc_lib_base = read_root_config("cxx", "gcc_lib_base", "")
+    glibc_lib = read_root_config("cxx", "glibc_lib", "")
+    
+    # Output binary
+    out = ctx.actions.declare_output(ctx.attrs.name)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Step 1: Compile C++ sources to object files
+    # ─────────────────────────────────────────────────────────────────────────
+    cxx_compile_flags = [
+        "-std=c++17",
+        "-O2",
+        "-fPIC",
+        "-c",
+    ]
+    
+    # Add stdlib paths for unwrapped clang
+    if gcc_include:
+        cxx_compile_flags.extend(["-isystem", gcc_include])
+    if gcc_include_arch:
+        cxx_compile_flags.extend(["-isystem", gcc_include_arch])
+    if glibc_include:
+        cxx_compile_flags.extend(["-isystem", glibc_include])
+    if clang_resource_dir:
+        cxx_compile_flags.extend(["-resource-dir=" + clang_resource_dir])
+    
+    # Add include path for headers (current source directory)
+    cxx_compile_flags.extend(["-I", "."])
+    
+    cxx_objects = []
+    for src in ctx.attrs.cxx_srcs:
+        obj_name = src.short_path.replace(".cpp", ".o").replace(".c", ".o")
+        obj = ctx.actions.declare_output(obj_name)
+        
+        cmd = cmd_args([cxx] + cxx_compile_flags + [
+            "-o", obj.as_output(),
+            src,
+        ])
+        
+        ctx.actions.run(cmd, category = "cxx_compile", identifier = src.short_path)
+        cxx_objects.append(obj)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # Step 2: Compile Haskell and link with C++ objects
+    # ─────────────────────────────────────────────────────────────────────────
+    ghc_flags = [
+        "-O2",
+        "-threaded",  # Enable threaded runtime for FFI
+    ]
+    
+    # Add library path for C++ stdlib (GHC's Nix wrapper handles most paths)
+    if gcc_lib_base:
+        ghc_flags.extend(["-optl", "-L" + gcc_lib_base])
+    
+    # Link C++ stdlib
+    ghc_flags.extend(["-lstdc++"])
+    
+    # Build GHC command
+    ghc_cmd = cmd_args([ghc] + ghc_flags + [
+        "-o", out.as_output(),
+    ])
+    
+    # Add Haskell sources
+    for src in ctx.attrs.hs_srcs:
+        ghc_cmd.add(src)
+    
+    # Add C++ object files
+    for obj in cxx_objects:
+        ghc_cmd.add(obj)
+    
+    ctx.actions.run(ghc_cmd, category = "ghc_link")
+    
+    return [
+        DefaultInfo(default_output = out),
+        RunInfo(args = [out]),
+    ]
+
+haskell_ffi_binary = rule(
+    impl = _haskell_ffi_binary_impl,
+    attrs = {
+        "hs_srcs": attrs.list(attrs.source()),
+        "cxx_srcs": attrs.list(attrs.source(), default = []),
+        "cxx_headers": attrs.list(attrs.source(), default = []),
+        "deps": attrs.list(attrs.dep(), default = []),
+        "compiler_flags": attrs.list(attrs.string(), default = []),
+    },
 )

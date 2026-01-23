@@ -184,7 +184,7 @@ in
         let
           pathStr = toString path;
           ext = lib.last (lib.splitString "." pathStr);
-          alephModules = ./scripts;
+          alephModules = ../src/tools/scripts;
 
           # Check for pre-built WASM file (avoids IFD)
           baseName = lib.removeSuffix ".hs" (baseNameOf pathStr);
@@ -335,7 +335,7 @@ in
           ''
             mkdir -p build
             cd build
-            cp -r ${./scripts}/Aleph Aleph
+            cp -r ${../src/tools/scripts}/Aleph Aleph
             chmod -R u+w Aleph
             cp $src Pkg.hs
             cp ${wrapperMain} Main.hs

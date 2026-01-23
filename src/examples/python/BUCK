@@ -1,0 +1,29 @@
+# src/examples/python/BUCK
+#
+# Python/C++ integration via nanobind
+#
+# Demonstrates:
+#   - C++ functions callable from Python
+#   - Class bindings with methods
+#   - Vector/STL container passing
+#   - String operations
+#
+# Build: buck2 build //src/examples/python:example
+# Test:  buck2 run //src/examples/python:test_example
+
+load("@toolchains//:python.bzl", "nanobind_extension", "python_script")
+
+# nanobind extension: C++ code callable from Python
+nanobind_extension(
+    name = "example",
+    srcs = ["example.cpp"],
+    visibility = ["PUBLIC"],
+)
+
+# Python test script that uses the extension
+python_script(
+    name = "test_example",
+    main = "test_example.py",
+    deps = [":example"],
+    visibility = ["PUBLIC"],
+)

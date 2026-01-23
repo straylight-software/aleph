@@ -1,7 +1,11 @@
 # src/examples/haskell/BUCK
 #
-# Simple Haskell examples for Buck2
+# Haskell examples for Buck2
+#
+# Demonstrates:
+#   - haskell_binary: standalone executable
 
+# Simple hello world binary
 haskell_binary(
     name = "hello",
     srcs = ["Main.hs"],
@@ -9,3 +13,6 @@ haskell_binary(
     compiler_flags = ["-O2", "-Wall"],
     visibility = ["PUBLIC"],
 )
+
+# NOTE: haskell_c_library (FFI exports) requires the Mercury prelude
+# See //src/examples/haskell/FFIExport.hs for the pattern

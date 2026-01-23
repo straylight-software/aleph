@@ -73,6 +73,10 @@ let
       echo "SUCCESS" > $out/SUCCESS
       echo "mdspan C++23 headers work correctly" >> $out/SUCCESS
     '';
+
+    meta = {
+      description = "Test that mdspan C++23 headers are properly installed and usable";
+    };
   };
 
   # ══════════════════════════════════════════════════════════════════════════

@@ -59,5 +59,9 @@
         fakeroot genext2fs -B 4096 -b ${toString size-blocks} -d rootfs $out/disk.ext4
         tune2fs -O extents,uninit_bg,dir_index,has_journal $out/disk.ext4 2>/dev/null || true
       '';
+
+      meta = {
+        description = "Firecracker ext4 disk image built from container rootfs";
+      };
     };
 }

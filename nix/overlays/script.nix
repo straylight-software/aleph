@@ -130,6 +130,10 @@ let
           wrapProgram $out/bin/${name} \
             ${lib.concatStringsSep " \\\n    " wrapArgs}
         '';
+
+      meta = {
+        description = "Compiled Haskell script for container/VM operations";
+      };
     };
 
   # ────────────────────────────────────────────────────────────────────────────

@@ -43,7 +43,7 @@ let
   # Written in Haskell (no bash logic) per ℵ-006
   combine-archive = final.stdenv.mkDerivation {
     name = "combine-archive";
-    src = ../../scripts;
+    src = ../../../src/tools/scripts;
     dontUnpack = true;
 
     nativeBuildInputs = [ ghcWithDeps ];
@@ -62,6 +62,10 @@ let
       cp combine-archive $out/bin/
       runHook postInstall
     '';
+
+    meta = {
+      description = "Combine multiple static archives into a single .a file";
+    };
   };
 
   # ══════════════════════════════════════════════════════════════════════════════

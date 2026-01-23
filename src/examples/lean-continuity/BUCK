@@ -1,0 +1,23 @@
+# src/examples/lean-continuity/BUCK
+#
+# Continuity: The Straylight Build Formalization
+#
+# A formal proof that the Continuity build system maintains correctness
+# across content-addressed derivations, typed toolchains, and isolation
+# boundaries.
+#
+# This example requires Mathlib, so we use Lake (Lean's package manager)
+# rather than the raw lean_binary rule.
+#
+# Build: buck2 build //src/examples/lean-continuity:continuity
+# Check: buck2 build //src/examples/lean-continuity:continuity
+
+load("@toolchains//:lean.bzl", "lean_lake_build")
+
+lean_lake_build(
+    name = "continuity",
+    srcs = ["Continuity.lean"],
+    lakefile = "lakefile.lean",
+    toolchain_file = "lean-toolchain",
+    visibility = ["PUBLIC"],
+)

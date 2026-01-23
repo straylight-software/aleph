@@ -51,6 +51,10 @@ let
         mkdir -p $out
         crane export ${imageRef} - | tar -xf - -C $out
       '';
+
+      meta = {
+        description = "NVIDIA container image rootfs for SDK extraction";
+      };
     };
 
   # ════════════════════════════════════════════════════════════════════════════

@@ -243,6 +243,10 @@ in
 
                 runHook postInstall
               '';
+
+              meta = {
+                description = "Buck2 target ${target} built as Nix derivation";
+              };
             };
 
           # The run function (creates a flake app)

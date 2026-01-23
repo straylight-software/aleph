@@ -1,0 +1,25 @@
+# src/examples/haskell-cxx/BUCK
+#
+# Haskell calling C++ via FFI
+#
+# Demonstrates:
+#   - foreign import ccall for C++ functions
+#   - Pointer passing (arrays, strings)
+#   - Opaque handle pattern for C++ objects
+#   - Memory management across language boundary
+#
+# Build: buck2 build //src/examples/haskell-cxx:test_ffi
+# Run:   buck2 run //src/examples/haskell-cxx:test_ffi
+
+load("@toolchains//:haskell.bzl", "haskell_ffi_binary")
+
+haskell_ffi_binary(
+    name = "test_ffi",
+    hs_srcs = [
+        "FFI.hs",
+        "Main.hs",
+    ],
+    cxx_srcs = ["ffi.cpp"],
+    cxx_headers = ["ffi.h"],
+    visibility = ["PUBLIC"],
+)

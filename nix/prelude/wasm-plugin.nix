@@ -141,7 +141,7 @@ let
   #
   alephWasm = buildWasmPlugin {
     name = "aleph";
-    src = ../scripts;
+    src = ../../src/tools/scripts;
     # Use Main module to get proper GHC RTS initialization in reactor mode
     mainModule = "Main";
     extraModules = [

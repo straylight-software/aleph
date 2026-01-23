@@ -71,6 +71,10 @@ let
       echo "SUCCESS" > $out/SUCCESS
       echo "All Aleph modules compiled successfully" >> $out/SUCCESS
     '';
+
+    meta = {
+      description = "Test that all Aleph.* Haskell modules compile successfully";
+    };
   };
 
   # ==============================================================================
