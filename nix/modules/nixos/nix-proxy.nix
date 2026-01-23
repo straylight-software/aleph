@@ -6,18 +6,18 @@
 #
 #     "The matrix has its roots in primitive arcade games..."
 #
-# Replaces Nix's broken sandbox network blocking with a proper proxy-based
-# approach. All network traffic from nix-daemon goes through mitmproxy,
-# which can cache, log, and enforce policy.
+# Routes Nix build network traffic through mitmproxy for caching, logging,
+# and policy enforcement. This is for builds that need CAS server access
+# (non-sandboxed builds, FODs, etc).
 #
-# The Nix sandbox's network isolation (unshare CLONE_NEWNET) is disabled
-# because it's security theater - FODs get network anyway, and everything
-# else is just broken. Instead, we route through a proxy that:
+# Uses Nix's `impure-env` to inject proxy environment variables directly
+# into build environments. This requires the `configurable-impure-env`
+# experimental feature.
 #
-#   1. Caches fetched content (content-addressed, to R2)
+# The proxy:
+#   1. Caches fetched content (content-addressed, syncs to R2)
 #   2. Logs all fetches (attestation)
-#   3. Enforces allowlist policy
-#   4. Actually works
+#   3. Enforces domain allowlist policy
 #
 # USAGE:
 #
@@ -42,22 +42,28 @@ let
   # mitmproxy addon script for caching/logging
   proxyAddon = ./scripts/nix-proxy-addon.py;
 
+  # Proxy URL used throughout
+  proxyUrl = "http://${cfg.listenAddress}:${toString cfg.port}";
+
   # Wrapper script to start mitmproxy with our addon
-  proxyScript = pkgs.writeShellScript "nix-proxy" ''
-    set -euo pipefail
-
-    export NIX_PROXY_CACHE_DIR="${cfg.cacheDir}"
-    export NIX_PROXY_LOG_DIR="${cfg.logDir}"
-    export NIX_PROXY_ALLOWLIST="${lib.concatStringsSep "," cfg.allowlist}"
-
-    exec ${pkgs.mitmproxy}/bin/mitmdump \
-      --listen-host ${cfg.listenAddress} \
-      --listen-port ${toString cfg.port} \
-      --set confdir=${cfg.certDir} \
-      --scripts ${proxyAddon} \
-      ${lib.optionalString cfg.quiet "--quiet"} \
-      "$@"
-  '';
+  proxyScript = pkgs.writeShellApplication {
+    name = "nix-proxy";
+    runtimeInputs = [ pkgs.mitmproxy ];
+    runtimeEnv = {
+      NIX_PROXY_CACHE_DIR = "${cfg.cacheDir}";
+      NIX_PROXY_LOG_DIR = "${cfg.logDir}";
+      NIX_PROXY_ALLOWLIST = lib.concatStringsSep "," cfg.allowlist;
+    };
+    text = ''
+      exec mitmdump \
+        --listen-host ${cfg.listenAddress} \
+        --listen-port ${toString cfg.port} \
+        --set confdir=${cfg.certDir} \
+        --scripts ${proxyAddon} \
+        ${lib.optionalString cfg.quiet "--quiet"} \
+        "$@"
+    '';
+  };
 
 in
 {
@@ -152,28 +158,24 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # Relax Nix sandbox - we're replacing its network blocking with the proxy
+    # Enable the experimental feature required for impure-env
     nix.settings = {
-      # Allow network in sandbox (we control it via proxy)
-      sandbox = "relaxed";
+      extra-experimental-features = [ "configurable-impure-env" ];
 
-      # Trust our CA for HTTPS interception
-      ssl-cert-file = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      # Inject proxy environment into builds
+      # This is what actually makes builds use the proxy
+      impure-env = [
+        "http_proxy=${proxyUrl}"
+        "https_proxy=${proxyUrl}"
+        "HTTP_PROXY=${proxyUrl}"
+        "HTTPS_PROXY=${proxyUrl}"
+        "SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+        "NIX_SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+        "CURL_CA_BUNDLE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+      ];
 
-      # Ensure cert is available in sandbox
+      # Make cert dir available inside sandbox for builds that need it
       extra-sandbox-paths = [ cfg.certDir ];
-    };
-
-    # Set proxy via environment for nix-daemon
-    systemd.services.nix-daemon.environment = {
-      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
-      NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
-      # Override CURL_CA_BUNDLE set by nix-daemon.nix / Determinate Nix
-      CURL_CA_BUNDLE = lib.mkForce "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
 
     # Create directories
@@ -210,7 +212,7 @@ in
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = proxyScript;
+        ExecStart = lib.getExe proxyScript;
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -233,11 +235,17 @@ in
       serviceConfig = {
         Type = "oneshot";
         EnvironmentFile = lib.mkIf (cfg.cache.r2.credentialsFile != null) cfg.cache.r2.credentialsFile;
-        ExecStart = pkgs.writeShellScript "nix-proxy-sync" ''
-          ${pkgs.awscli2}/bin/aws s3 sync \
-            --endpoint-url ${cfg.cache.r2.endpoint} \
-            ${cfg.cacheDir}/ s3://${cfg.cache.r2.bucket}/
-        '';
+        ExecStart = lib.getExe (
+          pkgs.writeShellApplication {
+            name = "nix-proxy-sync";
+            runtimeInputs = [ pkgs.awscli2 ];
+            text = ''
+              aws s3 sync \
+                --endpoint-url ${cfg.cache.r2.endpoint} \
+                ${cfg.cacheDir}/ s3://${cfg.cache.r2.bucket}/
+            '';
+          }
+        );
       };
     };
 
@@ -250,19 +258,20 @@ in
       };
     };
 
-    # Add package to system for CLI access
     environment.systemPackages = [ pkgs.mitmproxy ];
 
-    # Set proxy env vars system-wide so nix client uses proxy too
-    # (not just daemon - flake fetching happens in client)
-    environment.sessionVariables = {
-      http_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      https_proxy = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTP_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
-      HTTPS_PROXY = "http://${cfg.listenAddress}:${toString cfg.port}";
+    # Nix fetcher uses ssl-cert-file for HTTPS verification (set above in nix.settings)
+    # For evaluation-time fetches, the daemon's environment is used.
+    # This only affects nix-daemon, not other programs on the system.
+    systemd.services.nix-daemon.environment = {
+      http_proxy = proxyUrl;
+      https_proxy = proxyUrl;
+      HTTP_PROXY = proxyUrl;
+      HTTPS_PROXY = proxyUrl;
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
-      CURL_CA_BUNDLE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      # mkForce needed to override the default set by nix-daemon.nix
+      CURL_CA_BUNDLE = lib.mkForce "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
   };
 }

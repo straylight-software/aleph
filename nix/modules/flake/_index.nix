@@ -22,7 +22,7 @@ let
   #                                                      // individual modules
   # ──────────────────────────────────────────────────────────────────────────
 
-  build = import ./build.nix { inherit inputs; };
+  build = import ./build/flake-module.nix { inherit inputs; };
   buck2 = import ./buck2.nix { inherit inputs; };
   devshell = import ./devshell.nix { };
   docs = import ./docs.nix { inherit inputs; };
