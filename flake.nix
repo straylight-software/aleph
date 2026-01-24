@@ -42,6 +42,9 @@
       url = "github:fleek-sh/nix2gpu";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # NOTE: Nimi (github:weyl-ai/nimi) should be added when migrating VM init scripts.
+    # See nix/modules/flake/container/scripts/ for TODO items.
   };
 
   outputs =
