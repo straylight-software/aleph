@@ -413,6 +413,158 @@ in
             config.process.argv = [ "${script}/bin/${script.name}" ];
           };
 
+        # ──────────────────────────────────────────────────────────────────────
+        # Deployment scripts for Fly.io
+        # Usage: nix run .#nativelink-deploy-<service>
+        # ──────────────────────────────────────────────────────────────────────
+
+        flyConfigDir = ../../../modules/flake/nativelink/fly;
+
+        # Generic deploy script factory
+        mkDeployScript =
+          {
+            name,
+            flyApp,
+            flyConfig,
+          }:
+          pkgs.writeShellApplication {
+            name = "nativelink-deploy-${name}";
+            runtimeInputs = with pkgs; [
+              skopeo
+              flyctl
+              coreutils
+            ];
+            text = ''
+              set -euo pipefail
+
+              SERVICE="${name}"
+              FLY_APP="${flyApp}"
+              FLY_CONFIG="${flyConfig}"
+              GHCR_IMAGE="ghcr.io/straylight-software/aleph/nativelink-${name}:latest"
+              FLY_IMAGE="registry.fly.io/${flyApp}:latest"
+
+              echo "=== Deploying NativeLink $SERVICE ==="
+
+              # Get GitHub token for GHCR push
+              if command -v gh &> /dev/null; then
+                GH_TOKEN=$(gh auth token 2>/dev/null || true)
+              fi
+              if [ -z "''${GH_TOKEN:-}" ]; then
+                echo "Error: GitHub CLI not authenticated. Run 'gh auth login' first."
+                exit 1
+              fi
+
+              # Get Fly token for registry push
+              echo "Creating Fly deploy token..."
+              FLY_TOKEN=$(flyctl tokens create deploy -a "$FLY_APP" -x 2h 2>&1 | head -1)
+              if [ -z "$FLY_TOKEN" ] || [[ "$FLY_TOKEN" != FlyV1* ]]; then
+                echo "Error: Failed to create Fly token. Run 'flyctl auth login' first."
+                exit 1
+              fi
+
+              # Build and push to GHCR
+              echo "Building and pushing to GHCR..."
+              nix run ".#nativelink-${name}.copyTo" -- \
+                --dest-creds "''${GITHUB_USER:-$(gh api user -q .login)}:$GH_TOKEN" \
+                "docker://$GHCR_IMAGE"
+
+              # Copy from GHCR to Fly registry
+              echo "Copying to Fly registry..."
+              skopeo copy \
+                --src-creds "''${GITHUB_USER:-$(gh api user -q .login)}:$GH_TOKEN" \
+                --dest-creds "x:$FLY_TOKEN" \
+                "docker://$GHCR_IMAGE" \
+                "docker://$FLY_IMAGE"
+
+              # Deploy to Fly
+              echo "Deploying to Fly.io..."
+              flyctl deploy -c "$FLY_CONFIG" -y
+
+              echo "=== $SERVICE deployed successfully ==="
+              flyctl status -a "$FLY_APP"
+            '';
+          };
+
+        deployScheduler = mkDeployScript {
+          name = "scheduler";
+          flyApp = "${cfg.fly.app-prefix}-scheduler";
+          flyConfig = "${flyConfigDir}/scheduler.toml";
+        };
+
+        deployCas = mkDeployScript {
+          name = "cas";
+          flyApp = "${cfg.fly.app-prefix}-cas";
+          flyConfig = "${flyConfigDir}/cas.toml";
+        };
+
+        deployWorker = mkDeployScript {
+          name = "worker";
+          flyApp = "${cfg.fly.app-prefix}-worker";
+          flyConfig = "${flyConfigDir}/worker.toml";
+        };
+
+        deployAll = pkgs.writeShellApplication {
+          name = "nativelink-deploy-all";
+          runtimeInputs = [
+            deployScheduler
+            deployCas
+            deployWorker
+          ];
+          text = ''
+            set -euo pipefail
+            echo "=== Deploying all NativeLink services ==="
+            nativelink-deploy-scheduler
+            nativelink-deploy-cas
+            nativelink-deploy-worker
+            echo "=== All services deployed ==="
+          '';
+        };
+
+        # Status check script
+        statusScript = pkgs.writeShellApplication {
+          name = "nativelink-status";
+          runtimeInputs = with pkgs; [ flyctl ];
+          text = ''
+            set -euo pipefail
+            echo "=== NativeLink Service Status ==="
+            echo ""
+            echo "Scheduler (${cfg.fly.app-prefix}-scheduler):"
+            flyctl status -a "${cfg.fly.app-prefix}-scheduler" 2>&1 | tail -5 || echo "  Not deployed"
+            echo ""
+            echo "CAS (${cfg.fly.app-prefix}-cas):"
+            flyctl status -a "${cfg.fly.app-prefix}-cas" 2>&1 | tail -5 || echo "  Not deployed"
+            echo ""
+            echo "Worker (${cfg.fly.app-prefix}-worker):"
+            flyctl status -a "${cfg.fly.app-prefix}-worker" 2>&1 | tail -5 || echo "  Not deployed"
+          '';
+        };
+
+        # Logs script
+        logsScript = pkgs.writeShellApplication {
+          name = "nativelink-logs";
+          runtimeInputs = with pkgs; [ flyctl ];
+          text = ''
+            set -euo pipefail
+            SERVICE="''${1:-all}"
+            case "$SERVICE" in
+              scheduler)
+                flyctl logs -a "${cfg.fly.app-prefix}-scheduler" --no-tail | tail -50
+                ;;
+              cas)
+                flyctl logs -a "${cfg.fly.app-prefix}-cas" --no-tail | tail -50
+                ;;
+              worker)
+                flyctl logs -a "${cfg.fly.app-prefix}-worker" --no-tail | tail -50
+                ;;
+              all|*)
+                echo "=== Scheduler logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-scheduler" --no-tail 2>&1 | tail -20
+                echo "" && echo "=== CAS logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-cas" --no-tail 2>&1 | tail -20
+                echo "" && echo "=== Worker logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-worker" --no-tail 2>&1 | tail -20
+                ;;
+            esac
+          '';
+        };
+
       in
       lib.optionalAttrs (nativelink != null) {
         # ────────────────────────────────────────────────────────────────────
@@ -490,14 +642,27 @@ in
         # ────────────────────────────────────────────────────────────────────
 
         packages = {
+          # Configs (for debugging)
           nativelink-scheduler-config = schedulerConfig;
           nativelink-cas-config = casConfig;
           nativelink-worker-config = workerConfig;
+
+          # Entrypoint scripts (used by containers)
           nativelink-scheduler-script = schedulerScript;
           nativelink-cas-script = casScript;
           nativelink-worker-script = workerScript;
           nativelink-worker-setup = workerSetupScript;
           nativelink-toolchain-manifest = toolchainManifest;
+
+          # Deployment scripts (nix run .#nativelink-deploy-*)
+          nativelink-deploy-scheduler = deployScheduler;
+          nativelink-deploy-cas = deployCas;
+          nativelink-deploy-worker = deployWorker;
+          nativelink-deploy-all = deployAll;
+
+          # Operations scripts
+          nativelink-status = statusScript;
+          nativelink-logs = logsScript;
         };
       };
   };
