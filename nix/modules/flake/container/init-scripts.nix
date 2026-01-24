@@ -8,17 +8,20 @@
 #
 #                                                         — Neuromancer
 #
-# VM init scripts for Firecracker and Cloud Hypervisor.
+# VM init scripts for Isospin (Firecracker) and Cloud Hypervisor.
 # These are Nix strings that get written via pkgs.writeText.
+#
+# TODO: Replace with Nimi (github:weyl-ai/nimi) service definitions.
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
   _class = "flake";
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // fc-run init (interactive shell) //
+  # // isospin-run init (interactive shell) //
   # ────────────────────────────────────────────────────────────────────────────
 
+  # Legacy name for compatibility with default.nix
   fc-run-init = ''
     #!/bin/sh
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -62,9 +65,10 @@
   '';
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // fc-build init (run command and exit) //
+  # // isospin-build init (run command and exit) //
   # ────────────────────────────────────────────────────────────────────────────
 
+  # Legacy name for compatibility with default.nix
   fc-build-init = ''
     #!/bin/sh
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -98,9 +102,10 @@
   '';
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // ch-run init (interactive cloud hypervisor) //
+  # // cloud-hypervisor-run init (interactive) //
   # ────────────────────────────────────────────────────────────────────────────
 
+  # Legacy name for compatibility with default.nix
   ch-run-init = ''
     #!/bin/sh
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -137,9 +142,10 @@
   '';
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // ch-gpu init (cloud hypervisor with gpu passthrough) //
+  # // cloud-hypervisor-gpu init (with GPU passthrough) //
   # ────────────────────────────────────────────────────────────────────────────
 
+  # Legacy name for compatibility with default.nix
   ch-gpu-init = ''
     #!/bin/sh
     export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

@@ -86,9 +86,9 @@ runFirecracker cfg name cmd = do
     echo $ ":: Starting " <> name <> " in Firecracker microVM"
     imagePath <- getContainerImage ("nativelink-" <> name)
     
-    -- fc-run expects OCI image reference, but we have nix2container output
-    -- For local dev, use oci-run instead or convert
-    run_ "fc-run" $ 
+    -- isospin-run expects OCI image reference, but we have nix2container output
+    -- For local dev, use unshare-run instead or convert
+    run_ "isospin-run" $ 
         [ "--cpus", pack (show $ cfgCpus cfg)
         , "--mem", pack (show $ cfgMemMib cfg)
         ] ++ [imagePath] ++ cmd

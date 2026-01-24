@@ -7,7 +7,7 @@
 #   - nvidia-sdk-ngc: CUDA/cuDNN/TensorRT extracted from NGC containers
 #   - nvidia-sdk-packages: autopatchelf'd nvidia-sdk, nvidia-tritonserver, etc.
 #   - prelude: straylight.prelude, straylight.stdenv, straylight.cross, etc.
-#   - container: straylight.container.mkNamespaceEnv, oci-run, etc.
+#   - container: straylight.container.mkNamespaceEnv, unshare-run, etc.
 #   - script: straylight.script.gen-wrapper, straylight.script.check, etc.
 #   - ghc-wasm: GHC WASM backend for builtins.wasm integration
 #   - straylight-nix: nix binary with builtins.wasm support

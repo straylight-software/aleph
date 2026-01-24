@@ -47,7 +47,7 @@ let
       aeson
       dhall # Dhall config parsing
       directory
-      # For oci-gpu and typed wrappers
+      # For unshare-gpu and typed wrappers
       # Note: dhall brings in crypton, so we use that instead of cryptonite
       # (they have the same Crypto.Hash API)
       crypton # SHA256 hashing (same API as cryptonite)
@@ -314,9 +314,23 @@ in
           deps = [ final.pciutils ];
         };
 
-        # OCI scripts - container image and runtime operations
-        oci-run = mkCompiledScript {
-          name = "oci-run";
+        # Crane - OCI image operations (no runtime, just image manipulation)
+        crane-inspect = mkCompiledScript {
+          name = "crane-inspect";
+          deps = [
+            final.crane
+            final.jq
+          ];
+        };
+
+        crane-pull = mkCompiledScript {
+          name = "crane-pull";
+          deps = [ final.crane ];
+        };
+
+        # Unshare - bwrap/namespace runners for OCI images
+        unshare-run = mkCompiledScript {
+          name = "unshare-run";
           deps = [
             final.bubblewrap # Container sandbox
             final.crane # OCI image tool
@@ -324,27 +338,14 @@ in
           ];
         };
 
-        oci-gpu = mkCompiledScript {
-          name = "oci-gpu";
+        unshare-gpu = mkCompiledScript {
+          name = "unshare-gpu";
           deps = [
             final.bubblewrap
             final.crane
             final.jq
             final.pciutils # GPU detection
           ];
-        };
-
-        oci-inspect = mkCompiledScript {
-          name = "oci-inspect";
-          deps = [
-            final.crane
-            final.jq
-          ];
-        };
-
-        oci-pull = mkCompiledScript {
-          name = "oci-pull";
-          deps = [ final.crane ];
         };
 
         # FHS/GPU scripts - namespace environment wrappers
@@ -361,14 +362,14 @@ in
           ];
         };
 
-        # Firecracker scripts - microVM management
-        fc-run = mkCompiledScript {
-          name = "fc-run";
-          deps = [ final.firecracker ];
+        # Isospin - Firecracker fork for microVM management
+        isospin-run = mkCompiledScript {
+          name = "isospin-run";
+          deps = [ final.firecracker ]; # TODO: replace with isospin package
         };
 
-        fc-build = mkCompiledScript {
-          name = "fc-build";
+        isospin-build = mkCompiledScript {
+          name = "isospin-build";
           deps = [
             final.e2fsprogs # mke2fs for rootfs
             final.cpio # initramfs
@@ -376,14 +377,14 @@ in
           ];
         };
 
-        # Cloud Hypervisor scripts - VM management
-        ch-run = mkCompiledScript {
-          name = "ch-run";
+        # Cloud Hypervisor - VM management
+        cloud-hypervisor-run = mkCompiledScript {
+          name = "cloud-hypervisor-run";
           deps = [ final.cloud-hypervisor ];
         };
 
-        ch-gpu = mkCompiledScript {
-          name = "ch-gpu";
+        cloud-hypervisor-gpu = mkCompiledScript {
+          name = "cloud-hypervisor-gpu";
           deps = [
             final.cloud-hypervisor
             final.pciutils # GPU detection

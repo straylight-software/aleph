@@ -10,17 +10,18 @@
 #                                                         — Neuromancer
 #
 # Provides runnable tools via `nix run`:
-#   - oci-run, oci-inspect, oci-pull, oci-gpu
-#   - fc-run, fc-build (Firecracker)
-#   - ch-run, ch-gpu (Cloud Hypervisor + VFIO)
-#   - fhs-run, gpu-run (namespace runners)
+#   - crane-inspect, crane-pull (OCI image operations)
+#   - unshare-run, unshare-gpu (bwrap namespace runners)
+#   - isospin-run, isospin-build (Isospin/Firecracker VM)
+#   - cloud-hypervisor-run, cloud-hypervisor-gpu (Cloud Hypervisor + VFIO)
+#   - fhs-run, gpu-run (simple namespace runners)
 #   - vfio-bind, vfio-unbind, vfio-list
 #
 # Philosophy:
 #   - Namespaces, not daemons (bwrap, not Docker)
 #   - Presentation, not mutation (bind mounts, not patchelf)
-#   - VM isolation for network builds (Firecracker, not sandbox escape)
-#   - VFIO for GPU passthrough (ch-gpu, not nvidia-docker)
+#   - VM isolation for network builds (Isospin, not sandbox escape)
+#   - VFIO for GPU passthrough (cloud-hypervisor-gpu, not nvidia-docker)
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib, ... }:
@@ -55,8 +56,8 @@ let
           default = true;
         };
 
-        firecracker = {
-          enable = lib.mkEnableOption "Firecracker VM tools" // {
+        isospin = {
+          enable = lib.mkEnableOption "Isospin (Firecracker fork) VM tools" // {
             default = true;
           };
 
@@ -132,10 +133,10 @@ let
             # // init script files //
             # ──────────────────────────────────────────────────────────────────────
 
-            fc-run-init = pkgs.writeText "fc-run-init" init-scripts.fc-run-init;
-            fc-build-init = pkgs.writeText "fc-build-init" init-scripts.fc-build-init;
-            ch-run-init = pkgs.writeText "ch-run-init" init-scripts.ch-run-init;
-            ch-gpu-init = pkgs.writeText "ch-gpu-init" init-scripts.ch-gpu-init;
+            isospin-run-init = pkgs.writeText "isospin-run-init" init-scripts.fc-run-init;
+            isospin-build-init = pkgs.writeText "isospin-build-init" init-scripts.fc-build-init;
+            cloud-hypervisor-run-init = pkgs.writeText "cloud-hypervisor-run-init" init-scripts.ch-run-init;
+            cloud-hypervisor-gpu-init = pkgs.writeText "cloud-hypervisor-gpu-init" init-scripts.ch-gpu-init;
 
             # ──────────────────────────────────────────────────────────────────────
             # // jq filters //
@@ -155,25 +156,25 @@ let
             # ──────────────────────────────────────────────────────────────────────
             #
             # Generates a typed Dhall config with real Nix store paths.
-            # The fc-run binary reads this at startup via CONFIG_FILE env var.
+            # The isospin-run binary reads this at startup via CONFIG_FILE env var.
 
-            fc-dhall-config = pkgs.writeText "fc-config.dhall" ''
+            isospin-dhall-config = pkgs.writeText "isospin-config.dhall" ''
               { kernel = "${fc-kernel-pkg}"
               , busybox = "${pkgs.pkgsStatic.busybox}/bin/busybox"
-              , initScript = "${fc-run-init}"
-              , buildInitScript = "${fc-build-init}"
-              , defaultCpus = ${toString cfg.firecracker.cpus}
-              , defaultMemMib = ${toString cfg.firecracker.mem-mib}
+              , initScript = "${isospin-run-init}"
+              , buildInitScript = "${isospin-build-init}"
+              , defaultCpus = ${toString cfg.isospin.cpus}
+              , defaultMemMib = ${toString cfg.isospin.mem-mib}
               , cacheDir = "/var/cache/straylight/oci"
               }
             '';
 
-            # Wrapped fc-run with Dhall config injected
-            fc-run-wrapped = lib.mkIf (fc-kernel-pkg != null) (
-              pkgs.runCommand "fc-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+            # Wrapped isospin-run with Dhall config injected
+            isospin-run-wrapped = lib.mkIf (fc-kernel-pkg != null) (
+              pkgs.runCommand "isospin-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
-                makeWrapper ${compiled.fc-run}/bin/fc-run $out/bin/fc-run \
-                  --set CONFIG_FILE ${fc-dhall-config} \
+                makeWrapper ${compiled.isospin-run}/bin/isospin-run $out/bin/isospin-run \
+                  --set CONFIG_FILE ${isospin-dhall-config} \
                   --prefix PATH : ${
                     lib.makeBinPath [
                       pkgs.crane
@@ -181,7 +182,7 @@ let
                       pkgs.fakeroot
                       pkgs.genext2fs
                       pkgs.e2fsprogs
-                      pkgs.firecracker
+                      pkgs.firecracker # TODO: replace with isospin package
                     ]
                   }
               ''
@@ -192,13 +193,13 @@ let
             # ──────────────────────────────────────────────────────────────────────
             #
             # Generates a typed Dhall config with real Nix store paths.
-            # The ch-run/ch-gpu binaries read this at startup via CONFIG_FILE env var.
+            # The cloud-hypervisor-run/cloud-hypervisor-gpu binaries read this at startup via CONFIG_FILE env var.
 
-            ch-dhall-config = pkgs.writeText "ch-config.dhall" ''
+            cloud-hypervisor-dhall-config = pkgs.writeText "cloud-hypervisor-config.dhall" ''
               { chKernel = "${ch-kernel-pkg}"
               , chBusybox = "${pkgs.pkgsStatic.busybox}/bin/busybox"
-              , chInitScript = "${ch-run-init}"
-              , chGpuInitScript = Some "${ch-gpu-init}"
+              , chInitScript = "${cloud-hypervisor-run-init}"
+              , chGpuInitScript = Some "${cloud-hypervisor-gpu-init}"
               , chDefaultCpus = ${toString cfg.cloud-hypervisor.cpus}
               , chDefaultMemMib = ${toString (cfg.cloud-hypervisor.mem-gib * 1024)}
               , chHugepages = ${if cfg.cloud-hypervisor.hugepages then "True" else "False"}
@@ -206,12 +207,12 @@ let
               }
             '';
 
-            # Wrapped ch-run with Dhall config injected
-            ch-run-wrapped = lib.mkIf (ch-kernel-pkg != null) (
-              pkgs.runCommand "ch-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+            # Wrapped cloud-hypervisor-run with Dhall config injected
+            cloud-hypervisor-run-wrapped = lib.mkIf (ch-kernel-pkg != null) (
+              pkgs.runCommand "cloud-hypervisor-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
-                makeWrapper ${compiled.ch-run}/bin/ch-run $out/bin/ch-run \
-                  --set CONFIG_FILE ${ch-dhall-config} \
+                makeWrapper ${compiled.cloud-hypervisor-run}/bin/cloud-hypervisor-run $out/bin/cloud-hypervisor-run \
+                  --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
                   --prefix PATH : ${
                     lib.makeBinPath [
                       pkgs.crane
@@ -225,12 +226,12 @@ let
               ''
             );
 
-            # Wrapped ch-gpu with Dhall config injected
-            ch-gpu-wrapped = lib.mkIf (ch-kernel-pkg != null) (
-              pkgs.runCommand "ch-gpu" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
+            # Wrapped cloud-hypervisor-gpu with Dhall config injected
+            cloud-hypervisor-gpu-wrapped = lib.mkIf (ch-kernel-pkg != null) (
+              pkgs.runCommand "cloud-hypervisor-gpu" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
-                makeWrapper ${compiled.ch-gpu}/bin/ch-gpu $out/bin/ch-gpu \
-                  --set CONFIG_FILE ${ch-dhall-config} \
+                makeWrapper ${compiled.cloud-hypervisor-gpu}/bin/cloud-hypervisor-gpu $out/bin/cloud-hypervisor-gpu \
+                  --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
                   --prefix PATH : ${
                     lib.makeBinPath [
                       pkgs.crane
@@ -256,26 +257,30 @@ let
             packages = lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
 
               # ──────────────────────────────────────────────────────────────────
-              # // oci tools //
+              # // crane tools (OCI image operations) //
               # ──────────────────────────────────────────────────────────────────
-              #
-              # Compiled Haskell scripts for OCI container operations.
-              # Type-safe, ~2ms startup, cached image handling, GPU passthrough.
 
               inherit (compiled)
-                oci-run
-                oci-gpu
-                oci-inspect
-                oci-pull
+                crane-inspect
+                crane-pull
                 ;
 
               # ──────────────────────────────────────────────────────────────────
-              # // firecracker tools //
+              # // unshare tools (bwrap namespace runners) //
+              # ──────────────────────────────────────────────────────────────────
+
+              inherit (compiled)
+                unshare-run
+                unshare-gpu
+                ;
+
+              # ──────────────────────────────────────────────────────────────────
+              # // isospin tools (Firecracker fork) //
               # ──────────────────────────────────────────────────────────────────
 
               # Compiled Haskell version (type-safe, ~2ms startup)
               # Uses Dhall config for store path injection
-              fc-run = lib.mkIf (cfg.firecracker.enable && fc-kernel-pkg != null) fc-run-wrapped;
+              isospin-run = lib.mkIf (cfg.isospin.enable && fc-kernel-pkg != null) isospin-run-wrapped;
 
               # ──────────────────────────────────────────────────────────────────
               # // cloud hypervisor tools //
@@ -283,8 +288,12 @@ let
 
               # Compiled Haskell version (type-safe, ~2ms startup)
               # Uses Dhall config for store path injection
-              ch-run = lib.mkIf (cfg.cloud-hypervisor.enable && ch-kernel-pkg != null) ch-run-wrapped;
-              ch-gpu = lib.mkIf (cfg.cloud-hypervisor.enable && ch-kernel-pkg != null) ch-gpu-wrapped;
+              cloud-hypervisor-run = lib.mkIf (
+                cfg.cloud-hypervisor.enable && ch-kernel-pkg != null
+              ) cloud-hypervisor-run-wrapped;
+              cloud-hypervisor-gpu = lib.mkIf (
+                cfg.cloud-hypervisor.enable && ch-kernel-pkg != null
+              ) cloud-hypervisor-gpu-wrapped;
 
               # ──────────────────────────────────────────────────────────────────
               # // vfio helpers //

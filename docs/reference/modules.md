@@ -151,4 +151,4 @@ Provides container utilities:
 - `mk-firecracker-image`
 - `fhs-run`
 - `gpu-run`
-- `oci-run`
+- `unshare-run`

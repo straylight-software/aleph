@@ -40,8 +40,8 @@ nix/scripts/
 │           ├── Jq.hs             # JSON processor (235 lines)
 │           └── ... (24 total)
 ├── nvidia-extract.hs             # NVIDIA SDK extraction
-├── oci-gpu.hs                    # GPU container runner
-├── fc-run.hs                     # Firecracker runner
+├── unshare-gpu.hs                # GPU container runner
+├── isospin-run.hs                # Firecracker runner
 ├── vfio-bind.hs                  # GPU passthrough
 └── ... (14 compiled scripts)
 ```
@@ -606,11 +606,11 @@ nix run .#straylight.script.gen-wrapper -- grep --gnu --write
 | Script | Purpose | Runtime Deps |
 |--------|---------|--------------|
 | `nvidia-extract` | Extract NVIDIA SDK from NGC | crane, tar, patchelf, file |
-| `oci-gpu` | Run container with GPU | bwrap, crane, jq, pciutils |
-| `oci-run` | Run container (no GPU) | bwrap, crane, jq |
-| `fc-run` | Firecracker microVM | firecracker |
-| `fc-build` | Build VM rootfs | e2fsprogs, cpio, gzip |
-| `ch-run` | Cloud Hypervisor VM | cloud-hypervisor |
-| `ch-gpu` | CH with GPU passthrough | cloud-hypervisor, pciutils |
+| `unshare-gpu` | Run container with GPU | bwrap, crane, jq, pciutils |
+| `unshare-run` | Run container (no GPU) | bwrap, crane, jq |
+| `isospin-run` | Firecracker microVM | firecracker |
+| `isospin-build` | Build VM rootfs | e2fsprogs, cpio, gzip |
+| `cloud-hypervisor-run` | Cloud Hypervisor VM | cloud-hypervisor |
+| `cloud-hypervisor-gpu` | CH with GPU passthrough | cloud-hypervisor, pciutils |
 | `vfio-bind` | Bind GPU to VFIO | pciutils |
 | `gpu-run` | Namespace with GPU | bwrap, pciutils |

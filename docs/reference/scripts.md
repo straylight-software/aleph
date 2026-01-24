@@ -8,10 +8,10 @@ Source: `nix/scripts/*.hs`
 
 | Script | Dependencies | Description |
 |--------|--------------|-------------|
-| `oci-run` | bubblewrap, crane, jq | Run OCI images in namespaces |
-| `oci-gpu` | bubblewrap, crane, jq, pciutils | Run OCI with GPU device access |
-| `oci-inspect` | crane, jq | Inspect OCI image metadata |
-| `oci-pull` | crane | Pull OCI images |
+| `unshare-run` | bubblewrap, crane, jq | Run OCI images in bwrap/unshare namespaces |
+| `unshare-gpu` | bubblewrap, crane, jq, pciutils | Run OCI with GPU device access |
+| `crane-inspect` | crane, jq | Inspect OCI image metadata |
+| `crane-pull` | crane | Pull OCI images |
 
 ## Namespace Runners
 
@@ -24,10 +24,10 @@ Source: `nix/scripts/*.hs`
 
 | Script | Dependencies | Description |
 |--------|--------------|-------------|
-| `fc-run` | firecracker | Run Firecracker VMs |
-| `fc-build` | e2fsprogs, cpio, gzip | Build Firecracker disk images |
-| `ch-run` | cloud-hypervisor | Run Cloud Hypervisor VMs |
-| `ch-gpu` | cloud-hypervisor, pciutils | Run with GPU passthrough |
+| `isospin-run` | firecracker | Run Firecracker VMs |
+| `isospin-build` | e2fsprogs, cpio, gzip | Build Firecracker disk images |
+| `cloud-hypervisor-run` | cloud-hypervisor | Run Cloud Hypervisor VMs |
+| `cloud-hypervisor-gpu` | cloud-hypervisor, pciutils | Run with GPU passthrough |
 
 ## GPU Passthrough
 
@@ -71,7 +71,7 @@ jq, crane, bwrap
 Via overlay:
 
 ```nix
-pkgs.straylight.script.compiled.oci-run
+pkgs.straylight.script.compiled.unshare-run
 pkgs.straylight.script.compiled.fhs-run
 pkgs.straylight.script.compiled.vfio-bind
 ```
@@ -81,7 +81,7 @@ Via devshell:
 ```nix
 devShells.default = pkgs.mkShell {
   packages = with pkgs.straylight.script.compiled; [
-    oci-run
+    unshare-run
     fhs-run
     gpu-run
   ];

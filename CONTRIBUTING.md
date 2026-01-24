@@ -42,7 +42,7 @@ Is it a C++ library?
 |------|----------|---------|
 | Static C++ library | `nix/overlays/libmodern/` | `fmt.nix`, `abseil-cpp/` |
 | CLI tool wrapper | `nix/scripts/Weyl/Script/Tools/` | `Rg.hs`, `Tar.hs` |
-| Compiled script | `nix/scripts/` | `oci-run.hs`, `vfio-bind.hs` |
+| Compiled script | `src/tools/scripts/` | `unshare-run.hs`, `vfio-bind.hs` |
 | Domain module | `nix/scripts/Weyl/Script/` | `Oci.hs`, `Vfio.hs`, `Vm.hs` |
 | Flake module | `nix/modules/flake/` | `default.nix`, `nv-sdk.nix` |
 | NixOS module | `nix/modules/nixos/` | `nv-driver.nix` |

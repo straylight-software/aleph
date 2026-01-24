@@ -45,20 +45,20 @@ SCRIPT_PACKAGES = [
 
 # List of all scripts (name derives from .hs file)
 SCRIPTS = [
-    # OCI container tools
-    "oci-run",
-    "oci-gpu",
-    "oci-pull",
-    "oci-inspect",
-    # Namespace runners
+    # Crane (OCI image operations)
+    "crane-inspect",
+    "crane-pull",
+    # Unshare (bwrap namespace runners)
+    "unshare-run",
+    "unshare-gpu",
     "fhs-run",
     "gpu-run",
-    # Firecracker VM tools
-    "fc-run",
-    "fc-build",
+    # Isospin (Firecracker fork) VM tools
+    "isospin-run",
+    "isospin-build",
     # Cloud Hypervisor VM tools
-    "ch-run",
-    "ch-gpu",
+    "cloud-hypervisor-run",
+    "cloud-hypervisor-gpu",
     # VFIO GPU passthrough
     "vfio-bind",
     "vfio-unbind",

@@ -117,10 +117,10 @@ Source: `nix/scripts/*.hs`
 
 ### Container Operations
 
-- `oci-run.hs` - Run OCI images in namespaces
-- `oci-gpu.hs` - Run with GPU device access
-- `oci-inspect.hs` - Inspect OCI image metadata
-- `oci-pull.hs` - Pull OCI images
+- `unshare-run.hs` - Run OCI images in bwrap/unshare namespaces
+- `unshare-gpu.hs` - Run with GPU device access
+- `crane-inspect.hs` - Inspect OCI image metadata
+- `crane-pull.hs` - Pull OCI images
 
 ### Namespace Runners
 
@@ -129,10 +129,10 @@ Source: `nix/scripts/*.hs`
 
 ### VM Operations
 
-- `fc-run.hs` - Run Firecracker VMs
-- `fc-build.hs` - Build Firecracker disk images
-- `ch-run.hs` - Run Cloud Hypervisor VMs
-- `ch-gpu.hs` - Run with GPU passthrough
+- `isospin-run.hs` - Run Firecracker VMs
+- `isospin-build.hs` - Build Firecracker disk images
+- `cloud-hypervisor-run.hs` - Run Cloud Hypervisor VMs
+- `cloud-hypervisor-gpu.hs` - Run with GPU passthrough
 
 ### GPU Passthrough
 
@@ -153,7 +153,7 @@ Source: `nix/scripts/*.hs`
 
 ```nix
 pkgs.straylight.script.ghc           # GHC with Aleph.Script
-pkgs.straylight.script.compiled.oci-run  # Pre-compiled script
+pkgs.straylight.script.compiled.unshare-run  # Pre-compiled script
 ```
 
 ### Via Prelude

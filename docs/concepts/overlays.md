@@ -33,7 +33,7 @@ pkgs.straylight.container.mk-oci-rootfs      # Extract OCI images
 pkgs.straylight.container.mk-firecracker-image  # Build VM disk images
 pkgs.straylight.container.mk-simple-index    # Generate PEP 503 indexes
 pkgs.straylight.container.extract            # Binary extraction with patchelf
-pkgs.straylight.container.oci-run            # Run OCI images in namespaces
+pkgs.straylight.container.unshare-run        # Run OCI images in bwrap/unshare namespaces
 pkgs.straylight.container.fhs-run            # Run with FHS layout
 pkgs.straylight.container.gpu-run            # Run with GPU access
 ```
@@ -58,10 +58,10 @@ pkgs.straylight.script.nix-ci        # CI Nix wrapper
 Compiled scripts:
 
 - `vfio-bind`, `vfio-unbind`, `vfio-list` - GPU passthrough
-- `oci-run`, `oci-gpu`, `oci-inspect`, `oci-pull` - Container operations
+- `unshare-run`, `unshare-gpu`, `crane-inspect`, `crane-pull` - Container operations
 - `fhs-run`, `gpu-run` - Namespace runners
-- `fc-run`, `fc-build` - Firecracker VMs
-- `ch-run`, `ch-gpu` - Cloud Hypervisor VMs
+- `isospin-run`, `isospin-build` - Firecracker VMs
+- `cloud-hypervisor-run`, `cloud-hypervisor-gpu` - Cloud Hypervisor VMs
 
 ### libmodern
 

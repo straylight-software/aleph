@@ -46,6 +46,6 @@
       };
     };
 
-  # Run OCI images in a namespace — compiled Haskell, not bash
-  inherit (final.straylight.script.compiled) oci-run;
+  # Run OCI images in bwrap/unshare namespace — compiled Haskell, not bash
+  unshare-run = final.straylight.script.compiled.unshare-run;
 }

@@ -363,9 +363,9 @@ toFilePath = fromText . unStorePath
 # Generate Dhall config with Nix interpolation
 mkDhallConfig = name: expr: pkgs.writeText "${name}.dhall" expr;
 
-fc-run-config = mkDhallConfig "fc-run" ''
-  { kernel = "${fc-kernel-pkg}"
-  , initScript = "${fc-run-init}"
+isospin-run-config = mkDhallConfig "isospin-run" ''
+  { kernel = "${isospin-kernel-pkg}"
+  , initScript = "${isospin-run-init}"
   , busybox = "${pkgs.pkgsStatic.busybox}/bin/busybox"
   , sslCerts = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
   , cpus = ${toString cfg.firecracker.cpus}
@@ -466,8 +466,8 @@ nix/scripts/
 │           ├── Fd.hs             # fd (generated)
 │           └── ...               # 24 more tool wrappers
 ├── vfio-bind.hs                  # Compiled scripts
-├── oci-run.hs
-├── fc-run.hs
+├── unshare-run.hs
+├── isospin-run.hs
 └── ...
 ```
 
@@ -511,10 +511,10 @@ straylight.script.compiled = {
     deps = [ pkgs.pciutils ];
   };
   
-  fc-run = mkCompiledScript {
-    name = "fc-run";
+  isospin-run = mkCompiledScript {
+    name = "isospin-run";
     deps = [ pkgs.firecracker pkgs.crane ];
-    configFile = fc-run-config;
+    configFile = isospin-run-config;
   };
 };
 ```
@@ -568,17 +568,17 @@ The generator:
 13 scripts converted from bash to Haskell:
 
 - VFIO: vfio-bind, vfio-unbind, vfio-list
-- OCI: oci-run, oci-gpu, oci-inspect, oci-pull
+- OCI: unshare-run, unshare-gpu, crane-inspect, crane-pull
 - Namespace: fhs-run, gpu-run
-- Firecracker: fc-run, fc-build
-- Cloud Hypervisor: ch-run, ch-gpu
+- Firecracker: isospin-run, isospin-build
+- Cloud Hypervisor: cloud-hypervisor-run, cloud-hypervisor-gpu
 
 ### Phase 3: Dhall Config Bridge (In Progress)
 
 - Define `Base.dhall` with `StorePath`
 - Add `FromDhall` instances
 - Update `mkCompiledScript` for config injection
-- Convert fc-run as proof of concept
+- Convert isospin-run as proof of concept
 
 ### Phase 4: Remaining Scripts
 

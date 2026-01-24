@@ -53,8 +53,8 @@ rec {
 
     ```nix
     mk-platform-stub {
-      name = "fc-run";
-      description = "Run workloads in Firecracker microVMs";
+      name = "isospin-run";
+      description = "Run workloads in Isospin (Firecracker) microVMs";
       requires = "Linux with KVM support";
       alternatives = [ "Use Docker" "Use a Linux VM" ];
     }
