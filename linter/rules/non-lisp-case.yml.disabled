@@ -1,26 +1,6 @@
 id: non-lisp-case
 language: nix
 severity: error
-# Exclude areas that interface with nixpkgs/external APIs:
-# - prelude: defines the standard library identifiers
-# - modules: use NixOS/flake-parts module system API
-# - overlays: interface with nixpkgs conventions
-# - packages: nixpkgs package conventions
-# - lib: utility functions interfacing with nixpkgs
-# - checks: test code
-# - templates: starter templates for users
-# - docs: documentation examples
-ignores:
-  - nix/prelude/**/*.nix
-  - nix/modules/**/*.nix
-  - nix/overlays/**/*.nix
-  - nix/packages/**/*.nix
-  - nix/lib/**/*.nix
-  - nix/checks/**/*.nix
-  - nix/templates/**/*.nix
-  - docs/**/*.nix
-  - nix/_main.nix
-  - flake.nix
 rule:
   kind: identifier
   regex: "^[a-z].*(_|[A-Z]).*"

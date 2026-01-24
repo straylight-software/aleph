@@ -151,7 +151,7 @@ in
       # WASM infrastructure (internal)
       wasm-infra = import ./prelude/wasm-plugin.nix {
         inherit lib;
-        inherit (pkgs) stdenv runCommand;
+        inherit (pkgs) stdenv runCommand writeText;
         inherit (inputs) ghc-wasm-meta;
       };
 

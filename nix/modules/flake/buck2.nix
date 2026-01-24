@@ -189,7 +189,10 @@ in
               targetName = name;
 
               # Get the prelude from inputs
-              prelude = inputs.buck2-prelude or (throw "buck2.build requires inputs.buck2-prelude");
+              buck2Prelude = inputs.buck2-prelude or (throw "buck2.build requires inputs.buck2-prelude");
+
+              # Write buckconfig to store
+              buckconfigFile = pkgs.writeText "buckconfig.local" buckconfig;
             in
             pkgs.stdenv.mkDerivation {
               name = targetName;
@@ -203,13 +206,11 @@ in
                 runHook preConfigure
 
                 # Write .buckconfig.local with Nix store paths
-                cat > .buckconfig.local << 'BUCKCONFIG_EOF'
-                ${buckconfig}
-                BUCKCONFIG_EOF
+                cp ${buckconfigFile} .buckconfig.local
 
                 # Link prelude if needed
                 if [ ! -d "prelude" ] && [ ! -L "prelude" ]; then
-                  ln -s ${prelude} prelude
+                  ln -s ${buck2Prelude} prelude
                 fi
 
                 runHook postConfigure

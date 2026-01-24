@@ -1,14 +1,9 @@
 id: no-heredoc-in-inline-bash
 language: nix
 severity: error
-# Test scripts and build infrastructure often use heredocs legitimately
-# - checks: test scripts create test files dynamically
-# - lib: build utilities need to generate config files
-# - modules: flake modules generate configuration
+# Bootstrap toolchain tests will be replaced by Buck2 builds
 ignores:
-  - nix/checks/**/*.nix
-  - nix/lib/**/*.nix
-  - nix/modules/**/*.nix
+  - nix/checks/toolchains.nix
 rule:
   kind: string_fragment
   regex: "(?s).*\\bcat\\b[^\\n]*<<-?.*"

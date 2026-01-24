@@ -36,6 +36,7 @@
   stdenv,
   ghc-wasm-meta,
   runCommand,
+  writeText,
 }:
 let
   # ──────────────────────────────────────────────────────────────────────────
@@ -211,18 +212,14 @@ let
     action:
     if action.action == "writeFile" then
       # WriteFile path content → write content to $out/path
-      # Use a content-addressed delimiter to prevent injection attacks.
-      # The delimiter includes a hash of the content, making it impossible
-      # for the content to contain the exact delimiter string.
+      # Use writeText to avoid heredocs entirely
       let
         contentHash = builtins.hashString "sha256" action.content;
-        delimiter = "__WEYL_EOF_${builtins.substring 0 16 contentHash}__";
+        contentFile = writeText "wasm-content-${builtins.substring 0 8 contentHash}" action.content;
       in
       ''
         mkdir -p "$out/$(dirname '${action.path}')"
-        cat > "$out/${action.path}" << '${delimiter}'
-        ${action.content}
-        ${delimiter}
+        cp ${contentFile} "$out/${action.path}"
       ''
     else if action.action == "install" then
       # Install mode src dst → install -m<mode> src $out/dst

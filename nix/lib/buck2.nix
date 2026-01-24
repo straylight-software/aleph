@@ -129,7 +129,8 @@ in
       # Get prelude
       prelude = inputs.buck2-prelude or (throw "aleph.lib.buck2.build requires inputs.buck2-prelude");
 
-      buckconfig = mkBuckconfig pkgs;
+      buckconfigContent = mkBuckconfig pkgs;
+      buckconfigFile = pkgs.writeText "buckconfig.local" buckconfigContent;
       packages = mkPackages pkgs;
     in
     pkgs.stdenv.mkDerivation {
@@ -142,9 +143,7 @@ in
         runHook preConfigure
 
         # Write .buckconfig.local with Nix store paths
-        cat > .buckconfig.local << 'BUCKCONFIG_EOF'
-        ${buckconfig}
-        BUCKCONFIG_EOF
+        cp ${buckconfigFile} .buckconfig.local
 
         # Link prelude if not present
         if [ ! -d "prelude" ] && [ ! -L "prelude" ]; then

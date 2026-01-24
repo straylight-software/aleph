@@ -71,6 +71,10 @@ in
           default = "";
           description = "Buck2 config section for shortlist paths";
         };
+        shortlistFile = lib.mkOption {
+          type = lib.types.package;
+          description = "Derivation containing the shortlist buckconfig section";
+        };
       };
     }
   );
@@ -155,17 +159,18 @@ in
           ${lib.optionalString cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}"}
         '';
 
+        # Shortlist section as a file in the store
+        shortlistFile = pkgs.writeText "shortlist-section" buckconfigSection;
+
         # Shell hook to add shortlist section to .buckconfig.local
         shortlistShellHook = ''
-                    # Add shortlist section to .buckconfig.local
-                    if [ -f ".buckconfig.local" ]; then
-                      if ! grep -q "\\[shortlist\\]" .buckconfig.local 2>/dev/null; then
-                        cat >> .buckconfig.local << 'SHORTLIST_EOF'
-          ${buckconfigSection}
-          SHORTLIST_EOF
-                        echo "Added [shortlist] section to .buckconfig.local"
-                      fi
-                    fi
+          # Add shortlist section to .buckconfig.local
+          if [ -f ".buckconfig.local" ]; then
+            if ! grep -q "\\[shortlist\\]" .buckconfig.local 2>/dev/null; then
+              cat ${shortlistFile} >> .buckconfig.local
+              echo "Added [shortlist] section to .buckconfig.local"
+            fi
+          fi
         '';
 
       in
@@ -173,6 +178,7 @@ in
         straylight.shortlist = {
           inherit libraries;
           buckconfig = buckconfigSection;
+          shortlistFile = shortlistFile;
           shellHook = shortlistShellHook;
         };
       };

@@ -157,7 +157,8 @@ Unless at great need, configuration is typed as Dhall and consumed with nixpkgs 
 
 | Pattern | Reason |
 |---------|--------|
-| **Heredocs** | High crimes and misdemeanors. Use `writeText` or `writeShellScript` |
+| **Heredocs in inline bash** | High crimes and misdemeanors. See §6.1 |
+| **Inline code >10 lines** | Untestable, unlintable. See §6.1 |
 | `with lib;` | Obscures provenance, breaks tooling |
 | `rec` in derivations | Breaks `overrideAttrs` |
 | `if/then/else` in module config | Eager evaluation causes infinite recursion |
@@ -167,7 +168,82 @@ Unless at great need, configuration is typed as Dhall and consumed with nixpkgs 
 | camelCase in straylight namespaces | Violates naming convention |
 | Missing `_class` | Silent cross-module-system failures |
 | Missing `meta` in packages | Breaks documentation and compliance |
-| Inline code >10 lines | Untestable, unlintable |
+
+#### 6.1 Code Generation and Inline Scripts
+
+Inline scripts in Nix strings are the single largest source of bugs in Nix codebases.
+They cannot be linted, cannot be type-checked, and encourage copy-paste proliferation
+of untested code. The prelude provides typed alternatives.
+
+**Hierarchy of preference (best to worst):**
+
+1. **External files** — Put scripts in separate files, load with `builtins.readFile`
+2. **AlephScript** — Typed inline scripting primitive (see §6.1.1)
+3. **Prelude builders** — `prelude.write-shell-application`, `prelude.write-python-application`
+4. **Never** — Heredocs (`cat <<EOF`), inline strings >10 lines
+
+**Prelude builders** are escape hatches, not recommendations. They exist because
+sometimes you need to generate a script. They are WARNING-level in wsn-lint.
+If you find yourself using them frequently, you are doing something wrong.
+
+```nix
+# PREFERRED: External file
+buildPhase = builtins.readFile ./build.sh;
+
+# ACCEPTABLE: Prelude builder (WARNING)
+script = prelude.write-shell-application {
+  name = "my-script";
+  runtime-inputs = [ pkgs.jq pkgs.curl ];
+  text = ''
+    curl -s "$1" | jq .
+  '';
+};
+
+# FORBIDDEN: Heredoc in inline bash
+buildPhase = ''
+  cat > config.json << 'EOF'
+  {"bad": "idea"}
+  EOF
+'';
+```
+
+##### 6.1.1 AlephScript
+
+For cases requiring inline code generation with interpolation, use `prelude.aleph-script`:
+
+```nix
+configPhase = prelude.aleph-script {
+  # Declarative file generation - no heredocs
+  files."config.json" = builtins.toJSON {
+    toolchain = {
+      cc = "${llvm.clang}/bin/clang";
+      cxx = "${llvm.clang}/bin/clang++";
+    };
+  };
+  
+  files.".buckconfig.local" = prelude.to-ini {
+    cxx = {
+      cc = "${llvm.clang}/bin/clang";
+      ld = "${llvm.lld}/bin/ld.lld";
+    };
+  };
+  
+  # Shell commands (optional, runs after file generation)
+  run = ''
+    ln -sf ${prelude} prelude
+  '';
+};
+```
+
+AlephScript is the **only** sanctioned way to generate files inline. It:
+
+- Separates file content from shell logic
+- Uses structured data (`builtins.toJSON`, `prelude.to-ini`) instead of string templates
+- Is mechanically verifiable by wsn-lint
+- Provides a clear audit trail of what files are generated
+
+The `files` attribute is a declarative specification. The `run` attribute is optional
+and should be minimal—if your `run` exceeds 5 lines, extract it to a file.
 
 ### 7. Package Requirements
 
