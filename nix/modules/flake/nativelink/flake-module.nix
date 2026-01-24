@@ -141,10 +141,12 @@ in
               }
             ];
             servers = [
+              # Frontend API (for clients: AC, execution, capabilities)
+              # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
               {
                 listener = {
                   http = {
-                    socket_address = "0.0.0.0:${toString cfg.scheduler.port}";
+                    socket_address = "[::]:${toString cfg.scheduler.port}";
                   };
                 };
                 services = {
@@ -161,7 +163,28 @@ in
                       scheduler = "MAIN_SCHEDULER";
                     }
                   ];
-                  capabilities = [ { instance_name = "main"; } ];
+                  capabilities = [
+                    {
+                      instance_name = "main";
+                      remote_execution = {
+                        scheduler = "MAIN_SCHEDULER";
+                      };
+                    }
+                  ];
+                };
+              }
+              # Backend API (for workers to connect)
+              {
+                listener = {
+                  http = {
+                    socket_address = "[::]:50061";
+                  };
+                };
+                services = {
+                  worker_api = {
+                    scheduler = "MAIN_SCHEDULER";
+                  };
+                  health = { };
                 };
               }
             ];
@@ -193,7 +216,8 @@ in
               {
                 listener = {
                   http = {
-                    socket_address = "0.0.0.0:${toString cfg.cas.port}";
+                    # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
+                    socket_address = "[::]:${toString cfg.cas.port}";
                   };
                 };
                 services = {
@@ -225,7 +249,7 @@ in
         workerConfig = pkgs.writeText "worker.json" (
           builtins.toJSON {
             stores = [
-              # Remote CAS store
+              # Remote CAS store (for slow tier and AC uploads)
               {
                 name = "REMOTE_CAS";
                 grpc = {
@@ -234,26 +258,30 @@ in
                   store_type = "cas";
                 };
               }
-              # Local filesystem cache (fast store)
+              # Remote AC store
               {
-                name = "LOCAL_FS";
-                filesystem = {
-                  content_path = "/data/cas-content";
-                  temp_path = "/data/cas-temp";
-                  eviction_policy = {
-                    max_bytes = 10737418240; # 10GB
-                  };
+                name = "REMOTE_AC";
+                grpc = {
+                  instance_name = "main";
+                  endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  store_type = "ac";
                 };
               }
-              # FastSlow store: local FS for fast, remote CAS for slow
+              # FastSlow store: inline filesystem for fast, ref_store for slow
+              # NativeLink 0.7.10 requires inline store defs in fast, ref_store in slow
               {
                 name = "CAS_FAST_SLOW";
                 fast_slow = {
                   fast = {
-                    ref_store = {
-                      name = "LOCAL_FS";
+                    filesystem = {
+                      content_path = "/data/cas-content";
+                      temp_path = "/data/cas-temp";
+                      eviction_policy = {
+                        max_bytes = "10Gb";
+                      };
                     };
                   };
+                  fast_direction = "get";
                   slow = {
                     ref_store = {
                       name = "REMOTE_CAS";
@@ -266,12 +294,12 @@ in
               {
                 local = {
                   worker_api_endpoint = {
-                    uri = "grpc://${schedulerAddr}";
+                    uri = "grpc://${cfg.fly.app-prefix}-scheduler.internal:50061";
                   };
                   work_directory = "/tmp/nativelink-worker";
                   cas_fast_slow_store = "CAS_FAST_SLOW";
                   upload_action_result = {
-                    ac_store = "REMOTE_CAS";
+                    ac_store = "REMOTE_AC";
                   };
                   platform_properties = {
                     OSFamily = {
