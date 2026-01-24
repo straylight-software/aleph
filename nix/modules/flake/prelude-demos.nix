@@ -43,6 +43,19 @@
         actual = cond;
       };
 
+      # Test report formatting - broken into parts to comply with WSN-W003
+      mk-report-header = suite-name: ''
+        ╔════════════════════════════════════════════════════════════════════════════╗
+        ║  ${suite-name}
+        ╚════════════════════════════════════════════════════════════════════════════╝
+      '';
+      mk-report-footer =
+        passed: total: allPass:
+        if allPass then
+          "  ✓ All ${toString total} tests passed"
+        else
+          "  ✗ ${toString passed}/${toString total} passed";
+
       run-suite =
         suite-name: tests:
         let
@@ -60,20 +73,15 @@
           total = builtins.length results;
           allPass = passed == total;
 
-          report = ''
-            ╔════════════════════════════════════════════════════════════════════════════╗
-            ║  ${suite-name}
-            ╚════════════════════════════════════════════════════════════════════════════╝
-
-            ${lib.concatMapStrings (r: "  ${r.status} ${r.name}${r.detail}\n") results}
-            ────────────────────────────────────────────────────────────────────────────────
-            ${
-              if allPass then
-                "  ✓ All ${toString total} tests passed"
-              else
-                "  ✗ ${toString passed}/${toString total} passed"
-            }
-          '';
+          resultsText = lib.concatMapStrings (r: "  ${r.status} ${r.name}${r.detail}\n") results;
+          separator = "────────────────────────────────────────────────────────────────────────────────";
+          report =
+            mk-report-header suite-name
+            + "\n"
+            + resultsText
+            + separator
+            + "\n"
+            + mk-report-footer passed total allPass;
         in
         pkgs.runCommand "test-${lib.replaceStrings [ " " ] [ "-" ] (lib.toLower suite-name)}"
           {
@@ -85,7 +93,6 @@
                 allPass
                 ;
             };
-            # Pass report as a file to avoid heredocs
             passAsFile = [ "reportText" ];
             reportText = report;
           }

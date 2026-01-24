@@ -10,7 +10,7 @@ ghc-pkg list bytestring
 
 echo ""
 echo "Testing: compile with text import"
-cp "$testSources/TestText.hs" TestText.hs
+cp "@ghcText@" TestText.hs
 
 ghc -o test-text TestText.hs
 OUTPUT=$(./test-text)

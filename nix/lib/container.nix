@@ -9,7 +9,7 @@
 #   - VM isolation for network builds (Firecracker, not sandbox escape)
 #
 { lib }:
-rec {
+{
   # ════════════════════════════════════════════════════════════════════════════
   # OCI IMAGE UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
@@ -83,7 +83,7 @@ rec {
   # LINUX NAMESPACE UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  namespace = rec {
+  namespace = {
     # Common bwrap flags for all namespace environments
     base-flags = [
       "--dev-bind /dev /dev"
@@ -139,7 +139,7 @@ rec {
   # FIRECRACKER UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  firecracker = rec {
+  firecracker = {
     # Generate Firecracker config JSON
     #
     # Example:
@@ -206,6 +206,7 @@ rec {
     #   3. Runs a build command (if provided)
     #   4. Either exits (build mode) or drops to shell (interactive mode)
     #
+    # Template loaded from ./scripts/fc-init.sh.in to comply with WSN-W003.
     init-script =
       {
         with-network ? true,
@@ -214,53 +215,26 @@ rec {
       }:
       let
         env-exports = lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"") env);
+        network-setup = lib.optionalString with-network (builtins.readFile ./scripts/fc-init-network.sh);
+        build-section = lib.optionalString (build-cmd != null) (
+          builtins.readFile ./scripts/fc-init-build.sh
+          + "\n"
+          + build-cmd
+          + "\nEXIT=$?\necho \":: Exit code: $EXIT\"\necho o > /proc/sysrq-trigger"
+        );
+        interactive-section = lib.optionalString (build-cmd == null) "exec setsid cttyhack /bin/bash -l";
+        template = builtins.readFile ./scripts/fc-init.sh.in;
       in
-      ''
-        #!/bin/sh
-        set -e
-
-        export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-        ${env-exports}
-
-        # Mount essential filesystems
-        mount -t proc proc /proc
-        mount -t sysfs sys /sys
-        mount -t devtmpfs dev /dev 2>/dev/null || true
-        mkdir -p /dev/pts /dev/shm
-        mount -t devpts devpts /dev/pts 2>/dev/null || true
-        mount -t tmpfs tmpfs /tmp 2>/dev/null || true
-        mount -t tmpfs tmpfs /run 2>/dev/null || true
-
-        hostname builder
-
-        ${lib.optionalString with-network ''
-          # Set up networking
-          ip link set lo up 2>/dev/null || true
-          if [ -e /sys/class/net/eth0 ]; then
-            ip link set eth0 up
-            ip addr add 172.16.0.2/24 dev eth0
-            ip route add default via 172.16.0.1
-            echo "nameserver 8.8.8.8" > /etc/resolv.conf
-            echo "nameserver 1.1.1.1" >> /etc/resolv.conf
-          fi
-        ''}
-
-        ${lib.optionalString (build-cmd != null) ''
-          # Run build command
-          echo ":: Running build command..."
-          ${build-cmd}
-          EXIT=$?
-          echo ":: Exit code: $EXIT"
-
-          # Trigger clean shutdown
-          echo o > /proc/sysrq-trigger
-        ''}
-
-        # Drop to interactive shell if no build command
-        ${lib.optionalString (build-cmd == null) ''
-          exec setsid cttyhack /bin/bash -l
-        ''}
-      '';
+      lib.replaceStrings
+        [ "@envExports@" "@baseInit@" "@networkSetup@" "@buildSection@" "@interactiveSection@" ]
+        [
+          env-exports
+          (builtins.readFile ./scripts/fc-init-base.sh)
+          network-setup
+          build-section
+          interactive-section
+        ]
+        template;
 
     # Default boot args for different use cases
     boot-args = {
@@ -298,7 +272,7 @@ rec {
   # ELF UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  elf = rec {
+  elf = {
     # Build rpath from list of packages
     #
     # Example:
@@ -344,33 +318,30 @@ rec {
       '';
 
     # Patch ELF with existing rpath preserved
+    # Template loaded from ./scripts/patch-elf-preserve.sh.in to comply with WSN-W003.
     patch-commands-preserve =
       {
         rpath,
         interpreter-path ? null,
         out,
       }:
-      ''
-        find ${out} -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
-          [ -L "$f" ] && continue
-          file "$f" | grep -q ELF || continue
-          ${lib.optionalString (interpreter-path != null) ''
-            if file "$f" | grep -q "executable"; then
-              patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
-            fi
-          ''}
-          existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
-          combined="${rpath}:${out}/lib:${out}/lib64''${existing:+:$existing}"
-          patchelf --set-rpath "$combined" "$f" 2>/dev/null || true
-        done
-      '';
+      let
+        interpreter-patch = lib.optionalString (interpreter-path != null) ''
+          if file "$f" | grep -q "executable"; then
+            patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
+          fi
+        '';
+        template = builtins.readFile ./scripts/patch-elf-preserve.sh.in;
+      in
+      lib.replaceStrings [ "@out@" "@rpath@" "@interpreterPatch@" ] [ out rpath interpreter-patch ]
+        template;
   };
 
   # ════════════════════════════════════════════════════════════════════════════
   # PEP 503 UTILITIES (Python Simple Repository API)
   # ════════════════════════════════════════════════════════════════════════════
 
-  pep503 = rec {
+  pep503 = {
     # Normalize package name per PEP 503
     # "Foo_Bar" -> "foo-bar"
     normalize-name = name: lib.toLower (lib.replaceStrings [ "_" "." ] [ "-" "-" ] name);

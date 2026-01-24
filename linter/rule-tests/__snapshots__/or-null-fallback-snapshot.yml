@@ -1,0 +1,50 @@
+id: or-null-fallback
+snapshots:
+  ? |
+    # Defensive null fallback - bad
+    { foo = pkgs.bar or null; }
+  : labels:
+    - source: pkgs.bar or null
+      style: primary
+      start: 40
+      end: 56
+    - source: 'null'
+      style: secondary
+      start: 52
+      end: 56
+    - source: 'null'
+      style: secondary
+      start: 52
+      end: 56
+  ? |
+    # In a let binding - bad
+    let x = config.foo or null; in x
+  : labels:
+    - source: config.foo or null
+      style: primary
+      start: 33
+      end: 51
+    - source: 'null'
+      style: secondary
+      start: 47
+      end: 51
+    - source: 'null'
+      style: secondary
+      start: 47
+      end: 51
+  ? |
+    # Nested - bad
+    { foo = pkgs.bar.baz or null; }
+  : labels:
+    - source: pkgs.bar.baz or null
+      style: primary
+      start: 23
+      end: 43
+    - source: 'null'
+      style: secondary
+      start: 39
+      end: 43
+    - source: 'null'
+      style: secondary
+      start: 39
+      end: 43

@@ -9,26 +9,9 @@
   stdenv,
   fetchFromGitHub,
   cmake,
-  writeText,
 }:
 let
-  # Shim header to expose mdspan in std:: namespace (no heredoc)
-  mdspan-shim = writeText "mdspan-shim" ''
-    #pragma once
-    #include <experimental/mdspan>
-
-    namespace std {
-      using experimental::mdspan;
-      using experimental::extents;
-      using experimental::dextents;
-      using experimental::layout_right;
-      using experimental::layout_left;
-      using experimental::layout_stride;
-      using experimental::default_accessor;
-      using experimental::full_extent;
-      using experimental::submdspan;
-    }
-  '';
+  mdspan-shim = ./mdspan-shim.hpp;
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "mdspan";
@@ -49,7 +32,6 @@ stdenv.mkDerivation (finalAttrs: {
     "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
   ];
 
-  # Install shim header (no heredoc)
   postInstall = ''
     install -m644 ${mdspan-shim} $out/include/mdspan
   '';

@@ -6,7 +6,7 @@ rustc --version
 
 echo ""
 echo "Testing: rustc can compile hello world"
-cp "$testSources/hello.rs" hello.rs
+cp "@rustHello@" hello.rs
 
 rustc -o hello hello.rs
 ./hello

@@ -112,6 +112,25 @@ in
       let
         inherit (pkgs.stdenv) isLinux;
 
+        # Render Dhall template with environment variables
+        renderDhall =
+          name: src: vars:
+          let
+            envVars = lib.mapAttrs' (
+              k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+            ) vars;
+          in
+          pkgs.runCommand name
+            (
+              {
+                nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+              }
+              // envVars
+            )
+            ''
+              dhall text --file ${src} > $out
+            '';
+
         # Get nativelink from inputs or nixpkgs
         nativelink =
           if inputs ? nativelink then
@@ -120,34 +139,29 @@ in
           else
             null;
 
-        # Buck2 RE configuration file (generated from template)
-        buckconfig-re-file = pkgs.substitute {
-          src = ./scripts/lre-buckconfig.ini;
-          substitutions = [
-            "--replace-fail"
-            "@port@"
-            (toString cfg.port)
-            "--replace-fail"
-            "@instanceName@"
-            cfg.instance-name
-          ];
+        # Buck2 RE configuration file (generated from Dhall template)
+        buckconfig-re-file = renderDhall "lre-buckconfig.ini" ./scripts/lre-buckconfig.dhall {
+          port = toString cfg.port;
+          instance_name = cfg.instance-name;
         };
 
-        # lre-start script (external file with replaceVars)
+        # lre-start script (generated from Dhall template)
         lre-start =
           let
-            nativelinkBin = if nativelink != null then "${nativelink}/bin/nativelink" else "nativelink"; # Fallback to PATH
+            nativelinkBin = if nativelink != null then "${nativelink}/bin/nativelink" else "nativelink";
+            scriptDrv = renderDhall "lre-start" ./scripts/lre-start.dhall {
+              default_workers = toString cfg.workers;
+              default_port = toString cfg.port;
+              nativelink = nativelinkBin;
+            };
           in
           pkgs.stdenv.mkDerivation {
             name = "lre-start";
-            src = ./scripts/lre-start.bash;
+            src = scriptDrv;
             dontUnpack = true;
             installPhase = ''
               mkdir -p $out/bin
-              substitute $src $out/bin/lre-start \
-                --replace-fail "@defaultWorkers@" "${toString cfg.workers}" \
-                --replace-fail "@defaultPort@" "${toString cfg.port}" \
-                --replace-fail "@nativelink@" "${nativelinkBin}"
+              cp $src $out/bin/lre-start
               chmod +x $out/bin/lre-start
             '';
 

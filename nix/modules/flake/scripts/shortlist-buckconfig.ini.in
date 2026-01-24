@@ -1,0 +1,16 @@
+
+[shortlist]
+# Hermetic C++ libraries
+# Format: lib = /nix/store/..., lib_dev = /nix/store/...-dev (for headers)
+@zlibNgLine@
+@fmtLine@
+@fmtDevLine@
+@catch2Line@
+@catch2DevLine@
+@spdlogLine@
+@spdlogDevLine@
+@mdspanLine@
+@rapidjsonLine@
+@nlohmannJsonLine@
+@libsodiumLine@
+@libsodiumDevLine@

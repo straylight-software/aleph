@@ -25,41 +25,14 @@ glibc_lib = /nix/store/j193mfi0f921y0kfs8vjc1znnr45ispv-glibc-2.40-66/lib
 # mdspan (Kokkos reference implementation)
 mdspan_include = /nix/store/15h676cngqhyxblg74lqr1cg58nqa8q3-mdspan-0.6.0/include
 
+
 [haskell]
-ghc = bin/ghc
-ghc_pkg = bin/ghc-pkg
-haddock = bin/haddock
+ghc = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/ghc
+ghc_pkg = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/ghc-pkg
+haddock = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/bin/haddock
 ghc_version = 9.12.2
-ghc_lib_dir = /nix/store/ka3y6i3j4q2mgvgc61nj5bcr6viypg0b-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
-global_package_db = /nix/store/ka3y6i3j4q2mgvgc61nj5bcr6viypg0b-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
-
-[python]
-interpreter = /nix/store/rh1y4ljz684dxjxz1w01rm1q0h4w3qvf-python3-3.12.12-env/bin/python3
-python_include = /nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/include/python3.12
-python_lib = /nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib
-nanobind_include = /nix/store/va8nkra5vfp8lds47w3ywn39z2jgpyj2-python3.12-nanobind-2.10.2/lib/python3.12/site-packages/nanobind/include
-nanobind_cmake = /nix/store/va8nkra5vfp8lds47w3ywn39z2jgpyj2-python3.12-nanobind-2.10.2/lib/python3.12/site-packages/nanobind
-pybind11_include = /nix/store/dgkwxb976apzy7n7zv5vp9hyymi4kxrr-python3.12-pybind11-3.0.1/lib/python3.12/site-packages/pybind11/include
-
-[nv]
-nvidia_sdk_path = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk
-nvidia_sdk_include = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/include
-nvidia_sdk_lib = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/lib
-archs = sm_90,sm_100,sm_120
-
-[rust]
-rustc = /nix/store/lvdr3nws8gs2qcgm3rnwvjprcx55kx7l-rustc-wrapper-1.91.1/bin/rustc
-rustdoc = /nix/store/lvdr3nws8gs2qcgm3rnwvjprcx55kx7l-rustc-wrapper-1.91.1/bin/rustdoc
-clippy_driver = /nix/store/bqgnqxrjkhmfw1pwy4ir7yn3mdxs4sva-clippy-1.91.1/bin/clippy-driver
-cargo = /nix/store/9db7xb1axdgqp4lakdxbp27yh7kfvm0b-cargo-1.91.1/bin/cargo
-target_triple = x86_64-unknown-linux-gnu
-
-[lean]
-lean = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/lean
-leanc = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/leanc
-lake = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/lake
-lean_lib_dir = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/lib/lean/library
-lean_include_dir = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/include
+ghc_lib_dir = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
+global_package_db = /nix/store/w26nrhx8xnd7b9a3496v1r70vkdl4vnz-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
 
 [haskell.packages]
 aeson = /nix/store/l1i7ia2krj1ab16w28935nsrm7dk626p-aeson-2.2.3.0
@@ -82,71 +55,29 @@ prettyprinter = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1
 prettyprinter.db = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1/lib/ghc-9.12.2/lib/package.conf.d
 prettyprinter.libdir = /nix/store/djy2f4mqz0cy3k2iynh8gn9bc11bjnw4-prettyprinter-1.7.1/lib/ghc-9.12.2/lib
 prettyprinter.id = prettyprinter-1.7.1-8RGLAoNLo4i7Zpj1EyCJGX
-shelly = /nix/store/sa3gvxibwq7840zf1s8g9ngylmb4ac5g-shelly-1.12.1.1
-shelly.db = /nix/store/sa3gvxibwq7840zf1s8g9ngylmb4ac5g-shelly-1.12.1.1/lib/ghc-9.12.2/lib/package.conf.d
-shelly.libdir = /nix/store/sa3gvxibwq7840zf1s8g9ngylmb4ac5g-shelly-1.12.1.1/lib/ghc-9.12.2/lib
-shelly.id = shelly-1.12.1.1-EFwJSVAvU2564chb4K5Py9
-foldl = /nix/store/4aib4vhhaav7rjppsr5820yy05g0y4rb-foldl-1.4.18
-foldl.db = /nix/store/4aib4vhhaav7rjppsr5820yy05g0y4rb-foldl-1.4.18/lib/ghc-9.12.2/lib/package.conf.d
-foldl.libdir = /nix/store/4aib4vhhaav7rjppsr5820yy05g0y4rb-foldl-1.4.18/lib/ghc-9.12.2/lib
-foldl.id = foldl-1.4.18-JwQxelkAduLJvXZnNpvG2Q
-dhall = /nix/store/b633jnwam03jkkmpyp2833v8svics0pw-dhall-1.42.3
-dhall.db = /nix/store/b633jnwam03jkkmpyp2833v8svics0pw-dhall-1.42.3/lib/ghc-9.12.2/lib/package.conf.d
-dhall.libdir = /nix/store/b633jnwam03jkkmpyp2833v8svics0pw-dhall-1.42.3/lib/ghc-9.12.2/lib
-dhall.id = dhall-1.42.3-777VPHgQaD95os1Zf3h9XC
-crypton = /nix/store/mrr6kxl3f7q1nm2nrh37fr6m99lk6by7-crypton-1.0.4
-crypton.db = /nix/store/mrr6kxl3f7q1nm2nrh37fr6m99lk6by7-crypton-1.0.4/lib/ghc-9.12.2/lib/package.conf.d
-crypton.libdir = /nix/store/mrr6kxl3f7q1nm2nrh37fr6m99lk6by7-crypton-1.0.4/lib/ghc-9.12.2/lib
-crypton.id = crypton-1.0.4-ErF4XywWApK8m1h1OvKfO2
-memory = /nix/store/iw13lglnijw2s08dq3skmnbjjxkwkgpq-memory-0.18.0
-memory.db = /nix/store/iw13lglnijw2s08dq3skmnbjjxkwkgpq-memory-0.18.0/lib/ghc-9.12.2/lib/package.conf.d
-memory.libdir = /nix/store/iw13lglnijw2s08dq3skmnbjjxkwkgpq-memory-0.18.0/lib/ghc-9.12.2/lib
-memory.id = memory-0.18.0-Gu5gryBotq6J2hJ12wCyi
-unordered-containers = /nix/store/gwfaq1phw8j6hwm3pzqqd0xa2ygnsrjv-unordered-containers-0.2.20.1
-unordered-containers.db = /nix/store/gwfaq1phw8j6hwm3pzqqd0xa2ygnsrjv-unordered-containers-0.2.20.1/lib/ghc-9.12.2/lib/package.conf.d
-unordered-containers.libdir = /nix/store/gwfaq1phw8j6hwm3pzqqd0xa2ygnsrjv-unordered-containers-0.2.20.1/lib/ghc-9.12.2/lib
-unordered-containers.id = unordered-containers-0.2.20.1-BaxUTcecpjN9zSbxDZprd2
-vector = /nix/store/9g720rhwk7n87cphijkqvk8bqn0hcw99-vector-0.13.2.0
-vector.db = /nix/store/9g720rhwk7n87cphijkqvk8bqn0hcw99-vector-0.13.2.0/lib/ghc-9.12.2/lib/package.conf.d
-vector.libdir = /nix/store/9g720rhwk7n87cphijkqvk8bqn0hcw99-vector-0.13.2.0/lib/ghc-9.12.2/lib
-vector.id = vector-0.13.2.0-3vMRXK2loD5AWL4Lzd0PGs-benchmarks-O2
-async = /nix/store/wbxxznzshqiy5if7daf54b932p69dhmb-async-2.2.5
-async.db = /nix/store/wbxxznzshqiy5if7daf54b932p69dhmb-async-2.2.5/lib/ghc-9.12.2/lib/package.conf.d
-async.libdir = /nix/store/wbxxznzshqiy5if7daf54b932p69dhmb-async-2.2.5/lib/ghc-9.12.2/lib
-async.id = async-2.2.5-C7ZWgg3595YphHPH4bGEM
 
-[shortlist]
-# Hermetic C++ libraries
-# Format: lib = /nix/store/..., lib_dev = /nix/store/...-dev (for headers)
-zlib_ng = /nix/store/kmwphwsmk0ik37v4jbxq6say0sb2az1q-zlib-ng-2.2.5
-fmt = /nix/store/s8x491axlnm309ppwpfr0yv19rivw33h-fmt-12.0.0
-fmt_dev = /nix/store/xqhfjy7z1i43yx7zv00dxhwy7g5yaqrh-fmt-12.0.0-dev
-catch2 = /nix/store/3dv40152ibwzvk4c1cxlj9fx2ms8dsw8-catch2-3.11.0
-catch2_dev = /nix/store/3dv40152ibwzvk4c1cxlj9fx2ms8dsw8-catch2-3.11.0
-spdlog = /nix/store/kqp0y77cn17sbxfk4p51m0z1zkryvj0l-spdlog-1.16.0
-spdlog_dev = /nix/store/0m6yg5i5bvsq16vcyysm9m2z1y4hww0h-spdlog-1.16.0-dev
-mdspan = /nix/store/15h676cngqhyxblg74lqr1cg58nqa8q3-mdspan-0.6.0
-rapidjson = /nix/store/0k7lqs1am14y5amcqlbdxhnlk8hf2xpg-rapidjson-1.1.0-unstable-2025-02-05
-nlohmann_json = /nix/store/sd346f4fszi73jg949y77r9hpdipsxa6-nlohmann_json-3.12.0
-libsodium = /nix/store/n0jc1q20m3ar8q0vyi0mvz7cmvf0gwsh-libsodium-1.0.20
-libsodium_dev = /nix/store/vijkvg4k07mlrb9446yz3pmqh2x62ixj-libsodium-1.0.20-dev
+[rust]
+rustc = /nix/store/lvdr3nws8gs2qcgm3rnwvjprcx55kx7l-rustc-wrapper-1.91.1/bin/rustc
+rustdoc = /nix/store/lvdr3nws8gs2qcgm3rnwvjprcx55kx7l-rustc-wrapper-1.91.1/bin/rustdoc
+clippy_driver = /nix/store/bqgnqxrjkhmfw1pwy4ir7yn3mdxs4sva-clippy-1.91.1/bin/clippy-driver
+cargo = /nix/store/9db7xb1axdgqp4lakdxbp27yh7kfvm0b-cargo-1.91.1/bin/cargo
+target_triple = x86_64-unknown-linux-gnu
 
+[lean]
+lean = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/lean
+leanc = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/leanc
+lake = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/bin/lake
+lean_lib_dir = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/lib/lean/library
+lean_include_dir = /nix/store/hgrr6brn6gxwrzz2z8yca82r0mhhm08r-lean4-4.26.0/include
 
-# ────────────────────────────────────────────────────────────────────────
-# NativeLink Remote Execution (LRE)
-# ────────────────────────────────────────────────────────────────────────
-# Usage: lre-start && buck2 build --prefer-remote //:target
+[python]
+interpreter = /nix/store/52k9y5s3bwk5kdwv8yfrj6cc463r0wl6-python3-3.12.12-env/bin/python3
+python_include = /nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/include/python3.12
+python_lib = /nix/store/iizfzmqjdfvbyx82gqw92glb5zl6m4my-python3-3.12.12/lib
+nanobind_include = /nix/store/va8nkra5vfp8lds47w3ywn39z2jgpyj2-python3.12-nanobind-2.10.2/lib/python3.12/site-packages/nanobind/include
+nanobind_cmake = /nix/store/va8nkra5vfp8lds47w3ywn39z2jgpyj2-python3.12-nanobind-2.10.2/lib/python3.12/site-packages/nanobind
 
-[build]
-execution_platforms = toolchains//:lre
-
-[buck2_re_client]
-engine_address = grpc://127.0.0.1:50051
-cas_address = grpc://127.0.0.1:50051
-action_cache_address = grpc://127.0.0.1:50051
-tls = false
-instance_name = main
-
-[buck2_re_client.platform_properties]
-OSFamily = linux
-container-image = nix-lre-worker
+[nv]
+nvidia_sdk_path = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk
+nvidia_sdk_include = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/include
+nvidia_sdk_lib = /nix/store/rvpfln792hcpvp10ipn6smn8lvp926vy-nvidia-sdk/lib

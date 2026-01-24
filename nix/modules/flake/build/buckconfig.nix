@@ -1,6 +1,6 @@
 # nix/modules/flake/build/buckconfig.nix
 #
-# .buckconfig.local generation using template files
+# .buckconfig.local generation using Dhall templates
 #
 {
   lib,
@@ -18,22 +18,31 @@ let
 
   scriptsDir = ./scripts;
 
-  # Substitute @var@ placeholders in template files
-  substituteTemplate =
-    file: vars:
+  # Render Dhall template with environment variables
+  renderDhall =
+    name: src: vars:
     let
-      substitutions = lib.concatStringsSep " " (
-        lib.mapAttrsToList (name: value: "--subst-var-by ${name} '${value}'") vars
-      );
+      # Convert vars attrset to env var exports
+      # Dhall expects UPPER_SNAKE_CASE env vars
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
     in
-    pkgs.runCommand (baseNameOf file) { } ''
-      substitute ${file} $out ${substitutions}
-    '';
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
 
-  # Build config sections from templates
+  # Build config sections from Dhall templates
   cxxConfig =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? cc then
-      substituteTemplate (scriptsDir + "/buckconfig-cxx.ini") {
+      renderDhall "buckconfig-cxx.ini" (scriptsDir + "/buckconfig-cxx.dhall") {
         cc = buck2-toolchain.cc;
         cxx = buck2-toolchain.cxx;
         cpp = buck2-toolchain.cpp;
@@ -53,7 +62,7 @@ let
 
   haskellConfig =
     if cfg.toolchain.haskell.enable then
-      substituteTemplate (scriptsDir + "/buckconfig-haskell.ini") {
+      renderDhall "buckconfig-haskell.ini" (scriptsDir + "/buckconfig-haskell.dhall") {
         # Use bin/ghc wrapper which:
         # 1. Filters Mercury-specific flags
         # 2. Resolves -package to -package-id (GHC 9.12 workaround)
@@ -69,7 +78,7 @@ let
 
   pythonConfig =
     if cfg.toolchain.python.enable && buck2-toolchain ? python-interpreter then
-      substituteTemplate (scriptsDir + "/buckconfig-python.ini") {
+      renderDhall "buckconfig-python.ini" (scriptsDir + "/buckconfig-python.dhall") {
         interpreter = buck2-toolchain.python-interpreter;
         python_include = buck2-toolchain.python-include;
         python_lib = buck2-toolchain.python-lib;
@@ -82,7 +91,7 @@ let
 
   nvConfig =
     if cfg.toolchain.nv.enable && buck2-toolchain ? nvidia-sdk-path then
-      substituteTemplate (scriptsDir + "/buckconfig-nv.ini") {
+      renderDhall "buckconfig-nv.ini" (scriptsDir + "/buckconfig-nv.dhall") {
         nvidia_sdk_path = buck2-toolchain.nvidia-sdk-path;
         nvidia_sdk_include = buck2-toolchain.nvidia-sdk-include;
         nvidia_sdk_lib = buck2-toolchain.nvidia-sdk-lib;
@@ -93,7 +102,7 @@ let
 
   rustConfig =
     if cfg.toolchain.rust.enable && pkgs ? rustc then
-      substituteTemplate (scriptsDir + "/buckconfig-rust.ini") {
+      renderDhall "buckconfig-rust.ini" (scriptsDir + "/buckconfig-rust.dhall") {
         rustc = "${pkgs.rustc}/bin/rustc";
         rustdoc = "${pkgs.rustc}/bin/rustdoc";
         clippy_driver = "${pkgs.clippy}/bin/clippy-driver";
@@ -104,7 +113,7 @@ let
 
   leanConfig =
     if cfg.toolchain.lean.enable && pkgs ? lean4 then
-      substituteTemplate (scriptsDir + "/buckconfig-lean.ini") {
+      renderDhall "buckconfig-lean.ini" (scriptsDir + "/buckconfig-lean.dhall") {
         lean = "${pkgs.lean4}/bin/lean";
         leanc = "${pkgs.lean4}/bin/leanc";
         lake = "${pkgs.lean4}/bin/lake";
@@ -145,6 +154,8 @@ in
 {
   inherit buckconfig-local scriptsDir;
 
-  # For use in shell-hook
-  substitute = file: substitutions: substituteTemplate file substitutions;
+  # For use in shell-hook - use Dhall rendering
+  renderDhall =
+    name: src: vars:
+    renderDhall name src vars;
 }

@@ -1,0 +1,25 @@
+id: or-null-fallback
+valid:
+  - |
+    # Explicit check - good
+    { foo = pkgs.bar; }
+  - |
+    # Using hasAttr - good
+    lib.optionalAttrs (pkgs ? foo) { inherit (pkgs) foo; }
+  - |
+    # or with non-null default - fine
+    { foo = config.bar or "default"; }
+  - |
+    # or with actual value - fine
+    { foo = pkgs.bar or pkgs.baz; }
+
+invalid:
+  - |
+    # Defensive null fallback - bad
+    { foo = pkgs.bar or null; }
+  - |
+    # In a let binding - bad
+    let x = config.foo or null; in x
+  - |
+    # Nested - bad
+    { foo = pkgs.bar.baz or null; }

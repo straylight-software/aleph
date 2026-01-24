@@ -10,8 +10,8 @@
 let
   inherit (pkgs.stdenv) isLinux;
 
-  # LLVM 22 from llvm-git overlay
-  llvm-git = pkgs.llvm-git or null;
+  # LLVM 22 from llvm-git overlay (added by flake-module.nix)
+  llvm-git = pkgs.llvm-git;
 
   # GCC for libstdc++ headers and runtime
   gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
@@ -19,11 +19,11 @@ let
   gcc-version = gcc-unwrapped.version;
   triple = pkgs.stdenv.hostPlatform.config;
 
-  # NVIDIA SDK
-  nvidia-sdk = pkgs.nvidia-sdk or null;
+  # NVIDIA SDK (added by flake-module.nix)
+  nvidia-sdk = pkgs.nvidia-sdk;
 
-  # mdspan (Kokkos reference implementation)
-  mdspan = pkgs.mdspan or null;
+  # mdspan (Kokkos reference implementation, added by flake-module.nix)
+  mdspan = pkgs.mdspan;
 
   # Haskell
   hsPkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
@@ -79,7 +79,7 @@ let
   # Buck2 toolchain configuration attrset
   # ────────────────────────────────────────────────────────────────────────────
   buck2-toolchain =
-    lib.optionalAttrs (isLinux && llvm-git != null) {
+    lib.optionalAttrs isLinux {
       # LLVM 22 compilers
       cc = "${llvm-git}/bin/clang";
       cxx = "${llvm-git}/bin/clang++";
@@ -104,11 +104,11 @@ let
       gcc-lib = "${gcc-unwrapped}/lib/gcc/${triple}/${gcc-version}";
       gcc-lib-base = "${gcc.cc.lib}/lib";
       glibc-lib = "${pkgs.glibc}/lib";
-    }
-    // lib.optionalAttrs (isLinux && mdspan != null) {
+
+      # mdspan
       mdspan-include = "${mdspan}/include";
     }
-    // lib.optionalAttrs (isLinux && nvidia-sdk != null && cfg.toolchain.nv.enable) {
+    // lib.optionalAttrs (isLinux && cfg.toolchain.nv.enable) {
       nvidia-sdk-path = "${nvidia-sdk}";
       nvidia-sdk-include = "${nvidia-sdk}/include";
       nvidia-sdk-lib = "${nvidia-sdk}/lib";
@@ -127,8 +127,8 @@ let
   # Packages for devshell
   # ────────────────────────────────────────────────────────────────────────────
   packages =
-    lib.optionals (isLinux && llvm-git != null && cfg.toolchain.cxx.enable) [ llvm-git ]
-    ++ lib.optionals (isLinux && nvidia-sdk != null && cfg.toolchain.nv.enable) [ nvidia-sdk ]
+    lib.optionals (isLinux && cfg.toolchain.cxx.enable) [ llvm-git ]
+    ++ lib.optionals (isLinux && cfg.toolchain.nv.enable) [ nvidia-sdk ]
     ++ lib.optionals cfg.toolchain.haskell.enable [ ghcForBuck2 ]
     ++ lib.optionals (cfg.toolchain.rust.enable && pkgs ? rustc) [
       pkgs.rustc

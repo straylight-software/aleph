@@ -408,6 +408,9 @@ let
       );
 
     # catAttrs :: String -> [Attrs] -> [a]
+    # NOTE: `or null` here is intentional - this IS the safe accessor pattern.
+    # We extract the attribute from each attrset (null if missing), then
+    # cat-maybes filters out the nulls. This matches nixpkgs lib.catAttrs.
     catAttrs = name: xs: P.cat-maybes (P.map (x: x.${name} or null) xs);
 
     # filterAttrsRecursive :: (String -> a -> Bool) -> Attrs -> Attrs
@@ -470,6 +473,9 @@ let
     optionalAttrs = P.when-attr;
 
     # zipAttrsWithNames :: [String] -> (String -> [a] -> b) -> [Attrs] -> Attrs
+    # NOTE: `or null` here is intentional - not every set has every attribute.
+    # The function f receives the list of values (with nulls for missing attrs)
+    # and decides how to combine them. This matches nixpkgs lib.zipAttrsWithNames.
     zipAttrsWithNames =
       names: f: sets:
       P.from-list (

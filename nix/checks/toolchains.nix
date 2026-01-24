@@ -60,40 +60,16 @@ in
     name = "ghc-version";
     description = "GHC compiler reports version";
     nativeBuildInputs = [ prelude.ghc.pkg ];
-    testScript = ''
-      echo "Testing: ghc --version"
-      ghc --version
-      echo ""
-      echo "Testing: ghc --print-libdir"
-      ghc --print-libdir
-    '';
+    testScript = builtins.readFile ./scripts/test-ghc-version.bash;
   };
 
   ghc-hello-world = mkSmokeTest {
     name = "ghc-hello-world";
     description = "GHC can compile and run Hello World";
     nativeBuildInputs = [ prelude.ghc.pkg ];
-    testScript = ''
-      echo "Creating test program..."
-      cat > Main.hs << 'EOF'
-      module Main where
-      main :: IO ()
-      main = putStrLn "Hello from GHC!"
-      EOF
-
-      echo "Compiling..."
-      ghc -o hello Main.hs
-
-      echo "Running..."
-      ./hello
-
-      # Verify output
-      OUTPUT=$(./hello)
-      if [ "$OUTPUT" != "Hello from GHC!" ]; then
-        echo "ERROR: Unexpected output: $OUTPUT"
-        exit 1
-      fi
-    '';
+    testScript = pkgs.replaceVars ./scripts/test-ghc-hello.bash {
+      ghcHello = ./test-sources/ghc-hello.hs;
+    };
   };
 
   ghc-with-packages = mkSmokeTest {
@@ -107,31 +83,9 @@ in
         ]
       ))
     ];
-    testScript = ''
-      echo "Testing: ghc-pkg list text"
-      ghc-pkg list text
-
-      echo ""
-      echo "Testing: ghc-pkg list bytestring"
-      ghc-pkg list bytestring
-
-      echo ""
-      echo "Testing: compile with text import"
-      cat > TestText.hs << 'EOF'
-      {-# LANGUAGE OverloadedStrings #-}
-      module Main where
-      import qualified Data.Text as T
-      main = print (T.length "hello")
-      EOF
-
-      ghc -o test-text TestText.hs
-      OUTPUT=$(./test-text)
-      if [ "$OUTPUT" != "5" ]; then
-        echo "ERROR: Expected 5, got $OUTPUT"
-        exit 1
-      fi
-      echo "Text import works correctly"
-    '';
+    testScript = pkgs.replaceVars ./scripts/test-ghc-packages.bash {
+      ghcText = ./test-sources/ghc-text.hs;
+    };
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -142,19 +96,7 @@ in
     name = "python-version";
     description = "Python interpreter reports version";
     nativeBuildInputs = [ prelude.python.pkg ];
-    testScript = ''
-      echo "Testing: python3 --version"
-      python3 --version
-
-      echo ""
-      echo "Testing: python3 -c 'print(1+1)'"
-      OUTPUT=$(python3 -c 'print(1+1)')
-      if [ "$OUTPUT" != "2" ]; then
-        echo "ERROR: Expected 2, got $OUTPUT"
-        exit 1
-      fi
-      echo "Python arithmetic works correctly"
-    '';
+    testScript = builtins.readFile ./scripts/test-python-version.bash;
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -165,21 +107,9 @@ in
     name = "rust-version";
     description = "Rust compiler reports version";
     nativeBuildInputs = [ prelude.rust.pkg ];
-    testScript = ''
-      echo "Testing: rustc --version"
-      rustc --version
-
-      echo ""
-      echo "Testing: rustc can compile hello world"
-      cat > hello.rs << 'EOF'
-      fn main() {
-          println!("Hello from Rust!");
-      }
-      EOF
-
-      rustc -o hello hello.rs
-      ./hello
-    '';
+    testScript = pkgs.replaceVars ./scripts/test-rust-hello.bash {
+      rustHello = ./test-sources/rust-hello.rs;
+    };
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -190,10 +120,7 @@ in
     name = "lean-version";
     description = "Lean prover reports version";
     nativeBuildInputs = [ prelude.lean.pkg ];
-    testScript = ''
-      echo "Testing: lean --version"
-      lean --version
-    '';
+    testScript = builtins.readFile ./scripts/test-lean-version.bash;
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -204,25 +131,8 @@ in
     name = "cpp-hello-world";
     description = "C++ compiler can compile Hello World";
     nativeBuildInputs = [ pkgs.stdenv.cc ];
-    testScript = ''
-      echo "Testing: $CXX --version"
-      $CXX --version || c++ --version || g++ --version
-
-      echo ""
-      echo "Creating test program..."
-      cat > hello.cpp << 'EOF'
-      #include <iostream>
-      int main() {
-          std::cout << "Hello from C++!" << std::endl;
-          return 0;
-      }
-      EOF
-
-      echo "Compiling..."
-      c++ -o hello hello.cpp
-
-      echo "Running..."
-      ./hello
-    '';
+    testScript = pkgs.replaceVars ./scripts/test-cpp-hello.bash {
+      cppHello = ./test-sources/cpp-hello.cpp;
+    };
   };
 }

@@ -1,8 +1,9 @@
 id: rec-anywhere
 language: nix
 severity: error
-# Exclude prelude (functional programming patterns legitimately use rec)
-# Exclude lib (utility functions may use rec for self-reference)
+# Legitimate uses of rec for self-referencing function sets:
+#   - prelude: FP function sets (map, fold, etc. call sibling helpers)
+#   - lib: namespaced utilities (oci.ref-to-name calls oci.parse-ref, etc.)
 ignores:
   - nix/prelude/**/*.nix
   - nix/lib/**/*.nix

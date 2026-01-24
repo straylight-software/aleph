@@ -156,7 +156,7 @@ in
       };
 
       # GHC WASM toolchain for compiling .hs packages
-      ghc-wasm = inputs.ghc-wasm-meta.packages.${system}.all_9_12 or null;
+      ghc-wasm = inputs.ghc-wasm-meta.packages.${system}.all_9_12;
 
       # The aleph interface
       # Usage: aleph.eval "Aleph.Packages.Nvidia.nccl" {}
@@ -199,26 +199,7 @@ in
           hasPrebuiltWasm = builtins.pathExists prebuiltWasm;
 
           # Generated Main.hs that wraps the user's package module
-          wrapperMain = pkgs.writeText "Main.hs" ''
-            {-# LANGUAGE ForeignFunctionInterface #-}
-            module Main where
-
-            import Aleph.Nix.Value (Value(..))
-            import Aleph.Nix.Derivation (drvToNixAttrs)
-            import Aleph.Nix (nixWasmInit)
-            import qualified Pkg (pkg)
-
-            main :: IO ()
-            main = pure ()
-
-            foreign export ccall "nix_wasm_init_v1" initPlugin :: IO ()
-            initPlugin :: IO ()
-            initPlugin = nixWasmInit
-
-            foreign export ccall "pkg" pkgExport :: Value -> IO Value
-            pkgExport :: Value -> IO Value
-            pkgExport _args = drvToNixAttrs Pkg.pkg
-          '';
+          wrapperMain = ./build/templates/wasm-main.hs;
 
           # Build single-file Haskell to WASM
           buildHsWasm =
@@ -232,8 +213,7 @@ in
                 nativeBuildInputs = [ ghc-wasm ];
               }
               ''
-                mkdir -p build
-                cd build
+                mkdir -p build && cd build
                 cp -r ${alephModules}/Aleph Aleph
                 chmod -R u+w Aleph
                 cp $src Pkg.hs
@@ -244,9 +224,7 @@ in
                   -optl-Wl,--export=hs_init \
                   -optl-Wl,--export=nix_wasm_init_v1 \
                   -optl-Wl,--export=pkg \
-                  -O2 \
-                  Main.hs \
-                  -o plugin.wasm
+                  -O2 Main.hs -o plugin.wasm
                 wasm-opt -O3 plugin.wasm -o $out
               '';
         in
@@ -313,26 +291,8 @@ in
         name:
         let
           hsPath = ./packages + "/${name}.hs";
-          wrapperMain = pkgs.writeText "Main.hs" ''
-            {-# LANGUAGE ForeignFunctionInterface #-}
-            module Main where
-
-            import Aleph.Nix.Value (Value(..))
-            import Aleph.Nix.Derivation (drvToNixAttrs)
-            import Aleph.Nix (nixWasmInit)
-            import qualified Pkg (pkg)
-
-            main :: IO ()
-            main = pure ()
-
-            foreign export ccall "nix_wasm_init_v1" initPlugin :: IO ()
-            initPlugin :: IO ()
-            initPlugin = nixWasmInit
-
-            foreign export ccall "pkg" pkgExport :: Value -> IO Value
-            pkgExport :: Value -> IO Value
-            pkgExport _args = drvToNixAttrs Pkg.pkg
-          '';
+          wrapperMain = ./build/templates/wasm-main.hs;
+          alephModules = ../src/tools/scripts;
         in
         pkgs.runCommand "${name}.wasm"
           {
@@ -340,9 +300,8 @@ in
             nativeBuildInputs = [ ghc-wasm ];
           }
           ''
-            mkdir -p build
-            cd build
-            cp -r ${../src/tools/scripts}/Aleph Aleph
+            mkdir -p build && cd build
+            cp -r ${alephModules}/Aleph Aleph
             chmod -R u+w Aleph
             cp $src Pkg.hs
             cp ${wrapperMain} Main.hs
@@ -352,9 +311,7 @@ in
               -optl-Wl,--export=hs_init \
               -optl-Wl,--export=nix_wasm_init_v1 \
               -optl-Wl,--export=pkg \
-              -O2 \
-              Main.hs \
-              -o plugin.wasm
+              -O2 Main.hs -o plugin.wasm
             wasm-opt -O3 plugin.wasm -o $out
           '';
 
@@ -378,12 +335,7 @@ in
       );
 
       # NativeLink from inputs (for LRE)
-      nativelink =
-        if inputs ? nativelink then
-          inputs.nativelink.packages.${system}.default or inputs.nativelink.packages.${system}.nativelink
-            or null
-        else
-          null;
+      nativelink = inputs.nativelink.packages.${system}.default;
     in
     {
       # Make aleph available to other modules via _module.args
@@ -408,16 +360,16 @@ in
       };
 
       packages = {
-        mdspan = pkgs.mdspan or null;
         wsn-lint = pkgs.callPackage ./packages/wsn-lint.nix { };
 
         # Buck2 built packages - these can be used in NixOS, containers, etc.
         # fmt-test = config.buck2.build { target = "//examples/cxx:fmt_test"; };
       }
-      // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
-        llvm-git = pkgs.llvm-git or null;
-        nvidia-sdk = pkgs.nvidia-sdk or null;
-      }
+      // lib.optionalAttrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
+      // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") (
+        lib.optionalAttrs (pkgs ? llvm-git) { inherit (pkgs) llvm-git; }
+        // lib.optionalAttrs (pkgs ? nvidia-sdk) { inherit (pkgs) nvidia-sdk; }
+      )
       // lib.optionalAttrs (nativelink != null) {
         inherit nativelink;
       }
@@ -447,40 +399,23 @@ in
       nv.enable = true;
       haskell = {
         enable = true;
-        # Core packages for Buck2 haskell_binary rules
-        # Includes Aleph.Script dependencies for typed CLI tools
-        packages =
-          hp:
-          builtins.filter (p: p != null) [
-            # Core
-            hp.text or null
-            hp.bytestring or null
-            hp.containers or null
-            hp.directory or null
-            hp.filepath or null
-            hp.process or null
-            hp.time or null
-
-            # CLI / scripting
-            hp.aeson or null
-            hp.aeson-pretty or null
-            hp.optparse-applicative or null
-            hp.megaparsec or null
-            hp.prettyprinter or null
-
-            # Aleph.Script dependencies
-            hp.shelly or null
-            hp.foldl or null
-            hp.dhall or null
-            hp.crypton or null
-            hp.memory or null
-            hp.unordered-containers or null
-            hp.vector or null
-            hp.unix or null
-            hp.async or null
-            hp.transformers or null
-            hp.mtl or null
-          ];
+        # Extra packages for Buck2 haskell_binary rules
+        # Note: Core packages (text, bytestring, containers, time, etc.) ship with GHC 9.8+
+        packages = hp: [
+          hp.aeson
+          hp.aeson-pretty
+          hp.optparse-applicative
+          hp.megaparsec
+          hp.prettyprinter
+          hp.shelly
+          hp.foldl
+          hp.dhall
+          hp.crypton
+          hp.memory
+          hp.unordered-containers
+          hp.vector
+          hp.async
+        ];
       };
       rust.enable = true;
       lean.enable = true;

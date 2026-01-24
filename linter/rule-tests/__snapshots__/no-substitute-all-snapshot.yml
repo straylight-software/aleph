@@ -1,0 +1,150 @@
+id: no-substitute-all
+snapshots:
+  ? |
+    # bare substituteAll (from with or inherit) - bad
+    substituteAll {
+      src = ./config.ini;
+      configDir = "/etc/myapp";
+    }
+  : labels:
+    - source: |-
+        substituteAll {
+          src = ./config.ini;
+          configDir = "/etc/myapp";
+        }
+      style: primary
+      start: 50
+      end: 117
+    - source: substituteAll
+      style: secondary
+      start: 50
+      end: 63
+    - source: substituteAll
+      style: secondary
+      start: 50
+      end: 63
+  ? |
+    # final.substituteAll in overlay - bad
+    final.substituteAll {
+      src = ./wrapper.sh;
+      targetBin = "${prev.myPackage}/bin/target";
+    }
+  : labels:
+    - source: |-
+        final.substituteAll {
+          src = ./wrapper.sh;
+          targetBin = "${prev.myPackage}/bin/target";
+        }
+      style: primary
+      start: 39
+      end: 130
+    - source: substituteAll
+      style: secondary
+      start: 45
+      end: 58
+    - source: substituteAll
+      style: secondary
+      start: 45
+      end: 58
+    - source: final.substituteAll
+      style: secondary
+      start: 39
+      end: 58
+  ? |
+    # pkgs.replaceVars - bad
+    pkgs.replaceVars ./script.sh {
+      binPath = lib.getBin myPackage;
+    }
+  : labels:
+    - source: pkgs.replaceVars ./script.sh
+      style: primary
+      start: 25
+      end: 53
+    - source: replaceVars
+      style: secondary
+      start: 30
+      end: 41
+    - source: replaceVars
+      style: secondary
+      start: 30
+      end: 41
+    - source: pkgs.replaceVars
+      style: secondary
+      start: 25
+      end: 41
+  ? |
+    # pkgs.substitute - bad
+    pkgs.substitute {
+      src = ./config.ini;
+      substitutions = [ "--replace-fail" "@foo@" "bar" ];
+    }
+  : labels:
+    - source: |-
+        pkgs.substitute {
+          src = ./config.ini;
+          substitutions = [ "--replace-fail" "@foo@" "bar" ];
+        }
+      style: primary
+      start: 24
+      end: 119
+    - source: substitute
+      style: secondary
+      start: 29
+      end: 39
+    - source: substitute
+      style: secondary
+      start: 29
+      end: 39
+    - source: pkgs.substitute
+      style: secondary
+      start: 24
+      end: 39
+  ? |
+    # pkgs.substituteAll - bad
+    pkgs.substituteAll {
+      src = ./template.sh;
+      binPath = lib.getBin myPackage;
+    }
+  : labels:
+    - source: |-
+        pkgs.substituteAll {
+          src = ./template.sh;
+          binPath = lib.getBin myPackage;
+        }
+      style: primary
+      start: 27
+      end: 106
+    - source: substituteAll
+      style: secondary
+      start: 32
+      end: 45
+    - source: substituteAll
+      style: secondary
+      start: 32
+      end: 45
+    - source: pkgs.substituteAll
+      style: secondary
+      start: 27
+      end: 45
+  ? |
+    # prev.replaceVars in overlay - bad
+    prev.replaceVars ./template.conf {
+      dataDir = "/var/lib/myapp";
+    }
+  : labels:
+    - source: prev.replaceVars ./template.conf
+      style: primary
+      start: 36
+      end: 68
+    - source: replaceVars
+      style: secondary
+      start: 41
+      end: 52
+    - source: replaceVars
+      style: secondary
+      start: 41
+      end: 52
+    - source: prev.replaceVars
+      style: secondary
+      start: 36
+      end: 52

@@ -1,0 +1,52 @@
+id: no-substitute-all
+valid:
+  - |
+    # Using render.dhall-text - good
+    render.dhall-text "my-config" ./config.dhall
+  - |
+    # Using render.dhall-with-vars - good
+    render.dhall-with-vars "my-script" ./script.dhall {
+      bin_path = lib.getBin pkg;
+    }
+  - |
+    # Unrelated function with similar name - fine
+    mySubstituteAll { foo = "bar"; }
+  - |
+    # Different attribute access - fine
+    pkgs.lib.substituteAllFiles ./src
+
+invalid:
+  - |
+    # pkgs.substituteAll - bad
+    pkgs.substituteAll {
+      src = ./template.sh;
+      binPath = lib.getBin myPackage;
+    }
+  - |
+    # bare substituteAll (from with or inherit) - bad
+    substituteAll {
+      src = ./config.ini;
+      configDir = "/etc/myapp";
+    }
+  - |
+    # pkgs.replaceVars - bad
+    pkgs.replaceVars ./script.sh {
+      binPath = lib.getBin myPackage;
+    }
+  - |
+    # final.substituteAll in overlay - bad
+    final.substituteAll {
+      src = ./wrapper.sh;
+      targetBin = "${prev.myPackage}/bin/target";
+    }
+  - |
+    # prev.replaceVars in overlay - bad
+    prev.replaceVars ./template.conf {
+      dataDir = "/var/lib/myapp";
+    }
+  - |
+    # pkgs.substitute - bad
+    pkgs.substitute {
+      src = ./config.ini;
+      substitutions = [ "--replace-fail" "@foo@" "bar" ];
+    }

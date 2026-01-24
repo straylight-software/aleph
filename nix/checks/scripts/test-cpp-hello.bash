@@ -6,7 +6,7 @@ $CXX --version || c++ --version || g++ --version
 
 echo ""
 echo "Creating test program..."
-cp "$testSources/hello.cpp" hello.cpp
+cp "@cppHello@" hello.cpp
 
 echo "Compiling..."
 c++ -o hello hello.cpp

@@ -1,13 +1,3 @@
-#!/usr/bin/env bash
-# nix/lib/scripts/buck2-install.bash
-#
-# Buck2 install phase for Nix builds.
-# Extracts built binary from buck-out.
-#
-# Environment variables (set by Nix):
-#   $buck2Target - Buck2 target (e.g., //foo:bar)
-#   $outputName  - Output binary name
-
 runHook preInstall
 
 mkdir -p "$out/bin"

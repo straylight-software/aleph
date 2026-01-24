@@ -1,12 +1,6 @@
 id: long-inline-string
 language: nix
 severity: warning
-# Excluded:
-# - prelude: IS the library, legitimately wraps nixpkgs
-# - checks: test infrastructure, will be replaced by buck2
-ignores:
-  - nix/prelude/**/*.nix
-  - nix/checks/**/*.nix
 rule:
   kind: indented_string_expression
   regex: "(?s)(?:.*\\n){12,}"

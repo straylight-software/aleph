@@ -176,12 +176,13 @@ let
   #                           // nvidia sdk //
   # ──────────────────────────────────────────────────────────────────────────
 
-  nvidia-sdk = final.nvidia-sdk or null;
+  has-nvidia-sdk = final ? nvidia-sdk;
+  nvidia-sdk = if has-nvidia-sdk then final.nvidia-sdk else null;
   default-gpu-arch = if platform.is-arm then "sm_90a" else "sm_120";
 
   # llvm-git from our overlay — provides SM120 Blackwell support
-  llvm-git = final.llvm-git or null;
-  has-llvm-git = llvm-git != null;
+  has-llvm-git = final ? llvm-git;
+  llvm-git = if has-llvm-git then final.llvm-git else null;
 
   # Clang wrapper for CUDA compilation using llvm-git
   clang-cuda =

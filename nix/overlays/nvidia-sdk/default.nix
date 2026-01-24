@@ -88,36 +88,34 @@ let
   };
 
   # Container info for current system
-  tritonInfo = containers.tritonserver.${system} or null;
-  cudaInfo = containers.cuda-devel.${system} or null;
+  hasTritonInfo = containers.tritonserver ? ${system};
+  hasCudaInfo = containers.cuda-devel ? ${system};
+
+  tritonInfo = containers.tritonserver.${system};
+  cudaInfo = containers.cuda-devel.${system};
 
   # Container rootfs FODs (only defined if hash is provided)
-  tritonRootfs =
-    if tritonInfo != null && tritonInfo.hash != "" then
-      containerToNix {
-        name = "tritonserver-${containers.tritonserver.version}-rootfs";
-        imageRef = tritonInfo.ref;
-        inherit (tritonInfo) hash;
-      }
-    else
-      null;
+  hasTritonRootfs = hasTritonInfo && tritonInfo.hash != "";
+  hasCudaRootfs = hasCudaInfo && cudaInfo.hash != "";
 
-  cudaRootfs =
-    if cudaInfo != null && cudaInfo.hash != "" then
-      containerToNix {
-        name = "cuda-devel-${containers.cuda-devel.version}-rootfs";
-        imageRef = cudaInfo.ref;
-        inherit (cudaInfo) hash;
-      }
-    else
-      null;
+  tritonRootfs = containerToNix {
+    name = "tritonserver-${containers.tritonserver.version}-rootfs";
+    imageRef = tritonInfo.ref;
+    inherit (tritonInfo) hash;
+  };
+
+  cudaRootfs = containerToNix {
+    name = "cuda-devel-${containers.cuda-devel.version}-rootfs";
+    imageRef = cudaInfo.ref;
+    inherit (cudaInfo) hash;
+  };
 
 in
-lib.optionalAttrs (tritonRootfs != null) {
+lib.optionalAttrs hasTritonRootfs {
   # Expose rootfs for packages.nix and debugging
   nvidia-sdk-ngc-rootfs = tritonRootfs;
 }
-// lib.optionalAttrs (cudaRootfs != null) {
+// lib.optionalAttrs hasCudaRootfs {
   nvidia-sdk-cuda-rootfs = cudaRootfs;
 }
 // {

@@ -41,38 +41,35 @@ in
 
     extra-haskell-packages = lib.mkOption {
       type = lib.types.functionTo (lib.types.listOf lib.types.package);
-      default =
-        hp:
-        lib.filter (p: p != null) [
-          # Scripting extras (not needed for Buck2 builds)
-          hp.turtle or null
-          hp.yaml or null
-          hp.shelly or null
-          hp.foldl or null
-          hp.dhall or null
-          hp.unix or null
-          hp.async or null
+      default = hp: [
+        # Scripting extras (not needed for Buck2 builds)
+        hp.turtle
+        hp.yaml
+        hp.shelly
+        hp.foldl
+        hp.dhall
+        hp.async
 
-          # Crypto (for Aleph.Script.Oci etc)
-          hp.crypton or null
-          hp.memory or null
+        # Crypto (for Aleph.Script.Oci etc)
+        hp.crypton
+        hp.memory
 
-          # Data structures
-          hp.unordered-containers or null
-          hp.vector or null
+        # Data structures
+        hp.unordered-containers
+        hp.vector
 
-          # Testing frameworks
-          hp.hedgehog or null
-          hp.QuickCheck or null
-          hp.quickcheck-instances or null
-          hp.tasty or null
-          hp.tasty-quickcheck or null
-          hp.tasty-hunit or null
+        # Testing frameworks
+        hp.hedgehog
+        hp.QuickCheck
+        hp.quickcheck-instances
+        hp.tasty
+        hp.tasty-quickcheck
+        hp.tasty-hunit
 
-          # Development utilities
-          hp.lens or null
-          hp.raw-strings-qq or null
-        ];
+        # Development utilities
+        hp.lens
+        hp.raw-strings-qq
+      ];
       description = "Extra Haskell packages for devshell (on top of build.toolchain.haskell.packages)";
     };
 
@@ -199,34 +196,30 @@ in
             # LRE packages (nativelink, lre-start)
             ++ (config.straylight.lre.packages or [ ]);
 
-            shellHook = ''
-                echo "━━━ aleph-naught devshell ━━━"
-
-                # GHC packages are baked into ghcWithPackages - no runtime config needed
-                # Buck2 uses its own GHC from .buckconfig.local with explicit -package flags
-                echo "GHC: $(${ghcWithAllDeps}/bin/ghc --version)"
-                ${lib.optionalString cfg.ghc-wasm.enable ''
+            shellHook =
+              let
+                ghcWasmCheck = lib.optionalString cfg.ghc-wasm.enable ''
                   if command -v wasm32-wasi-ghc &>/dev/null; then
                     echo "GHC-WASM: $(wasm32-wasi-ghc --version)"
                   fi
-                ''}
-                ${lib.optionalString cfg.straylight-nix.enable ''
+                '';
+                straylightNixCheck = lib.optionalString cfg.straylight-nix.enable ''
                   if [ -n "${pkgs.straylight.nix.nix or ""}" ]; then
                     echo "straylight-nix: $(${pkgs.straylight.nix.nix}/bin/nix --version)"
                     echo "builtins.wasm: $(${pkgs.straylight.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
                   fi
-                ''}
-                # Buck2 build system integration
-              ${config.straylight.build.shellHook or ""}
-
-              # Shortlist hermetic C++ libraries
-              ${config.straylight.shortlist.shellHook or ""}
-
-              # Local Remote Execution (NativeLink)
-              ${config.straylight.lre.shellHook or ""}
-
-              ${cfg.extra-shell-hook}
-            '';
+                '';
+              in
+              ''
+                echo "━━━ aleph-naught devshell ━━━"
+                echo "GHC: $(${ghcWithAllDeps}/bin/ghc --version)"
+                ${ghcWasmCheck}
+                ${straylightNixCheck}
+                ${config.straylight.build.shellHook or ""}
+                ${config.straylight.shortlist.shellHook or ""}
+                ${config.straylight.lre.shellHook or ""}
+                ${cfg.extra-shell-hook}
+              '';
           }
           // nv-env
           // cfg.extra-env

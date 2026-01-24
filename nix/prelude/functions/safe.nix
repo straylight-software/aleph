@@ -473,6 +473,14 @@ rec {
 
     Returns null if attribute doesn't exist.
 
+    This is the canonical Maybe-style safe accessor for attribute sets,
+    analogous to Haskell's `Data.Map.lookup :: k -> Map k v -> Maybe v`.
+    The `or null` here is the *implementation* of the Maybe pattern, not
+    a defensive hack — other code should use this function instead of
+    inline `or null` patterns.
+
+    NOTE: Exempt from or-null-fallback lint rule — this IS the safe accessor.
+
     # Type
 
     ```
@@ -495,6 +503,14 @@ rec {
     Safely get a nested attribute using a path.
 
     Returns null if any part of the path doesn't exist.
+
+    This is the canonical Maybe-style safe path traversal, analogous to
+    lens-style safe access (like `preview` in Haskell's lens library).
+    It correctly short-circuits on null and uses `or null` at each step
+    to implement the Maybe pattern — other code should use this function
+    instead of inline `or null` patterns for nested access.
+
+    NOTE: Exempt from or-null-fallback lint rule — this IS the safe accessor.
 
     # Type
 

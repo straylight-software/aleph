@@ -78,8 +78,8 @@ in
         ...
       }:
       let
-        ndg-pkg = inputs.ndg.packages.${system}.ndg or null;
-        has-ndg = ndg-pkg != null;
+        has-ndg = inputs ? ndg && inputs.ndg.packages.${system} ? ndg;
+        ndg-pkg = if has-ndg then inputs.ndg.packages.${system}.ndg else null;
 
         docs-options-drv =
           if cfg.modules == [ ] || !has-ndg then

@@ -1,9 +1,6 @@
 id: no-heredoc-in-inline-bash
 language: nix
 severity: error
-# Bootstrap toolchain tests will be replaced by Buck2 builds
-ignores:
-  - nix/checks/toolchains.nix
 rule:
   kind: string_fragment
   regex: "(?s).*\\bcat\\b[^\\n]*<<-?.*"

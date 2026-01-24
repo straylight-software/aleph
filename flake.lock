@@ -404,6 +404,27 @@
       "inputs": {
         "nix2container": "nix2container_2",
         "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1768250551,
+        "narHash": "sha256-prTeXJ5KHTlYJU42e8NEw5frYER8NeGcWU2EqlZE1kA=",
+        "owner": "weyl-ai",
+        "repo": "nimi",
+        "rev": "7132bf6f7647acd0606f1de550e30d2b88ea4b1a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "weyl-ai",
+        "repo": "nimi",
+        "type": "github"
+      }
+    },
+    "nimi_2": {
+      "inputs": {
+        "nix2container": "nix2container_3",
+        "nixpkgs": [
           "nix2gpu",
           "nixpkgs"
         ]
@@ -471,6 +492,27 @@
     "nix2container_2": {
       "inputs": {
         "nixpkgs": [
+          "nimi",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1767430085,
+        "narHash": "sha256-SiXJ6xv4pS2MDUqfj0/mmG746cGeJrMQGmoFgHLS25Y=",
+        "owner": "nlewo",
+        "repo": "nix2container",
+        "rev": "66f4b8a47e92aa744ec43acbb5e9185078983909",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nlewo",
+        "repo": "nix2container",
+        "type": "github"
+      }
+    },
+    "nix2container_3": {
+      "inputs": {
+        "nixpkgs": [
           "nix2gpu",
           "nimi",
           "nixpkgs"
@@ -495,7 +537,7 @@
         "flake-parts": "flake-parts_4",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
-        "nimi": "nimi",
+        "nimi": "nimi_2",
         "nix2container": [
           "nix2gpu",
           "nimi",
@@ -727,6 +769,7 @@
         "llvm-project": "llvm-project",
         "nativelink": "nativelink",
         "ndg": "ndg",
+        "nimi": "nimi",
         "nix": "nix",
         "nix2gpu": "nix2gpu",
         "nixpkgs": "nixpkgs_5",

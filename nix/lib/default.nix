@@ -2,7 +2,7 @@
 let
   container = import ./container.nix { inherit lib; };
 in
-rec {
+{
 
   # ════════════════════════════════════════════════════════════════════════════
   # PRELUDE
@@ -197,7 +197,7 @@ rec {
   # STDENV UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  stdenv = {
+  stdenv = rec {
 
     # The flags
     straylight-cflags = lib.concatStringsSep " " [
@@ -221,9 +221,9 @@ rec {
       drv:
       drv.overrideAttrs (
         old:
-        stdenv.straylight-attrs
+        straylight-attrs
         // {
-          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " " + stdenv.straylight-cflags;
+          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " " + straylight-cflags;
         }
       );
   };
@@ -232,10 +232,10 @@ rec {
   # FLAKE UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  flake = {
+  flake = rec {
     filter-systems = pred: systems: lib.filter pred systems;
-    linux-systems = flake.filter-systems (lib.hasSuffix "-linux");
-    darwin-systems = flake.filter-systems (lib.hasSuffix "-darwin");
+    linux-systems = filter-systems (lib.hasSuffix "-linux");
+    darwin-systems = filter-systems (lib.hasSuffix "-darwin");
   };
 
   # ════════════════════════════════════════════════════════════════════════════

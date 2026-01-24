@@ -142,15 +142,11 @@ in
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
-          default =
-            hp:
-            lib.filter (p: p != null) [
-              hp.text or null
-              hp.bytestring or null
-              hp.containers or null
-              hp.aeson or null
-              hp.optparse-applicative or null
-            ];
+          # Note: Core packages (text, bytestring, containers) ship with GHC 9.8+
+          default = hp: [
+            hp.aeson
+            hp.optparse-applicative
+          ];
           description = "Haskell packages for Buck2 toolchain (receives haskellPackages)";
         };
       };
@@ -168,13 +164,11 @@ in
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
-          default =
-            ps:
-            lib.filter (p: p != null) [
-              ps.nanobind or null
-              ps.pybind11 or null
-              ps.numpy or null
-            ];
+          default = ps: [
+            ps.nanobind
+            ps.pybind11
+            ps.numpy
+          ];
           description = "Python packages for Buck2 toolchain";
         };
       };

@@ -561,23 +561,15 @@ in
   */
   mkCheck =
     prelude:
-    pkgs.runCommand "prelude-properties" { } ''
-      ${
-        let
-          results = runProperties prelude;
-        in
-        if results.summary.pass then
-          ''
-            echo "${formatReport results}"
-            echo "All property tests passed."
-            touch $out
-          ''
-        else
-          ''
-            echo "${formatReport results}"
-            echo "Property tests failed!"
-            exit 1
-          ''
+    let
+      results = runProperties prelude;
+    in
+    pkgs.runCommand "prelude-properties" { } (
+      pkgs.replaceVars ./scripts/test-properties.bash {
+        report = formatReport results;
+        resultMessage =
+          if results.summary.pass then "All property tests passed." else "Property tests failed!";
+        touchOut = if results.summary.pass then "touch $out" else "exit 1";
       }
-    '';
+    );
 }

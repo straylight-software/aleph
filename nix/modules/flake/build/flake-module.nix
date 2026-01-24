@@ -89,7 +89,7 @@ in
     flake = {
       # Export the prelude for downstream consumers
       buck2-prelude = lib.mkIf cfg.prelude.enable (
-        if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude or null
+        if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude
       );
 
       # Export toolchains as a derivation

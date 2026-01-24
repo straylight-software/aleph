@@ -2,7 +2,7 @@
 # Test GHC Hello World compilation
 
 echo "Creating test program..."
-cp "$testSources/HelloGhc.hs" Main.hs
+cp "@ghcHello@" Main.hs
 
 echo "Compiling..."
 ghc -o hello Main.hs

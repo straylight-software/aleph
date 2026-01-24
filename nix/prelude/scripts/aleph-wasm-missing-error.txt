@@ -1,0 +1,15 @@
+════════════════════════════════════════════════════════════════════════════════
+aleph.eval requires straylight-nix with builtins.wasm support.
+════════════════════════════════════════════════════════════════════════════════
+
+Current status: @status@
+
+To enable:
+  1. Build and install straylight-nix:
+     nix build github:straylight-software/straylight-nix
+
+  2. Use it as your Nix binary
+
+  3. Verify: nix eval --expr 'builtins ? wasm'  # should return true
+
+════════════════════════════════════════════════════════════════════════════════

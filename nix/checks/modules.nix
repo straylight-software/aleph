@@ -31,38 +31,7 @@ let
 
     buildPhase = ''
       runHook preBuild
-
-      echo "Compiling all Aleph modules..."
-      echo ""
-
-      # Create temp directory for build artifacts
-      mkdir -p build
-
-      # Use --make to compile all modules with automatic dependency resolution
-      # We compile the "top-level" modules that pull in everything else:
-      # - Aleph.Script.Tools (imports all tool wrappers)
-      # - Aleph.Script.Vm (imports Vfio, Oci, Config)
-      # - Aleph.Nix (imports Types, Value, FFI)
-      # - Aleph.Nix.Syntax (imports Derivation, CMake)
-
-      ghc --make -Wall -Wno-unused-imports \
-        -hidir build -odir build \
-        -i$src \
-        $src/Aleph/Script.hs \
-        $src/Aleph/Script/Tools.hs \
-        $src/Aleph/Script/Vm.hs \
-        $src/Aleph/Script/Oci.hs \
-        $src/Aleph/Nix.hs \
-        $src/Aleph/Nix/Syntax.hs \
-        2>&1 || {
-          echo ""
-          echo "FAILED: Module compilation failed"
-          exit 1
-        }
-
-      echo ""
-      echo "All Aleph modules compiled successfully"
-
+      ${builtins.readFile ./scripts/test-aleph-modules.bash}
       runHook postBuild
     '';
 
@@ -82,41 +51,36 @@ let
   # ==============================================================================
   # Verify all compiled scripts in straylight.script.compiled build successfully
 
-  test-aleph-compiled-scripts = pkgs.runCommand "test-aleph-compiled-scripts" { } ''
-    echo "Verifying compiled Aleph scripts..."
-    echo ""
+  scriptNames = [
+    "vfio-bind"
+    "vfio-unbind"
+    "vfio-list"
+    "crane-inspect"
+    "crane-pull"
+    "unshare-run"
+    "unshare-gpu"
+    "fhs-run"
+    "gpu-run"
+    "isospin-run"
+    "isospin-build"
+    "cloud-hypervisor-run"
+    "cloud-hypervisor-gpu"
+  ];
 
-    # Check that key binaries exist and are executable
-    ${lib.concatMapStringsSep "\n"
-      (name: ''
-        echo "  Checking ${name}..."
-        if [ ! -x "${pkgs.straylight.script.compiled.${name}}/bin/${name}" ]; then
-          echo "FAILED: ${name} not found or not executable"
-          exit 1
-        fi
-        echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
-      '')
-      [
-        "vfio-bind"
-        "vfio-unbind"
-        "vfio-list"
-        "crane-inspect"
-        "crane-pull"
-        "unshare-run"
-        "unshare-gpu"
-        "fhs-run"
-        "gpu-run"
-        "isospin-run"
-        "isospin-build"
-        "cloud-hypervisor-run"
-        "cloud-hypervisor-gpu"
-      ]
+  scriptChecks = lib.concatMapStringsSep "\n" (name: ''
+    echo "  Checking ${name}..."
+    if [ ! -x "${pkgs.straylight.script.compiled.${name}}/bin/${name}" ]; then
+      echo "FAILED: ${name} not found or not executable"
+      exit 1
+    fi
+    echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
+  '') scriptNames;
+
+  test-aleph-compiled-scripts = pkgs.runCommand "test-aleph-compiled-scripts" { } (
+    pkgs.replaceVars ./scripts/test-aleph-compiled-scripts.bash {
+      inherit scriptChecks;
     }
-
-    mkdir -p $out
-    echo "SUCCESS" > $out/SUCCESS
-    echo "All compiled Aleph scripts verified" >> $out/SUCCESS
-  '';
+  );
 
 in
 # Only run on Linux (Aleph.Nix has FFI bindings that may need Linux)

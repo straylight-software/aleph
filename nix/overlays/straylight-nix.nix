@@ -10,44 +10,39 @@
 #
 { inputs }:
 let
+  # Check if straylight-nix input is available
+  hasStraylightNix = inputs ? nix;
+
   mkStraylightNixPackages =
     pkgs: system:
     let
-      straylightNixPkgs = inputs.nix.packages.${system} or { };
-      unwrappedNix = straylightNixPkgs.nix or null;
+      straylightNixPkgs = inputs.nix.packages.${system};
+      unwrappedNix = straylightNixPkgs.nix;
 
       # Wrap nix to add --no-eval-cache by default
       # This avoids stale derivation path issues during development
-      wrappedNix =
-        if unwrappedNix == null then
-          null
-        else
-          pkgs.writeShellApplication {
-            name = "nix";
-            runtimeInputs = [ ];
-            text = ''
-              exec ${unwrappedNix}/bin/nix --no-eval-cache "$@"
-            '';
-          };
+      wrappedNix = pkgs.writeShellApplication {
+        name = "nix";
+        runtimeInputs = [ ];
+        text = ''
+          exec ${unwrappedNix}/bin/nix --no-eval-cache "$@"
+        '';
+      };
 
       # Full wrapper that includes all nix subcommands and man pages
-      nixWrapper =
-        if unwrappedNix == null then
-          null
-        else
-          pkgs.symlinkJoin {
-            name = "straylight-nix";
-            paths = [
-              wrappedNix
-              unwrappedNix
-            ];
-            # wrappedNix comes first, so its bin/nix takes precedence
-            postBuild = ''
-              # Remove the unwrapped nix binary, keep the wrapper
-              rm $out/bin/nix
-              cp ${wrappedNix}/bin/nix $out/bin/nix
-            '';
-          };
+      nixWrapper = pkgs.symlinkJoin {
+        name = "straylight-nix";
+        paths = [
+          wrappedNix
+          unwrappedNix
+        ];
+        # wrappedNix comes first, so its bin/nix takes precedence
+        postBuild = ''
+          # Remove the unwrapped nix binary, keep the wrapper
+          rm $out/bin/nix
+          cp ${wrappedNix}/bin/nix $out/bin/nix
+        '';
+      };
     in
     {
       # The main nix binary with builtins.wasm support + --no-eval-cache
@@ -57,13 +52,18 @@ let
       nix-unwrapped = unwrappedNix;
 
       # Man pages
-      nix-man = straylightNixPkgs.nix-man or null;
+      nix-man = straylightNixPkgs.nix-man;
     };
 in
 {
-  flake.overlays.straylight-nix = final: _prev: {
-    straylight = (_prev.straylight or { }) // {
-      nix = mkStraylightNixPackages final final.stdenv.hostPlatform.system;
-    };
-  };
+  flake.overlays.straylight-nix =
+    final: _prev:
+    if hasStraylightNix then
+      {
+        straylight = (_prev.straylight or { }) // {
+          nix = mkStraylightNixPackages final final.stdenv.hostPlatform.system;
+        };
+      }
+    else
+      { };
 }

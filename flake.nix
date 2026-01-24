@@ -43,8 +43,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # NOTE: Nimi (github:weyl-ai/nimi) should be added when migrating VM init scripts.
-    # See nix/modules/flake/container/scripts/ for TODO items.
+    # Nimi - Tini-like PID 1 for containers and NixOS modular services
+    # Used for VM init scripts with proper process supervision
+    nimi = {
+      url = "github:weyl-ai/nimi";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =

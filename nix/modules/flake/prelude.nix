@@ -313,6 +313,72 @@ in
               inherit name;
               text = lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "${k}=${v}") attrs);
             };
+
+          # ────────────────────────────────────────────────────────────────────
+          # // dhall renderers //
+          # ────────────────────────────────────────────────────────────────────
+          #
+          # Type-safe templates via Dhall. Replaces @var@ substituteAll patterns.
+          #
+          # Dhall expressions can read environment variables as typed values:
+          #   let path : Text = env:PATH as Text
+          #   let count : Natural = env:COUNT
+          #
+          # Usage:
+          #   render.dhall "config.json" ./config.dhall        # Dhall -> JSON
+          #   render.dhall-yaml "config.yaml" ./config.dhall   # Dhall -> YAML
+          #   render.dhall-text "script.sh" ./script.dhall     # Dhall -> Text
+          #   render.dhall-with-vars "out.txt" ./template.dhall { path = "/nix/store/..."; }
+
+          # Dhall -> JSON (dhall-to-json)
+          dhall =
+            name: src:
+            pkgs.runCommand name { nativeBuildInputs = [ pkgs.haskellPackages.dhall-json ]; } ''
+              dhall-to-json --file ${src} > $out
+            '';
+
+          # Dhall -> YAML (dhall-to-yaml)
+          dhall-yaml =
+            name: src:
+            pkgs.runCommand name { nativeBuildInputs = [ pkgs.haskellPackages.dhall-yaml ]; } ''
+              dhall-to-yaml --file ${src} > $out
+            '';
+
+          # Dhall -> Text (dhall text)
+          # The Dhall expression must evaluate to a Text value.
+          dhall-text =
+            name: src:
+            pkgs.runCommand name { nativeBuildInputs = [ pkgs.haskellPackages.dhall ]; } ''
+              dhall text --file ${src} > $out
+            '';
+
+          # Dhall -> Text with Nix-injected environment variables
+          # Variables are passed via environment to the dhall process.
+          # The Dhall file reads them with: let foo = env:FOO as Text
+          #
+          # Example:
+          #   render.dhall-with-vars "script.sh" ./script.dhall {
+          #     PATH = "${pkgs.coreutils}/bin";
+          #     VERSION = "1.0";
+          #   }
+          dhall-with-vars =
+            name: src: vars:
+            let
+              # Convert vars attrset to env var exports
+              envVars = lib.mapAttrs' (
+                k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+              ) vars;
+            in
+            pkgs.runCommand name
+              (
+                {
+                  nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+                }
+                // envVars
+              )
+              ''
+                dhall text --file ${src} > $out
+              '';
         };
 
         # ──────────────────────────────────────────────────────────────────────
@@ -838,7 +904,8 @@ in
           run-command = pkgs.runCommand;
           run-command-local = pkgs.runCommandLocal;
 
-          # Substitute in place
+          # DEPRECATED: Use render.dhall-with-vars instead of substitute patterns
+          # These are kept temporarily for backward compatibility
           inherit (pkgs) substitute;
           substitute-all = pkgs.substituteAll;
         };

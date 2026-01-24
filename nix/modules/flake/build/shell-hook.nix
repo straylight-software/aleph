@@ -1,6 +1,7 @@
 # nix/modules/flake/build/shell-hook.nix
 #
 # Shell hook for Buck2 setup (prelude linking, buckconfig generation, wrappers)
+# Uses Dhall templates for type-safe variable substitution
 #
 {
   lib,
@@ -13,30 +14,39 @@ let
   inherit (pkgs.stdenv) isLinux;
   scriptsDir = ./scripts;
 
-  # Buck2 prelude source
-  preludeSrc = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude or null;
+  # Buck2 prelude source (requires inputs.buck2-prelude if cfg.prelude.path not set)
+  preludeSrc = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude;
 
   # Toolchains source (from this flake)
   toolchainsSrc = inputs.self + "/toolchains";
 
-  # Substitute @var@ placeholders in script files
-  substituteScript =
-    file: vars:
+  # Render Dhall template with environment variables
+  renderDhall =
+    name: src: vars:
     let
-      substitutions = lib.concatStringsSep " " (
-        lib.mapAttrsToList (name: value: "--subst-var-by ${name} '${toString value}'") vars
-      );
+      # Convert vars attrset to env var exports
+      # Dhall expects UPPER_SNAKE_CASE env vars
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
     in
-    pkgs.runCommand (baseNameOf file) { } ''
-      substitute ${file} $out ${substitutions}
-    '';
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
 
   # Prelude and toolchains linking
   preludeHook =
-    if isLinux && cfg.prelude.enable && preludeSrc != null then
-      substituteScript (scriptsDir + "/shell-hook-prelude.bash") {
-        preludeSrc = preludeSrc;
-        toolchainsSrc = toolchainsSrc;
+    if isLinux && cfg.prelude.enable then
+      renderDhall "shell-hook-prelude.bash" (scriptsDir + "/shell-hook-prelude.dhall") {
+        prelude_src = preludeSrc;
+        toolchains_src = toolchainsSrc;
       }
     else
       null;
@@ -44,8 +54,13 @@ let
   # .buckconfig generation (main file, if enabled)
   buckconfigMainHook =
     if isLinux && cfg.generate-buckconfig-main then
-      substituteScript (scriptsDir + "/shell-hook-buckconfig-main.bash") {
-        buckconfigMain = builtins.readFile (scriptsDir + "/buckconfig-main.ini");
+      let
+        buckconfigMainIni = pkgs.writeText "buckconfig-main.ini" (
+          builtins.readFile (scriptsDir + "/buckconfig-main.ini")
+        );
+      in
+      renderDhall "shell-hook-buckconfig-main.bash" (scriptsDir + "/shell-hook-buckconfig-main.dhall") {
+        buckconfig_main_ini = buckconfigMainIni;
       }
     else
       null;
@@ -66,8 +81,8 @@ let
   # Haskell wrappers
   haskellWrappersHook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.haskell.enable then
-      substituteScript (scriptsDir + "/haskell-wrappers.bash") {
-        scriptsDir = scriptsDir;
+      renderDhall "haskell-wrappers.bash" (scriptsDir + "/haskell-wrappers.dhall") {
+        scripts_dir = scriptsDir;
       }
     else
       null;
@@ -75,8 +90,8 @@ let
   # Lean wrappers
   leanWrappersHook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.lean.enable then
-      substituteScript (scriptsDir + "/lean-wrappers.bash") {
-        scriptsDir = scriptsDir;
+      renderDhall "lean-wrappers.bash" (scriptsDir + "/lean-wrappers.dhall") {
+        scripts_dir = scriptsDir;
       }
     else
       null;
@@ -84,8 +99,8 @@ let
   # C++ wrappers
   cxxWrappersHook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.cxx.enable then
-      substituteScript (scriptsDir + "/cxx-wrappers.bash") {
-        scriptsDir = scriptsDir;
+      renderDhall "cxx-wrappers.bash" (scriptsDir + "/cxx-wrappers.dhall") {
+        scripts_dir = scriptsDir;
       }
     else
       null;

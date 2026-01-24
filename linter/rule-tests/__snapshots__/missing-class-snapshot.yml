@@ -6,11 +6,11 @@ snapshots:
       options.example.enable = true;
     }
   : labels:
-      - source: |
-          { config, ... }:
-          {
-            options.example.enable = true;
-          }
-        style: primary
-        start: 0
-        end: 54
+    - source: |
+        { config, ... }:
+        {
+          options.example.enable = true;
+        }
+      style: primary
+      start: 0
+      end: 54

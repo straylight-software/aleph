@@ -1,0 +1,11 @@
+set -euo pipefail
+echo "=== NativeLink Service Status ==="
+echo ""
+echo "Scheduler (@appPrefix@-scheduler):"
+flyctl status -a "@appPrefix@-scheduler" 2>&1 | tail -5 || echo "  Not deployed"
+echo ""
+echo "CAS (@appPrefix@-cas):"
+flyctl status -a "@appPrefix@-cas" 2>&1 | tail -5 || echo "  Not deployed"
+echo ""
+echo "Worker (@appPrefix@-worker):"
+flyctl status -a "@appPrefix@-worker" 2>&1 | tail -5 || echo "  Not deployed"

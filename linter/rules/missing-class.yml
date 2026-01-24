@@ -12,6 +12,7 @@ ignores:
   - nix/modules/**/buckconfig.nix
   - nix/modules/**/shell-hook.nix
   - nix/modules/**/scripts/**/*.nix
+  - nix/modules/**/nimi-init.nix
 rule:
   kind: source_code
   not:

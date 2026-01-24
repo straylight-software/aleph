@@ -99,23 +99,11 @@ let
     if wasmPlugin.features.can-load then
       true
     else
-      throw ''
-        ════════════════════════════════════════════════════════════════════════════════
-        aleph.eval requires straylight-nix with builtins.wasm support.
-        ════════════════════════════════════════════════════════════════════════════════
-
-        Current status: ${wasmPlugin.features.status}
-
-        To enable:
-          1. Build and install straylight-nix:
-             nix build github:straylight-software/straylight-nix
-
-          2. Use it as your Nix binary
-
-          3. Verify: nix eval --expr 'builtins ? wasm'  # should return true
-
-        ════════════════════════════════════════════════════════════════════════════════
-      '';
+      throw (
+        builtins.replaceStrings [ "@status@" ] [ wasmPlugin.features.status ] (
+          builtins.readFile ./scripts/aleph-wasm-missing-error.txt
+        )
+      );
 
   # ────────────────────────────────────────────────────────────────────────────
   # Known module exports (for aleph.import)

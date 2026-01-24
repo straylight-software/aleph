@@ -35,7 +35,7 @@ let
   shortlist = import ./shortlist.nix { inherit inputs; };
   std = import ./std.nix { inherit inputs; };
   nv-sdk = import ./nv-sdk.nix;
-  container = import ./container { inherit lib; };
+  container = import ./container { inherit inputs lib; };
   prelude = import ./prelude.nix { inherit inputs; };
   prelude-demos = import ./prelude-demos.nix;
 

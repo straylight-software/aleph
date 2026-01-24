@@ -161,7 +161,7 @@ in
   aleph-naughtenv-static = stdenv.static or stdenv.default;
   aleph-naughtenv-musl = stdenv.clang-musl-dynamic or stdenv.default;
   aleph-naughtenv-musl-static = stdenv.portable or stdenv.default;
-  aleph-naughtenv-nvidia = stdenv.nvidia or null;
+  aleph-naughtenv-nvidia = if stdenv ? nvidia then stdenv.nvidia else null;
   straylight-cross = cross;
   aleph-naughtenv-info = final.straylight.info;
 }

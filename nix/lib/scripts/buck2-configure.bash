@@ -1,13 +1,3 @@
-#!/usr/bin/env bash
-# nix/lib/scripts/buck2-configure.bash
-#
-# Buck2 configure phase for Nix builds.
-# Writes .buckconfig.local and links prelude.
-#
-# Environment variables (set by Nix):
-#   $buckconfigFile - Path to buckconfig file
-#   $prelude        - Path to buck2-prelude
-
 runHook preConfigure
 
 # Write .buckconfig.local with Nix store paths
