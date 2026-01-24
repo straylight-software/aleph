@@ -225,42 +225,66 @@ in
         workerConfig = pkgs.writeText "worker.json" (
           builtins.toJSON {
             stores = [
+              # Remote CAS store
               {
-                name = "CAS_STORE";
+                name = "REMOTE_CAS";
                 grpc = {
                   instance_name = "main";
                   endpoints = [ { address = "grpc://${casAddr}"; } ];
                   store_type = "cas";
                 };
               }
+              # Local filesystem cache (fast store)
               {
-                name = "AC_STORE";
-                grpc = {
-                  instance_name = "main";
-                  endpoints = [ { address = "grpc://${casAddr}"; } ];
-                  store_type = "ac";
+                name = "LOCAL_FS";
+                filesystem = {
+                  content_path = "/data/cas-content";
+                  temp_path = "/data/cas-temp";
+                  eviction_policy = {
+                    max_bytes = 10737418240; # 10GB
+                  };
+                };
+              }
+              # FastSlow store: local FS for fast, remote CAS for slow
+              {
+                name = "CAS_FAST_SLOW";
+                fast_slow = {
+                  fast = {
+                    ref_store = {
+                      name = "LOCAL_FS";
+                    };
+                  };
+                  slow = {
+                    ref_store = {
+                      name = "REMOTE_CAS";
+                    };
+                  };
                 };
               }
             ];
             workers = [
               {
                 local = {
-                  work_directory = "/tmp/nativelink-worker";
-                  cas_store = "CAS_STORE";
-                  ac_store = "AC_STORE";
-                  upload_action_results = true;
-                  platform_properties = {
-                    OSFamily = "linux";
-                    container-image = "nix-worker";
+                  worker_api_endpoint = {
+                    uri = "grpc://${schedulerAddr}";
                   };
-                };
-                scheduler = {
-                  endpoint = {
-                    address = "grpc://${schedulerAddr}";
+                  work_directory = "/tmp/nativelink-worker";
+                  cas_fast_slow_store = "CAS_FAST_SLOW";
+                  upload_action_result = {
+                    ac_store = "REMOTE_CAS";
+                  };
+                  platform_properties = {
+                    OSFamily = {
+                      values = [ "linux" ];
+                    };
+                    container-image = {
+                      values = [ "nix-worker" ];
+                    };
                   };
                 };
               }
             ];
+            servers = [ ]; # Workers don't serve, but this field is required
           }
         );
 
@@ -442,20 +466,11 @@ in
             };
           };
 
-          # Worker container (minimal - fetches toolchain from cache on startup)
-          # Toolchain is stored on a Fly volume at /data
+          # Worker container (full toolchain for hermetic builds)
           nativelink-worker = {
             systemPackages = [
               nativelink
               workerScript
-              workerSetupScript
-              pkgs.nix
-              pkgs.cacert
-              pkgs.coreutils
-              pkgs.bash
-              pkgs.gnutar
-              pkgs.gzip
-              pkgs.xz
             ];
 
             services.worker = {
@@ -464,17 +479,8 @@ in
 
             registries = [ cfg.registry ];
 
-            # Run toolchain fetch before starting worker
-            extraStartupScript = ''
-              echo "Running toolchain setup..."
-              ${workerSetupScript}/bin/worker-setup || echo "Toolchain setup failed, continuing anyway"
-            '';
-
             extraEnv = {
               RUST_LOG = "info";
-              NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
-              # Use volume as additional nix store
-              NIX_PATH = "nixpkgs=${pkgs.path}";
             };
           };
         };
