@@ -21,26 +21,26 @@ final: prev: {
         fetchFromGitHub,
         rustPlatform,
       }:
-      rustPlatform.buildRustPackage rec {
+      rustPlatform.buildRustPackage (finalAttrs: {
         pname = "elan";
         version = "4.1.2";
 
         src = fetchFromGitHub {
           owner = "leanprover";
           repo = "elan";
-          rev = "v${version}";
+          rev = "v${finalAttrs.version}";
           hash = "sha256-abc123"; # Would need real hash
         };
 
         cargoHash = "sha256-xyz789"; # Would need real hash
 
-        meta = with lib; {
+        meta = {
           description = "Lean version manager";
           homepage = "https://github.com/leanprover/elan";
-          license = licenses.asl20;
-          platforms = platforms.unix;
+          license = lib.licenses.asl20;
+          platforms = lib.platforms.unix;
         };
-      }
+      })
     ) { });
 
   # lean4-mathlib-env - Lean 4 environment with mathlib cache

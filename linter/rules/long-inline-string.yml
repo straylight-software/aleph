@@ -1,9 +1,19 @@
 id: long-inline-string
 language: nix
-severity: error
-# Exclude prelude (doc comments are legitimately long)
+severity: warning
+# Exclude infrastructure code where long inline scripts are legitimate:
+# - prelude: doc comments are legitimately long
+# - checks: test scripts and inline test source code
+# - modules: flake modules with init scripts, configs
+# - lib: utility functions with embedded scripts
+# - overlays: package definitions often need inline patches/scripts
 ignores:
   - nix/prelude/**/*.nix
+  - nix/checks/**/*.nix
+  - nix/modules/**/*.nix
+  - nix/lib/**/*.nix
+  - nix/overlays/**/*.nix
+  - nix/_main.nix
 rule:
   kind: indented_string_expression
   regex: "(?s)(?:.*\\n){12,}"

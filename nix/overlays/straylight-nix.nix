@@ -22,9 +22,13 @@ let
         if unwrappedNix == null then
           null
         else
-          pkgs.writeShellScriptBin "nix" ''
-            exec ${unwrappedNix}/bin/nix --no-eval-cache "$@"
-          '';
+          pkgs.writeShellApplication {
+            name = "nix";
+            runtimeInputs = [ ];
+            text = ''
+              exec ${unwrappedNix}/bin/nix --no-eval-cache "$@"
+            '';
+          };
 
       # Full wrapper that includes all nix subcommands and man pages
       nixWrapper =
