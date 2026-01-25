@@ -10,6 +10,13 @@
 let
   inherit (pkgs.stdenv) isLinux;
 
+  # Turing Registry - authoritative build flags
+  turingRegistry =
+    pkgs.straylight.turing-registry or {
+      cflags = [ ];
+      cxxflags = [ ];
+    };
+
   # LLVM 22 from llvm-git overlay (added by flake-module.nix)
   llvm-git = pkgs.llvm-git;
 
@@ -107,6 +114,10 @@ let
 
       # mdspan
       mdspan-include = "${mdspan}/include";
+
+      # Turing Registry flags (the true names)
+      c-flags = turingRegistry.cflags;
+      cxx-flags = turingRegistry.cxxflags;
     }
     // lib.optionalAttrs (isLinux && cfg.toolchain.nv.enable) {
       nvidia-sdk-path = "${nvidia-sdk}";

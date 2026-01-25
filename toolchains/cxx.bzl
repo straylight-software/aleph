@@ -53,6 +53,17 @@ def _llvm_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
     ld = read_root_config("cxx", "ld", "ld.lld")
 
     # ════════════════════════════════════════════════════════════════════════════
+    # Read Turing Registry flags from config
+    # ════════════════════════════════════════════════════════════════════════════
+    # These are the non-negotiable flags from nix/prelude/turing-registry.nix
+    config_c_flags_str = read_root_config("cxx.flags", "c_flags", "")
+    config_cxx_flags_str = read_root_config("cxx.flags", "cxx_flags", "")
+
+    # Parse space-separated flags into list
+    config_c_flags = config_c_flags_str.split() if config_c_flags_str else []
+    config_cxx_flags = config_cxx_flags_str.split() if config_cxx_flags_str else []
+
+    # ════════════════════════════════════════════════════════════════════════════
     # Build include flags from config paths
     # ════════════════════════════════════════════════════════════════════════════
     include_flags = []
@@ -113,10 +124,11 @@ def _llvm_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
         extra_link_flags.append("-Wl,-rpath," + gcc_lib_base)
 
     # ════════════════════════════════════════════════════════════════════════════
-    # Combine with user-provided flags
+    # Combine flags: include paths + turing registry + extra flags
     # ════════════════════════════════════════════════════════════════════════════
-    c_flags = include_flags + ctx.attrs.c_flags
-    cxx_flags = include_flags + ctx.attrs.cxx_flags
+    # Order: include_flags (paths) + config flags (turing registry) + extra flags (project-specific)
+    c_flags = include_flags + config_c_flags + ctx.attrs.c_extra_flags
+    cxx_flags = include_flags + config_cxx_flags + ctx.attrs.cxx_extra_flags
     link_flags = extra_link_flags + ctx.attrs.link_flags
 
     # ════════════════════════════════════════════════════════════════════════════
@@ -198,8 +210,10 @@ def _llvm_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
 llvm_toolchain = rule(
     impl = _llvm_toolchain_impl,
     attrs = {
-        "c_flags": attrs.list(attrs.string(), default = []),
-        "cxx_flags": attrs.list(attrs.string(), default = []),
+        # Extra flags are added AFTER the Turing Registry flags from config
+        # Use these for project-specific additions, not to override the registry
+        "c_extra_flags": attrs.list(attrs.string(), default = []),
+        "cxx_extra_flags": attrs.list(attrs.string(), default = []),
         "link_flags": attrs.list(attrs.string(), default = []),
         "link_style": attrs.string(default = "static"),
         "_internal_tools": attrs.default_only(attrs.exec_dep(providers = [CxxInternalTools], default = "prelude//cxx/tools:internal_tools")),

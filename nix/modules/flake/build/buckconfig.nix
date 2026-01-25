@@ -60,6 +60,16 @@ let
     else
       null;
 
+  # Turing Registry flags
+  flagsConfig =
+    if cfg.toolchain.cxx.enable && buck2-toolchain ? c-flags then
+      renderDhall "buckconfig-flags.ini" (scriptsDir + "/buckconfig-flags.dhall") {
+        c_flags = lib.concatStringsSep " " buck2-toolchain.c-flags;
+        cxx_flags = lib.concatStringsSep " " buck2-toolchain.cxx-flags;
+      }
+    else
+      null;
+
   haskellConfig =
     if cfg.toolchain.haskell.enable then
       renderDhall "buckconfig-haskell.ini" (scriptsDir + "/buckconfig-haskell.dhall") {
@@ -126,6 +136,7 @@ let
   # Combine all config sections
   configParts = lib.filter (x: x != null) [
     cxxConfig
+    flagsConfig
     haskellConfig
     pythonConfig
     nvConfig

@@ -39,48 +39,18 @@ llvm_toolchain(
     # ════════════════════════════════════════════════════════════════════════
     # THE TURING REGISTRY — Non-negotiable build flags
     # ════════════════════════════════════════════════════════════════════════
-    # Note: Include paths (-isystem, -resource-dir) are read from .buckconfig.local
-    # and prepended automatically by llvm_toolchain rule.
-    c_flags = [
-        # optimization: fast code that debugs
-        "-O2",
-        # debug: everything visible
-        "-g3",
-        "-gdwarf-5",
-        "-fno-limit-debug-info",
-        "-fstandalone-debug",
-        # frame pointers: stack traces work
-        "-fno-omit-frame-pointer",
-        "-mno-omit-leaf-frame-pointer",
-        # no theater: kill hardening
-        "-U_FORTIFY_SOURCE",
-        "-D_FORTIFY_SOURCE=0",
-        "-fno-stack-protector",
-        "-fno-stack-clash-protection",
-        "-fcf-protection=none",
-        # standard
+    # Flags are read from .buckconfig.local [cxx.flags] section, which is
+    # generated from nix/prelude/turing-registry.nix. Include paths are
+    # also read from config and prepended automatically.
+    #
+    # Additional flags can be added here but should not override the
+    # registry. Use c_extra_flags/cxx_extra_flags for project-specific needs.
+    c_extra_flags = [
         "-std=c23",
         "-Wall",
         "-Wextra",
     ],
-    cxx_flags = [
-        # optimization: fast code that debugs
-        "-O2",
-        # debug: everything visible
-        "-g3",
-        "-gdwarf-5",
-        "-fno-limit-debug-info",
-        "-fstandalone-debug",
-        # frame pointers: stack traces work
-        "-fno-omit-frame-pointer",
-        "-mno-omit-leaf-frame-pointer",
-        # no theater: kill hardening
-        "-U_FORTIFY_SOURCE",
-        "-D_FORTIFY_SOURCE=0",
-        "-fno-stack-protector",
-        "-fno-stack-clash-protection",
-        "-fcf-protection=none",
-        # standard
+    cxx_extra_flags = [
         "-std=c++23",
         "-Wall",
         "-Wextra",
