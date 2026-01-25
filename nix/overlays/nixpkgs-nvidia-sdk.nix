@@ -25,16 +25,16 @@ let
       hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
     };
 
-    nativeBuildInputs = [ prev.cmake ];
+    "nativeBuildInputs" = [ prev.cmake ];
 
-    cmakeFlags = [
+    "cmakeFlags" = [
       "-DMDSPAN_ENABLE_TESTS=OFF"
       "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
       "-DMDSPAN_ENABLE_EXAMPLES=OFF"
     ];
 
     # Add C++23 <mdspan> shim that includes the experimental implementation
-    postInstall = ''
+    "postInstall" = ''
       install -m644 ${./packages/mdspan-shim.hpp} $out/include/mdspan
     '';
 
@@ -57,10 +57,10 @@ let
       hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
     };
 
-    dontBuild = true;
-    dontConfigure = true;
+    "dontBuild" = true;
+    "dontConfigure" = true;
 
-    installPhase = ''
+    "installPhase" = ''
       runHook preInstall
       mkdir -p $out/include
       cp -r include/cutlass $out/include/
@@ -110,7 +110,7 @@ let
       cutlass
     ];
 
-    postBuild = builtins.readFile ./scripts/nvidia-sdk-postbuild.sh;
+    "postBuild" = builtins.readFile ./scripts/nvidia-sdk-postbuild.sh;
 
     passthru = {
       inherit cuda-packages cutlass;

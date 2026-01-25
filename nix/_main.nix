@@ -19,6 +19,7 @@ let
   list-to-attrs = lib.listToAttrs;
   path-exists = builtins.pathExists;
   base-name-of = builtins.baseNameOf;
+  to-string = builtins.toString;
 
   # Import module indices by kind
   flake-modules = import ./modules/flake/_index.nix { inherit inputs lib; };
@@ -154,7 +155,7 @@ in
   aleph-naught.lre.enable = true;
   aleph-naught.nativelink.enable = true;
 
-  perSystem =
+  "perSystem" =
     {
       pkgs,
       system,
@@ -176,7 +177,7 @@ in
       # Usage: aleph.eval "Aleph.Packages.Nvidia.nccl" {}
       aleph = import ./prelude/aleph.nix {
         inherit lib pkgs;
-        wasmFile = wasm-infra.alephWasm;
+        "wasmFile" = wasm-infra.alephWasm;
       };
 
       # ────────────────────────────────────────────────────────────────────────
@@ -203,7 +204,7 @@ in
       call-package =
         path: args:
         let
-          path-str = toString path;
+          path-str = to-string path;
           ext = lib.last (split-string "." path-str);
           aleph-modules = ../src/tools/scripts;
 
@@ -219,12 +220,12 @@ in
           build-hs-wasm =
             hs-path:
             let
-              name = remove-suffix ".hs" (base-name-of (toString hs-path));
+              name = remove-suffix ".hs" (base-name-of (to-string hs-path));
             in
             pkgs.runCommand "${name}.wasm"
               {
                 src = hs-path;
-                nativeBuildInputs = [ ghc-wasm ];
+                "nativeBuildInputs" = [ ghc-wasm ];
               }
               ''
                 mkdir -p build && cd build
@@ -311,7 +312,7 @@ in
         pkgs.runCommand "${name}.wasm"
           {
             src = hs-path;
-            nativeBuildInputs = [ ghc-wasm ];
+            "nativeBuildInputs" = [ ghc-wasm ];
           }
           ''
             mkdir -p build && cd build
@@ -360,17 +361,17 @@ in
       # Wire up shortlist paths to buck2 config
       buck2.shortlist = {
         fmt = "${pkgs.fmt}";
-        fmt_dev = "${pkgs.fmt.dev}";
-        zlib_ng = "${pkgs.zlib-ng}";
+        "fmt_dev" = "${pkgs.fmt.dev}";
+        "zlib_ng" = "${pkgs.zlib-ng}";
         catch2 = "${pkgs.catch2_3}";
-        catch2_dev = "${pkgs.catch2_3.dev or pkgs.catch2_3}";
+        "catch2_dev" = "${pkgs.catch2_3.dev or pkgs.catch2_3}";
         spdlog = "${pkgs.spdlog}";
-        spdlog_dev = "${pkgs.spdlog.dev or pkgs.spdlog}";
+        "spdlog_dev" = "${pkgs.spdlog.dev or pkgs.spdlog}";
         mdspan = "${pkgs.mdspan}";
         rapidjson = "${pkgs.rapidjson}";
-        nlohmann_json = "${pkgs.nlohmann_json}";
+        "nlohmann_json" = "${pkgs.nlohmann_json}";
         libsodium = "${pkgs.libsodium}";
-        libsodium_dev = "${pkgs.libsodium.dev or pkgs.libsodium}";
+        "libsodium_dev" = "${pkgs.libsodium.dev or pkgs.libsodium}";
       };
 
       packages = {

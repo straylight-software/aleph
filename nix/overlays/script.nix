@@ -114,14 +114,14 @@ let
     final.stdenv.mkDerivation {
       inherit name;
       src = script-src;
-      dontUnpack = true;
+      "dontUnpack" = true;
 
-      nativeBuildInputs = [
+      "nativeBuildInputs" = [
         ghc-with-script
       ]
       ++ lib.optional (deps != [ ] || has-config) final.makeWrapper;
 
-      buildPhase = ''
+      "buildPhase" = ''
         runHook preBuild
         ghc -O2 -Wall -Wno-unused-imports \
           -hidir . -odir . \
@@ -130,7 +130,7 @@ let
         runHook postBuild
       '';
 
-      installPhase = ''
+      "installPhase" = ''
         runHook preInstall
         mkdir -p $out/bin
         cp ${name} $out/bin/
@@ -141,7 +141,7 @@ let
         runHook postInstall
       '';
 
-      postFixup =
+      "postFixup" =
         let
           wrap-args =
             lib.optional (deps != [ ]) "--prefix PATH : ${lib.makeBinPath deps}"
@@ -197,7 +197,7 @@ in
 
       gen-wrapper = final.writeShellApplication {
         name = "straylight-gen-wrapper";
-        runtimeInputs = [ ghc-with-script ];
+        "runtimeInputs" = [ ghc-with-script ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/gen-wrapper.hs "$@"
         '';
@@ -211,7 +211,7 @@ in
 
       check = final.writeShellApplication {
         name = "straylight-script-check";
-        runtimeInputs = [ ghc-with-script ];
+        "runtimeInputs" = [ ghc-with-script ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs "$@"
         '';
@@ -225,7 +225,7 @@ in
 
       props = final.writeShellApplication {
         name = "straylight-script-props";
-        runtimeInputs = [ ghc-with-tests ];
+        "runtimeInputs" = [ ghc-with-tests ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs "$@"
         '';
@@ -239,7 +239,7 @@ in
 
       shell = final.mkShell {
         name = "straylight-script-shell";
-        buildInputs = [
+        "buildInputs" = [
           ghc-with-tests
           # CLI tools for testing wrappers
           final.ripgrep
@@ -252,7 +252,7 @@ in
           final.deadnix
           final.statix
         ];
-        shellHook = ''
+        "shellHook" = ''
           echo "Aleph.Script development shell"
           echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs"
           echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs"
@@ -492,7 +492,7 @@ in
 
       nix-dev = final.writeShellApplication {
         name = "nix-dev";
-        runtimeInputs = [
+        "runtimeInputs" = [
           ghc-with-script
           final.nix
         ];
@@ -503,7 +503,7 @@ in
 
       nix-ci = final.writeShellApplication {
         name = "nix-ci";
-        runtimeInputs = [
+        "runtimeInputs" = [
           ghc-with-script
           final.nix
         ];

@@ -60,7 +60,7 @@ in
 
           programs.shfmt = {
             enable = true;
-            indent_size = cfg.indent-width;
+            "indent_size" = cfg.indent-width;
           };
 
           settings.formatter = {
@@ -72,7 +72,7 @@ in
 
           programs.ruff-format = {
             enable = true;
-            lineLength = cfg.line-length;
+            "lineLength" = cfg.line-length;
           };
 
           programs.ruff-check.enable = true;
@@ -93,9 +93,9 @@ in
           programs.biome = {
             enable = true;
             settings.formatter = {
-              indentStyle = "space";
-              indentWidth = cfg.indent-width;
-              lineWidth = cfg.line-length;
+              "indentStyle" = "space";
+              "indentWidth" = cfg.indent-width;
+              "lineWidth" = cfg.line-length;
             };
             settings.css.linter.enabled = false;
           };
@@ -103,9 +103,9 @@ in
           programs.stylua = {
             enable = true;
             settings = {
-              column_width = cfg.line-length;
-              indent_type = "Spaces";
-              indent_width = cfg.indent-width;
+              "column_width" = cfg.line-length;
+              "indent_type" = "Spaces";
+              "indent_width" = cfg.indent-width;
             };
           };
 
@@ -118,7 +118,7 @@ in
           # programs.hlint.enable = true;
           programs.just.enable = true;
           programs.keep-sorted.enable = true;
-          flakeCheck = cfg.enable-check;
+          "flakeCheck" = cfg.enable-check;
         };
       };
   };
