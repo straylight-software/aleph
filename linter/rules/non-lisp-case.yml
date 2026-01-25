@@ -1,6 +1,14 @@
 id: non-lisp-case
 language: nix
 severity: error
+files:
+  - "nix/**/*.nix"
+ignores:
+  # The prelude IS the translation layer - it necessarily uses external APIs
+  - "nix/prelude/**"
+  # flake-parts modules interface with flake-parts API (perSystem, mkPerSystemOption, etc.)
+  # TODO: wrap flake-parts with a lisp-case prelude layer
+  - "nix/modules/flake/**"
 rule:
   kind: identifier
   regex: "^[a-z].*(_|[A-Z]).*"

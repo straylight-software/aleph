@@ -9,33 +9,41 @@
 #     target = "//src:myapp";
 #   };
 #
-{ inputs, lib }:
+{ inputs }:
 let
-  # Lisp-case aliases for lib.* and builtins.*
-  map-attrs' = lib.mapAttrs';
-  name-value-pair = lib.nameValuePair;
-  to-upper = lib.toUpper;
-  replace-strings = builtins.replaceStrings;
-  versions-major = lib.versions.major;
-  read-file = builtins.readFile;
-  remove-prefix = lib.removePrefix;
-  remove-suffix = lib.removeSuffix;
+  # Import prelude functions directly
+  prelude = import ../prelude/functions.nix { lib = inputs.nixpkgs.lib; };
+  translations = import ../prelude/translations.nix { lib = inputs.nixpkgs.lib; };
+
+  inherit (prelude)
+    map-attrs'
+    to-upper
+    replace
+    join
+    head
+    to-string
+    ;
+  inherit (translations) translate-attrs;
 
   # Scripts directory
   scripts-dir = ./scripts;
+
+  read-file = builtins.readFile;
+  versions-major = inputs.nixpkgs.lib.versions.major;
 
   # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
   render-dhall =
     pkgs: name: src: vars:
     let
-      env-vars = map-attrs' (
-        k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
-      ) vars;
+      env-vars = map-attrs' (k: v: {
+        name = to-upper (replace [ "-" ] [ "_" ] k);
+        value = to-string v;
+      }) vars;
     in
     pkgs.runCommand name
       (
-        {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        translate-attrs {
+          native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
@@ -44,6 +52,8 @@ let
       '';
 
   # Generate .buckconfig.local file using Dhall templates
+  # NOTE: Dhall template expects UPPER_SNAKE_CASE env vars, so we use snake_case keys
+  # that get uppercased by render-dhall
   mk-buckconfig-file =
     pkgs:
     let
@@ -60,26 +70,26 @@ let
       objdump = "${llvm.clang}/bin/llvm-objdump";
       ranlib = "${llvm.clang}/bin/llvm-ranlib";
       strip = "${llvm.clang}/bin/llvm-strip";
-      clang_resource_dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
-      gcc_include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
-      gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
-      glibc_include = "${pkgs.glibc.dev}/include";
-      glibc_lib = "${pkgs.glibc}/lib";
-      gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
-      libcxx_include = "${llvm.libcxx.dev}/include/c++/v1";
-      compiler_rt = "${llvm.compiler-rt}/lib";
+      clang-resource-dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
+      gcc-include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
+      gcc-include-arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
+      glibc-include = "${pkgs.glibc.dev}/include";
+      glibc-lib = "${pkgs.glibc}/lib";
+      gcc-lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
+      libcxx-include = "${llvm.libcxx.dev}/include/c++/v1";
+      compiler-rt = "${llvm.compiler-rt}/lib";
       fmt = "${pkgs.fmt}";
-      fmt_dev = "${pkgs.fmt.dev}";
-      zlib_ng = "${pkgs.zlib-ng}";
+      fmt-dev = "${pkgs.fmt.dev}";
+      zlib-ng = "${pkgs.zlib-ng}";
       catch2 = "${pkgs.catch2_3}";
-      catch2_dev = "${pkgs.catch2_3.dev or pkgs.catch2_3}";
+      catch2-dev = "${pkgs.catch2_3.dev or pkgs.catch2_3}";
       spdlog = "${pkgs.spdlog}";
-      spdlog_dev = "${pkgs.spdlog.dev or pkgs.spdlog}";
+      spdlog-dev = "${pkgs.spdlog.dev or pkgs.spdlog}";
       mdspan = "${pkgs.mdspan}";
       rapidjson = "${pkgs.rapidjson}";
-      nlohmann_json = "${pkgs.nlohmann_json}";
+      nlohmann-json = "${pkgs.nlohmann_json}";
       libsodium = "${pkgs.libsodium}";
-      libsodium_dev = "${pkgs.libsodium.dev or pkgs.libsodium}";
+      libsodium-dev = "${pkgs.libsodium.dev or pkgs.libsodium}";
     };
 
   # For backwards compatibility: generate buckconfig content string
@@ -127,8 +137,15 @@ in
     }:
     let
       # Convert //foo/bar:baz to foo-bar-baz for derivation name
-      raw-name = replace-strings [ "//" "/" ":" ] [ "" "-" "-" ] target;
-      clean-name = remove-prefix "-" (remove-suffix "-" raw-name);
+      raw-name = replace [ "//" "/" ":" ] [ "" "-" "-" ] target;
+      # Remove leading/trailing dashes
+      clean-name =
+        let
+          s1 = if prelude.starts-with "-" raw-name then builtins.substring 1 (-1) raw-name else raw-name;
+          len = builtins.stringLength s1;
+        in
+        if prelude.ends-with "-" s1 then builtins.substring 0 (len - 1) s1 else s1;
+
       target-name =
         if name != null then
           name
@@ -138,35 +155,39 @@ in
           clean-name;
 
       # Get prelude
-      prelude = inputs.buck2-prelude or (throw "aleph.lib.buck2.build requires inputs.buck2-prelude");
+      buck2-prelude =
+        inputs.buck2-prelude or (throw "aleph.lib.buck2.build requires inputs.buck2-prelude");
 
       buckconfig-file = mk-buckconfig-file pkgs;
       packages = mk-packages pkgs;
       output-name = if output != null then output else target-name;
     in
-    pkgs.stdenv.mkDerivation {
-      name = target-name;
-      inherit src;
+    pkgs.stdenv.mkDerivation (
+      translate-attrs {
+        name = target-name;
+        inherit src;
 
-      nativeBuildInputs = packages;
+        native-build-inputs = packages;
 
-      # Environment variables for scripts
-      buckconfigFile = buckconfig-file;
-      inherit prelude;
-      outputName = output-name;
-      buck2Target = target;
+        configure-phase = read-file (scripts-dir + "/buck2-configure.bash");
+        build-phase = read-file (scripts-dir + "/buck2-build.bash");
+        install-phase = read-file (scripts-dir + "/buck2-install.bash");
 
-      configurePhase = read-file (scripts-dir + "/buck2-configure.bash");
-      buildPhase = read-file (scripts-dir + "/buck2-build.bash");
-      installPhase = read-file (scripts-dir + "/buck2-install.bash");
-
-      meta = {
-        description = "Buck2 target ${target} built as Nix derivation";
-      };
-    };
+        meta = {
+          description = "Buck2 target ${target} built as Nix derivation";
+        };
+      }
+      // {
+        # Environment variables for scripts (these are custom, not translated)
+        inherit buck2-prelude;
+        inherit buckconfig-file;
+        inherit output-name;
+        buck2-target = target;
+      }
+    );
 
   # Get the buckconfig file for inspection/debugging
-  buckconfigFile = mk-buckconfig-file;
+  buckconfig-file = mk-buckconfig-file;
 
   # Get the buckconfig content for inspection/debugging (backwards compat)
   buckconfig = mk-buckconfig;

@@ -48,6 +48,7 @@ let
   null-or = lib.types.nullOr;
   optional-string = lib.optionalString;
   string-after = lib.stringAfter;
+  to-string = builtins.toString;
 
   cfg = config.services.nix-proxy;
 
@@ -55,22 +56,23 @@ let
   proxy-addon = ./scripts/nix-proxy-addon.py;
 
   # Proxy URL used throughout
-  proxy-url = "http://${cfg.listenAddress}:${toString cfg.port}";
+  proxy-url = "http://${cfg.listen-address}:${to-string cfg.port}";
 
   # Wrapper script to start mitmproxy with our addon
+  # NOTE: writeShellApplication attrs are quoted - external API
   proxy-script = pkgs.writeShellApplication {
     name = "nix-proxy";
-    runtimeInputs = [ pkgs.mitmproxy ];
-    runtimeEnv = {
-      NIX_PROXY_CACHE_DIR = "${cfg.cacheDir}";
-      NIX_PROXY_LOG_DIR = "${cfg.logDir}";
-      NIX_PROXY_ALLOWLIST = concat-strings-sep "," cfg.allowlist;
+    "runtimeInputs" = [ pkgs.mitmproxy ];
+    "runtimeEnv" = {
+      "NIX_PROXY_CACHE_DIR" = "${cfg.cache-dir}";
+      "NIX_PROXY_LOG_DIR" = "${cfg.log-dir}";
+      "NIX_PROXY_ALLOWLIST" = concat-strings-sep "," cfg.allowlist;
     };
     text = ''
       exec mitmdump \
-        --listen-host ${cfg.listenAddress} \
-        --listen-port ${toString cfg.port} \
-        --set confdir=${cfg.certDir} \
+        --listen-host ${cfg.listen-address} \
+        --listen-port ${to-string cfg.port} \
+        --set confdir=${cfg.cert-dir} \
         --scripts ${proxy-addon} \
         ${optional-string cfg.quiet "--quiet"} \
         "$@"
@@ -90,25 +92,25 @@ in
       description = "Port for the proxy to listen on";
     };
 
-    listenAddress = mk-option {
+    listen-address = mk-option {
       type = lib.types.str;
       default = "127.0.0.1";
       description = "Address for the proxy to listen on";
     };
 
-    cacheDir = mk-option {
+    cache-dir = mk-option {
       type = lib.types.path;
       default = "/var/cache/nix-proxy";
       description = "Directory for cached fetches (content-addressed)";
     };
 
-    logDir = mk-option {
+    log-dir = mk-option {
       type = lib.types.path;
       default = "/var/log/nix-proxy";
       description = "Directory for fetch logs";
     };
 
-    certDir = mk-option {
+    cert-dir = mk-option {
       type = lib.types.path;
       default = "/var/lib/nix-proxy/certs";
       description = "Directory for mitmproxy CA certificate";
@@ -138,7 +140,7 @@ in
     quiet = mk-option {
       type = lib.types.bool;
       default = true;
-      description = "Suppress mitmproxy output (logs still written to logDir)";
+      description = "Suppress mitmproxy output (logs still written to log-dir)";
     };
 
     # R2 cache sync (optional)
@@ -169,6 +171,7 @@ in
     };
   };
 
+  # NOTE: NixOS module config attributes are quoted - external API
   config = mk-if cfg.enable {
     # Enable the experimental feature required for impure-env
     nix.settings = {
@@ -181,34 +184,34 @@ in
         "https_proxy=${proxy-url}"
         "HTTP_PROXY=${proxy-url}"
         "HTTPS_PROXY=${proxy-url}"
-        "SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
-        "NIX_SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
-        "CURL_CA_BUNDLE=${cfg.certDir}/mitmproxy-ca-cert.pem"
+        "SSL_CERT_FILE=${cfg.cert-dir}/mitmproxy-ca-cert.pem"
+        "NIX_SSL_CERT_FILE=${cfg.cert-dir}/mitmproxy-ca-cert.pem"
+        "CURL_CA_BUNDLE=${cfg.cert-dir}/mitmproxy-ca-cert.pem"
       ];
 
       # Make cert dir available inside sandbox for builds that need it
-      extra-sandbox-paths = [ cfg.certDir ];
+      extra-sandbox-paths = [ cfg.cert-dir ];
     };
 
     # Create directories
-    # certDir needs 0755 so nix-daemon can read the CA cert
+    # cert-dir needs 0755 so nix-daemon can read the CA cert
     systemd.tmpfiles.rules = [
-      "d ${cfg.cacheDir} 0755 root root -"
-      "d ${cfg.logDir} 0755 root root -"
-      "d ${cfg.certDir} 0755 root root -"
+      "d ${cfg.cache-dir} 0755 root root -"
+      "d ${cfg.log-dir} 0755 root root -"
+      "d ${cfg.cert-dir} 0755 root root -"
     ];
 
     # Generate CA cert on first boot
-    system.activationScripts.nix-proxy-cert = string-after [ "var" ] ''
-      if [ ! -f "${cfg.certDir}/mitmproxy-ca-cert.pem" ]; then
+    system."activationScripts".nix-proxy-cert = string-after [ "var" ] ''
+      if [ ! -f "${cfg.cert-dir}/mitmproxy-ca-cert.pem" ]; then
         echo "Generating mitmproxy CA certificate..."
-        ${pkgs.mitmproxy}/bin/mitmdump --set confdir=${cfg.certDir} -q &
+        ${pkgs.mitmproxy}/bin/mitmdump --set confdir=${cfg.cert-dir} -q &
         PID=$!
         sleep 2
         kill $PID 2>/dev/null || true
         # Wait for cert to be written
         for i in $(seq 1 10); do
-          [ -f "${cfg.certDir}/mitmproxy-ca-cert.pem" ] && break
+          [ -f "${cfg.cert-dir}/mitmproxy-ca-cert.pem" ] && break
           sleep 0.5
         done
       fi
@@ -217,26 +220,26 @@ in
     # The proxy service
     systemd.services.nix-proxy = {
       description = "Nix Network Proxy";
-      wantedBy = [ "multi-user.target" ];
+      "wantedBy" = [ "multi-user.target" ];
       before = [ "nix-daemon.service" ];
       wants = [ "network-online.target" ];
       after = [ "network-online.target" ];
 
-      serviceConfig = {
-        Type = "simple";
-        ExecStart = get-exe proxy-script;
-        Restart = "on-failure";
-        RestartSec = "5s";
+      "serviceConfig" = {
+        "Type" = "simple";
+        "ExecStart" = get-exe proxy-script;
+        "Restart" = "on-failure";
+        "RestartSec" = "5s";
 
         # Hardening
-        NoNewPrivileges = true;
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        PrivateTmp = true;
-        ReadWritePaths = [
-          cfg.cacheDir
-          cfg.logDir
-          cfg.certDir
+        "NoNewPrivileges" = true;
+        "ProtectSystem" = "strict";
+        "ProtectHome" = true;
+        "PrivateTmp" = true;
+        "ReadWritePaths" = [
+          cfg.cache-dir
+          cfg.log-dir
+          cfg.cert-dir
         ];
       };
     };
@@ -244,17 +247,17 @@ in
     # Optional: R2 sync timer
     systemd.services.nix-proxy-sync = mk-if cfg.cache.r2.enable {
       description = "Sync Nix proxy cache to R2";
-      serviceConfig = {
-        Type = "oneshot";
-        EnvironmentFile = mk-if (cfg.cache.r2.credentials-file != null) cfg.cache.r2.credentials-file;
-        ExecStart = get-exe (
+      "serviceConfig" = {
+        "Type" = "oneshot";
+        "EnvironmentFile" = mk-if (cfg.cache.r2.credentials-file != null) cfg.cache.r2.credentials-file;
+        "ExecStart" = get-exe (
           pkgs.writeShellApplication {
             name = "nix-proxy-sync";
-            runtimeInputs = [ pkgs.awscli2 ];
+            "runtimeInputs" = [ pkgs.awscli2 ];
             text = ''
               aws s3 sync \
                 --endpoint-url ${cfg.cache.r2.endpoint} \
-                ${cfg.cacheDir}/ s3://${cfg.cache.r2.bucket}/
+                ${cfg.cache-dir}/ s3://${cfg.cache.r2.bucket}/
             '';
           }
         );
@@ -263,27 +266,27 @@ in
 
     systemd.timers.nix-proxy-sync = mk-if cfg.cache.r2.enable {
       description = "Periodic sync of Nix proxy cache to R2";
-      wantedBy = [ "timers.target" ];
-      timerConfig = {
-        OnCalendar = "hourly";
-        Persistent = true;
+      "wantedBy" = [ "timers.target" ];
+      "timerConfig" = {
+        "OnCalendar" = "hourly";
+        "Persistent" = true;
       };
     };
 
-    environment.systemPackages = [ pkgs.mitmproxy ];
+    environment."systemPackages" = [ pkgs.mitmproxy ];
 
     # Nix fetcher uses ssl-cert-file for HTTPS verification (set above in nix.settings)
     # For evaluation-time fetches, the daemon's environment is used.
     # This only affects nix-daemon, not other programs on the system.
     systemd.services.nix-daemon.environment = {
-      http_proxy = proxy-url;
-      https_proxy = proxy-url;
-      HTTP_PROXY = proxy-url;
-      HTTPS_PROXY = proxy-url;
-      SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
-      NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      "http_proxy" = proxy-url;
+      "https_proxy" = proxy-url;
+      "HTTP_PROXY" = proxy-url;
+      "HTTPS_PROXY" = proxy-url;
+      "SSL_CERT_FILE" = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
+      "NIX_SSL_CERT_FILE" = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
       # mkForce needed to override the default set by nix-daemon.nix
-      CURL_CA_BUNDLE = mk-force "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      "CURL_CA_BUNDLE" = mk-force "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
     };
   };
 }

@@ -88,7 +88,7 @@ in
   flake.lib = import ./lib { inherit lib; } // {
     # Buck2 builder - use from downstream flakes:
     #   packages.myapp = aleph.lib.buck2.build pkgs { target = "//src:myapp"; };
-    buck2 = import ./lib/buck2.nix { inherit inputs lib; };
+    buck2 = import ./lib/buck2.nix { inherit inputs; };
   };
 
   # ════════════════════════════════════════════════════════════════════════════

@@ -22,6 +22,11 @@ let
   inherit (prev) lib fetchurl;
   inherit (prev.stdenv.hostPlatform) system;
 
+  # Import prelude for translate-attrs
+  prelude = import ../../prelude/functions.nix { inherit lib; };
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
   # ════════════════════════════════════════════════════════════════════════════
   # Lisp-case aliases for lib.* functions
   # ════════════════════════════════════════════════════════════════════════════
@@ -66,6 +71,7 @@ let
     });
 
   # Comprehensive runtime deps for tritonserver (mirrors libmodern-nvidia-sdk)
+  # NOTE: Package names like libcap_ng, cyrus_sasl are nixpkgs names (external API)
   triton-runtime-deps = with final; [
     # Core
     stdenv.cc.cc.lib
@@ -112,7 +118,7 @@ let
     libgcrypt
     libgpg-error
     libcap
-    libcap_ng
+    final."libcap_ng"
     audit
     libselinux
     libsemanage
@@ -133,7 +139,7 @@ let
     # Additional deps
     nettle
     acl
-    cyrus_sasl
+    final."cyrus_sasl"
     gnutls
     libssh
     openldap
@@ -159,6 +165,7 @@ let
 
   # ════════════════════════════════════════════════════════════════════════════
   # Wheel definitions (from Aleph.Script.Nvidia.Wheel, mirrored here for FOD)
+  # NOTE: libPath/includePath are wheel-internal paths, quoted as external schema
   # ════════════════════════════════════════════════════════════════════════════
 
   wheels = {
@@ -166,36 +173,36 @@ let
       version = "2.28.9";
       url = "https://pypi.nvidia.com/nvidia-nccl-cu13/nvidia_nccl_cu13-2.28.9-py3-none-manylinux_2_18_x86_64.whl";
       hash = "sha256-5FU6MPNBlfP6HaAqbaPWM30o8gA5Q6oKPSR7vCX+/EI=";
-      libPath = "nvidia/nccl/lib";
-      includePath = "nvidia/nccl/include";
+      "libPath" = "nvidia/nccl/lib";
+      "includePath" = "nvidia/nccl/include";
     };
     cudnn = {
       version = "9.17.0.29";
       url = "https://pypi.nvidia.com/nvidia-cudnn-cu13/nvidia_cudnn_cu13-9.17.0.29-py3-none-manylinux_2_27_x86_64.whl";
       hash = "sha256-Q0Uu8Jj0Q890hyvHj8zZon4af4NWelF5m/rsVgvP4Vo=";
-      libPath = "nvidia/cudnn/lib";
-      includePath = "nvidia/cudnn/include";
+      "libPath" = "nvidia/cudnn/lib";
+      "includePath" = "nvidia/cudnn/include";
     };
     tensorrt = {
       version = "10.14.1.48";
       url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.14.1.48-py2.py3-none-manylinux_2_28_x86_64.whl";
       hash = "sha256-k8SI67WjD/g+pTYD54GAFN5bkyj7JJZZY9I2gUB2UHY=";
-      libPath = "tensorrt_libs";
-      includePath = null;
+      "libPath" = "tensorrt_libs";
+      "includePath" = null;
     };
     cutensor = {
       version = "2.4.1";
       url = "https://pypi.nvidia.com/cutensor-cu13/cutensor_cu13-2.4.1-py3-none-manylinux2014_x86_64.whl";
       hash = "sha256-Hz1oTgSVOuRJI7ZzotQVbdmaghQAxC/ocqqF+PFmtyg=";
-      libPath = "cutensor/lib";
-      includePath = "cutensor/include";
+      "libPath" = "cutensor/lib";
+      "includePath" = "cutensor/include";
     };
     cusparselt = {
       version = "0.8.1";
       url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_x86_64.whl";
       hash = "sha256-eGzodWjDA/rbWvzHEC1FTNMEDXX2+GJvXbRg0YcfTdA=";
-      libPath = "nvidia/cusparselt/lib";
-      includePath = "nvidia/cusparselt/include";
+      "libPath" = "nvidia/cusparselt/lib";
+      "includePath" = "nvidia/cusparselt/include";
     };
   };
 
@@ -215,77 +222,81 @@ let
       ignore-missing-deps ? [ ],
       meta ? { },
     }:
-    prev.stdenv.mkDerivation {
-      inherit pname;
-      inherit (wheel-info) version;
+    prev.stdenv.mkDerivation (
+      translate-attrs {
+        inherit pname;
+        inherit (wheel-info) version;
 
-      src = fetchurl {
-        inherit (wheel-info) url hash;
-      };
+        src = fetchurl {
+          inherit (wheel-info) url hash;
+        };
 
-      nativeBuildInputs = [
-        final.autoPatchelfHook
-        final.unzip
-        final.patchelf
-        final.findutils
-      ];
+        native-build-inputs = [
+          final.autoPatchelfHook
+          final.unzip
+          final.patchelf
+          final.findutils
+        ];
 
-      buildInputs = runtime-inputs;
+        build-inputs = runtime-inputs;
 
-      autoPatchelfIgnoreMissingDeps = common-ignored-deps ++ ignore-missing-deps;
+        dont-configure = true;
+        dont-build = true;
 
-      dontConfigure = true;
-      dontBuild = true;
-
-      unpackPhase = ''
-        runHook preUnpack
-        unzip $src -d unpacked
-        runHook postUnpack
-      '';
-
-      installPhase =
-        let
-          lib-path = wheel-info.libPath or null;
-          include-path = wheel-info.includePath or null;
-        in
-        ''
-          runHook preInstall
-          mkdir -p $out
-
-          ${optional-string (lib-path != null) ''
-            if [ -d "unpacked/${lib-path}" ]; then
-              mkdir -p $out/lib
-              cp -r unpacked/${lib-path}/* $out/lib/
-            fi
-          ''}
-
-          ${optional-string (include-path != null) ''
-            if [ -d "unpacked/${include-path}" ]; then
-              mkdir -p $out/include
-              cp -r unpacked/${include-path}/* $out/include/
-            fi
-          ''}
-
-          # Create lib64 symlink for compatibility
-          [ -d $out/lib ] && [ ! -e $out/lib64 ] && ln -s lib $out/lib64 || true
-
-          # Make writable for patchelf
-          chmod -R u+w $out 2>/dev/null || true
-
-          # Patch RPATH for portability (before autoPatchelfHook runs)
-          find $out -name "*.so*" -type f | while read f; do
-            patchelf --set-rpath '$ORIGIN:$ORIGIN/../lib:$ORIGIN/../lib64' "$f" 2>/dev/null || true
-          done
-
-          runHook postInstall
+        unpack-phase = ''
+          runHook preUnpack
+          unzip $src -d unpacked
+          runHook postUnpack
         '';
 
-      preFixup = ''
-        addAutoPatchelfSearchPath $out/lib
-      '';
+        install-phase =
+          let
+            lib-path = wheel-info."libPath" or null;
+            include-path = wheel-info."includePath" or null;
+          in
+          ''
+            runHook preInstall
+            mkdir -p $out
 
-      inherit meta;
-    };
+            ${optional-string (lib-path != null) ''
+              if [ -d "unpacked/${lib-path}" ]; then
+                mkdir -p $out/lib
+                cp -r unpacked/${lib-path}/* $out/lib/
+              fi
+            ''}
+
+            ${optional-string (include-path != null) ''
+              if [ -d "unpacked/${include-path}" ]; then
+                mkdir -p $out/include
+                cp -r unpacked/${include-path}/* $out/include/
+              fi
+            ''}
+
+            # Create lib64 symlink for compatibility
+            [ -d $out/lib ] && [ ! -e $out/lib64 ] && ln -s lib $out/lib64 || true
+
+            # Make writable for patchelf
+            chmod -R u+w $out 2>/dev/null || true
+
+            # Patch RPATH for portability (before autoPatchelfHook runs)
+            find $out -name "*.so*" -type f | while read f; do
+              patchelf --set-rpath '$ORIGIN:$ORIGIN/../lib:$ORIGIN/../lib64' "$f" 2>/dev/null || true
+            done
+
+            runHook postInstall
+          '';
+
+        pre-fixup = ''
+          addAutoPatchelfSearchPath $out/lib
+        '';
+
+        inherit meta;
+      }
+      // {
+        # NOTE: autoPatchelfIgnoreMissingDeps is nixpkgs API, quoted
+        "autoPatchelfIgnoreMissingDeps" = common-ignored-deps ++ ignore-missing-deps;
+      }
+    );
 
   # ════════════════════════════════════════════════════════════════════════════
   # mk-container-pkg - extract from container rootfs using Haskell script
@@ -307,90 +318,94 @@ let
       post-extract ? "",
       meta ? { },
     }:
-    prev.stdenv.mkDerivation {
-      inherit pname version;
+    prev.stdenv.mkDerivation (
+      translate-attrs {
+        inherit pname version;
 
-      # No src - we use the rootfs directly
-      dontUnpack = true;
-      dontConfigure = true;
-      dontBuild = true;
+        # No src - we use the rootfs directly
+        dont-unpack = true;
+        dont-configure = true;
+        dont-build = true;
 
-      nativeBuildInputs = [
-        final.autoPatchelfHook
-        final.makeWrapper
-        final.patchelf
-        final.file
-        nvidia-sdk-script
-      ];
+        native-build-inputs = [
+          final.autoPatchelfHook
+          final.makeWrapper
+          final.patchelf
+          final.file
+          nvidia-sdk-script
+        ];
 
-      buildInputs = runtime-inputs;
+        build-inputs = runtime-inputs;
 
-      autoPatchelfIgnoreMissingDeps =
-        common-ignored-deps
-        ++ [
-          "libpython3.8.so.1.0"
-          "libpython3.9.so.1.0"
-          "libpython3.10.so.1.0"
-          "libpython3.11.so.1.0"
-          "libpython3.12.so.1.0"
-        ]
-        ++ ignore-missing-deps;
+        install-phase = ''
+          runHook preInstall
+          nvidia-sdk ${extract-mode} ${rootfs} $out
+          ${post-extract}
+          runHook postInstall
+        '';
 
-      installPhase = ''
-        runHook preInstall
-        nvidia-sdk ${extract-mode} ${rootfs} $out
-        ${post-extract}
-        runHook postInstall
-      '';
+        pre-fixup = ''
+          # Add search paths for autoPatchelf
+          [ -d $out/lib ] && addAutoPatchelfSearchPath $out/lib
+          [ -d $out/lib64 ] && addAutoPatchelfSearchPath $out/lib64
+          [ -d $out/nvvm/lib64 ] && addAutoPatchelfSearchPath $out/nvvm/lib64
+          [ -d $out/tensorrt_llm/lib ] && addAutoPatchelfSearchPath $out/tensorrt_llm/lib
 
-      preFixup = ''
-        # Add search paths for autoPatchelf
-        [ -d $out/lib ] && addAutoPatchelfSearchPath $out/lib
-        [ -d $out/lib64 ] && addAutoPatchelfSearchPath $out/lib64
-        [ -d $out/nvvm/lib64 ] && addAutoPatchelfSearchPath $out/nvvm/lib64
-        [ -d $out/tensorrt_llm/lib ] && addAutoPatchelfSearchPath $out/tensorrt_llm/lib
+          # Build library path from runtime inputs
+          local lib_paths="$out/lib"
+          [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
+          [ -d $out/nvvm/lib64 ] && lib_paths="$lib_paths:$out/nvvm/lib64"
+          [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
+          lib_paths="$lib_paths:${make-library-path runtime-inputs}"
 
-        # Build library path from runtime inputs
-        local lib_paths="$out/lib"
-        [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
-        [ -d $out/nvvm/lib64 ] && lib_paths="$lib_paths:$out/nvvm/lib64"
-        [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
-        lib_paths="$lib_paths:${make-library-path runtime-inputs}"
+          echo "Setting RPATH on ELF files before autoPatchelf..."
 
-        echo "Setting RPATH on ELF files before autoPatchelf..."
-
-        # Pre-patch all ELF files with correct RPATH before autoPatchelf runs
-        # This helps autoPatchelf find dependencies and prevents silent failures
-        find $out -type f 2>/dev/null | while read -r f; do
-          if file "$f" 2>/dev/null | grep -q "ELF"; then
-            # Set interpreter for executables
-            if file "$f" | grep -q "ELF.*executable"; then
-              patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$f" 2>/dev/null || true
+          # Pre-patch all ELF files with correct RPATH before autoPatchelf runs
+          # This helps autoPatchelf find dependencies and prevents silent failures
+          find $out -type f 2>/dev/null | while read -r f; do
+            if file "$f" 2>/dev/null | grep -q "ELF"; then
+              # Set interpreter for executables
+              if file "$f" | grep -q "ELF.*executable"; then
+                patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$f" 2>/dev/null || true
+              fi
+              # Set RPATH for all ELF files
+              patchelf --set-rpath "$lib_paths" "$f" 2>/dev/null || true
             fi
-            # Set RPATH for all ELF files
-            patchelf --set-rpath "$lib_paths" "$f" 2>/dev/null || true
-          fi
-        done
-      '';
+          done
+        '';
 
-      postFixup = ''
-        # Wrap executables with proper environment after autoPatchelf
-        local lib_paths="$out/lib"
-        [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
-        [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
-        lib_paths="$lib_paths:${make-library-path runtime-inputs}"
+        post-fixup = ''
+          # Wrap executables with proper environment after autoPatchelf
+          local lib_paths="$out/lib"
+          [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
+          [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
+          lib_paths="$lib_paths:${make-library-path runtime-inputs}"
 
-        for exe in $out/bin/*; do
-          if [ -f "$exe" ] && [ -x "$exe" ]; then
-            wrapProgram "$exe" \
-              --prefix LD_LIBRARY_PATH : "$lib_paths" \
-              --prefix PYTHONPATH : "$out/python" 2>/dev/null || true
-          fi
-        done
-      '';
+          for exe in $out/bin/*; do
+            if [ -f "$exe" ] && [ -x "$exe" ]; then
+              wrapProgram "$exe" \
+                --prefix LD_LIBRARY_PATH : "$lib_paths" \
+                --prefix PYTHONPATH : "$out/python" 2>/dev/null || true
+            fi
+          done
+        '';
 
-      inherit meta;
-    };
+        inherit meta;
+      }
+      // {
+        # NOTE: autoPatchelfIgnoreMissingDeps is nixpkgs API, quoted
+        "autoPatchelfIgnoreMissingDeps" =
+          common-ignored-deps
+          ++ [
+            "libpython3.8.so.1.0"
+            "libpython3.9.so.1.0"
+            "libpython3.10.so.1.0"
+            "libpython3.11.so.1.0"
+            "libpython3.12.so.1.0"
+          ]
+          ++ ignore-missing-deps;
+      }
+    );
 
 in
 
@@ -460,7 +475,7 @@ optional-attrs (system == "x86_64-linux") {
 # ══════════════════════════════════════════════════════════════════════════════
 
 // {
-  nvidia-cutlass = prev.stdenv.mkDerivation {
+  nvidia-cutlass = prev.stdenv.mkDerivation (translate-attrs {
     pname = "nvidia-cutlass";
     version = "4.3.3";
 
@@ -469,12 +484,12 @@ optional-attrs (system == "x86_64-linux") {
       hash = "sha256-JGSBZqPafqpbIeF3VfxjiZW9B1snmi0Q13fk+HrpN6w=";
     };
 
-    nativeBuildInputs = [ final.unzip ];
+    native-build-inputs = [ final.unzip ];
 
-    dontConfigure = true;
-    dontBuild = true;
+    dont-configure = true;
+    dont-build = true;
 
-    installPhase = ''
+    install-phase = ''
       runHook preInstall
       mkdir -p $out/include
       cp -r include/* $out/include/
@@ -486,8 +501,9 @@ optional-attrs (system == "x86_64-linux") {
       homepage = "https://github.com/NVIDIA/cutlass";
       license = lib.licenses.bsd3;
       platforms = lib.platforms.all;
+      main-program = null;
     };
-  };
+  });
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -560,7 +576,7 @@ optional-attrs (system == "x86_64-linux") {
         "x86_64-linux"
         "aarch64-linux"
       ];
-      mainProgram = "tritonserver";
+      main-program = "tritonserver";
     };
   };
 }

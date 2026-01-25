@@ -171,6 +171,7 @@ in
     #     mem-mib = 8192;
     #   }
     #
+    # NOTE: Firecracker JSON schema attributes are quoted - external API
     mk-config =
       {
         kernel-path,
@@ -184,21 +185,21 @@ in
       to-json (
         {
           boot-source = {
-            kernel_image_path = kernel-path;
-            boot_args = boot-args;
+            "kernel_image_path" = kernel-path;
+            "boot_args" = boot-args;
           };
           drives = [
             {
-              drive_id = "rootfs";
-              path_on_host = rootfs-path;
-              is_root_device = true;
-              is_read_only = false;
+              "drive_id" = "rootfs";
+              "path_on_host" = rootfs-path;
+              "is_root_device" = true;
+              "is_read_only" = false;
             }
           ]
           ++ drives;
           machine-config = {
-            vcpu_count = cpus;
-            mem_size_mib = mem-mib;
+            "vcpu_count" = cpus;
+            "mem_size_mib" = mem-mib;
           };
         }
         // optional-attrs (network-interfaces != [ ]) {
@@ -207,6 +208,7 @@ in
       );
 
     # Network interface config
+    # NOTE: Firecracker JSON schema attributes are quoted - external API
     mk-network-interface =
       {
         iface-id ? "eth0",
@@ -214,9 +216,9 @@ in
         host-dev-name ? "fc-tap0",
       }:
       {
-        iface_id = iface-id;
-        guest_mac = guest-mac;
-        host_dev_name = host-dev-name;
+        "iface_id" = iface-id;
+        "guest_mac" = guest-mac;
+        "host_dev_name" = host-dev-name;
       };
 
     # Minimal init script template for Firecracker VMs
