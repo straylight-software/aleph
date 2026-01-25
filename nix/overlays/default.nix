@@ -12,6 +12,7 @@
 #   - ghc-wasm: GHC WASM backend for builtins.wasm integration
 #   - straylight-nix: nix binary with builtins.wasm support
 #   - libmodern: pkgs.libmodern.fmt, pkgs.libmodern.abseil-cpp, etc.
+#   - armitage: armitage.proxy (witness proxy for build-time fetches)
 #
 inputs:
 let
@@ -42,6 +43,7 @@ let
   straylight-nix-overlay =
     (import ./straylight-nix.nix { inherit inputs; }).flake.overlays.straylight-nix;
   libmodern-overlay = import ./libmodern;
+  armitage-overlay = import ./armitage.nix;
 in
 {
   flake.overlays = {
@@ -56,6 +58,7 @@ in
     ghc-wasm = ghc-wasm-overlay;
     straylight-nix = straylight-nix-overlay;
     libmodern = libmodern-overlay;
+    armitage = armitage-overlay;
 
     # Composed default overlay
     # Order matters:
@@ -77,6 +80,7 @@ in
       ghc-wasm-overlay
       straylight-nix-overlay
       libmodern-overlay
+      armitage-overlay
     ];
   };
 }
