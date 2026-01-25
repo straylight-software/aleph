@@ -1,21 +1,21 @@
 # nix/modules/flake/std.nix
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                                                               // aleph-naught core
+#                                                               // aleph core
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     "A year here and he still dreamed of cyberspace, hope fading nightly."
 #
 #                                                         — Neuromancer
 #
-# Core aleph-naught module with overlays. This is the entry point that brings
-# together nixpkgs instantiation, nix configuration, and the straylight overlay.
+# Core aleph module with overlays. This is the entry point that brings
+# together nixpkgs instantiation, nix configuration, and the aleph overlay.
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { inputs }:
 { config, lib, ... }:
 let
-  cfg = config.aleph-naught;
+  cfg = config.aleph;
   nixpkgs-module = import ./nixpkgs.nix { inherit inputs; };
   nix-conf-module = import ./nix-conf.nix { };
 in
@@ -31,8 +31,8 @@ in
   # // options //
   # ────────────────────────────────────────────────────────────────────────────
 
-  options.aleph-naught.overlays = {
-    enable = lib.mkEnableOption "aleph-naught overlays" // {
+  options.aleph.overlays = {
+    enable = lib.mkEnableOption "aleph overlays" // {
       default = true;
     };
 
@@ -79,8 +79,8 @@ in
       _module.args.pkgs = lib.mkForce pkgs-with-overlays;
 
       # Re-export configured pkgs with overlays as legacyPackages
-      # This lets consumers access straylight.prelude, straylight.stdenv, etc.:
-      #   inputs.aleph-naught.legacyPackages.${system}.straylight.prelude
+      # This lets consumers access aleph.prelude, aleph.stdenv, etc.:
+      #   inputs.aleph.legacyPackages.${system}.aleph.prelude
       legacyPackages = lib.mkForce pkgs-with-overlays;
     };
 }

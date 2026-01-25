@@ -37,12 +37,12 @@ let
   to-string = builtins."toString";
   unsafe-discard-string-context = builtins."unsafeDiscardStringContext";
 
-  cfg = config.aleph-naught.nativelink;
+  cfg = config.aleph.nativelink;
 in
 {
   _class = "flake";
 
-  options.aleph-naught.nativelink = {
+  options.aleph.nativelink = {
     enable = mk-enable-option "NativeLink remote execution containers";
 
     fly = {
@@ -371,9 +371,9 @@ in
         nvidia-sdk = pkgs.nvidia-sdk or null;
         gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
 
-        # Haskell toolchain - use straylight.script.ghc for full Aleph.Script support
+        # Haskell toolchain - use aleph.script.ghc for full Aleph.Script support
         # This ensures NativeLink workers can build all Haskell scripts via Buck2
-        ghc-with-packages = pkgs.straylight.script.ghc;
+        ghc-with-packages = pkgs.aleph.script.ghc;
 
         # Python with nanobind/pybind11 for Buck2 python_cxx rules
         python-env = with-packages (ps: [

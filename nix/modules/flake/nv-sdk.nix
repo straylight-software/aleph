@@ -10,7 +10,7 @@
 #                                                         — Neuromancer
 #
 # Comprehensive NVIDIA SDK based on nixpkgs nv-packages.
-# Alternative to straylight-nvidia-sdk for standard nixpkgs support.
+# Alternative to aleph-nvidia-sdk for standard nixpkgs support.
 #
 # We say "nv" not "cuda". See: docs/languages/nix/philosophy/nvidia-not-cuda.md
 #

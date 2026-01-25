@@ -1,16 +1,16 @@
 {
-  description = "Minimal project with aleph-naught nixpkgs";
+  description = "Minimal project with aleph nixpkgs";
 
   inputs = {
-    aleph-naught.url = "github:straylight-software/aleph-naught";
-    nixpkgs.follows = "aleph-naught/nixpkgs";
-    flake-parts.follows = "aleph-naught/flake-parts";
+    aleph.url = "github:straylight-software/aleph";
+    nixpkgs.follows = "aleph/nixpkgs";
+    flake-parts.follows = "aleph/flake-parts";
   };
 
   outputs =
-    inputs@{ flake-parts, aleph-naught, ... }:
+    inputs@{ flake-parts, aleph, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ aleph-naught.modules.flake.nixpkgs ];
+      imports = [ aleph.modules.flake.nixpkgs ];
       systems = [
         "x86_64-linux"
         "aarch64-linux"
@@ -18,7 +18,7 @@
         "x86_64-darwin"
       ];
 
-      aleph-naught.nixpkgs.allow-unfree = true;
+      aleph.nixpkgs.allow-unfree = true;
 
       "perSystem" =
         { pkgs, ... }:

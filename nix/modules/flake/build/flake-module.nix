@@ -29,7 +29,7 @@
 #       aleph.lib.mkFlake { inherit inputs; } {
 #         imports = [ aleph.modules.flake.build ];
 #
-#         aleph-naught.build = {
+#         aleph.build = {
 #           enable = true;
 #           toolchain.cxx.enable = true;
 #           toolchain.nv.enable = true;
@@ -61,7 +61,7 @@ let
   read-file = builtins."readFile";
 
   options = import ./options.nix { inherit lib flake-parts-lib; };
-  cfg = config.aleph-naught.build;
+  cfg = config.aleph.build;
 in
 {
   _class = "flake";
@@ -70,7 +70,7 @@ in
   # Options
   # ════════════════════════════════════════════════════════════════════════════
   options."perSystem" = options."perSystem";
-  options.aleph-naught.build = options.build;
+  options.aleph.build = options.build;
 
   # ════════════════════════════════════════════════════════════════════════════
   # Config
@@ -79,7 +79,7 @@ in
     # ──────────────────────────────────────────────────────────────────────────
     # Nixpkgs overlays - automatically add required overlays
     # ──────────────────────────────────────────────────────────────────────────
-    aleph-naught.nixpkgs.overlays = mk-before [
+    aleph.nixpkgs.overlays = mk-before [
       # LLVM 22 overlay (for llvm-git package)
       (import ../../../overlays/llvm-git.nix inputs)
       # Packages overlay (for mdspan)
@@ -140,7 +140,7 @@ in
       in
       {
         # Export toolchain configuration for other modules
-        straylight.build = {
+        aleph.build = {
           inherit (toolchains) buck2-toolchain packages;
           inherit (buckconfig) buckconfig-local;
           "shellHook" = shell-hook-module."shellHook";

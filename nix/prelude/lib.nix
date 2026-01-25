@@ -979,7 +979,7 @@ let
       # ╚════════════════════════════════════════════════════════════════════════╝
       mkForce =
         builtins.trace
-          "WARNING: lib.mkForce from straylight prelude is a stub - use nixpkgs lib for module system"
+          "WARNING: lib.mkForce from aleph prelude is a stub - use nixpkgs lib for module system"
           (val: {
             _type = "override";
             priority = 50;
@@ -987,7 +987,7 @@ let
           });
       mkDefault =
         builtins.trace
-          "WARNING: lib.mkDefault from straylight prelude is a stub - use nixpkgs lib for module system"
+          "WARNING: lib.mkDefault from aleph prelude is a stub - use nixpkgs lib for module system"
           (val: {
             _type = "override";
             priority = 1000;

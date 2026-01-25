@@ -3,17 +3,14 @@
 # fmt - A modern formatting library for C++
 # https://fmt.dev/
 #
+# NOTE: mk-static-cpp already accepts lisp-case attrs and handles translation.
+#
 {
   final,
   lib,
   mk-static-cpp,
 }:
-let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-in
-mk-static-cpp (translate-attrs {
+mk-static-cpp {
   pname = "fmt";
   version = "11.2.0";
 
@@ -34,4 +31,4 @@ mk-static-cpp (translate-attrs {
     homepage = "https://fmt.dev/";
     license = lib.licenses.mit;
   };
-})
+}

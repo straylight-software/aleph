@@ -8,14 +8,14 @@ Via flake module:
 
 ```nix
 perSystem = { config, ... }:
-  let inherit (config.straylight) prelude; in
+  let inherit (config.aleph) prelude; in
   { ... }
 ```
 
 Via overlay:
 
 ```nix
-pkgs.straylight.prelude
+pkgs.aleph.prelude
 ```
 
 ## Functions by Category
@@ -176,7 +176,7 @@ pkgs.straylight.prelude
 
 ```nix
 let
-  inherit (config.straylight.prelude) map filter fold from-maybe starts-with;
+  inherit (config.aleph.prelude) map filter fold from-maybe starts-with;
 
   # Filter and transform
   nixFiles = filter (f: ends-with ".nix" f) files;

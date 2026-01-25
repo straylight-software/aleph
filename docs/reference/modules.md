@@ -11,7 +11,7 @@ Source: `nix/modules/flake/`
 | `formatter` | Treefmt configuration |
 | `lint` | Statix + deadnix linting |
 | `docs` | mdBook documentation |
-| `std` | Core overlays and straylight namespace |
+| `std` | Core overlays and aleph namespace |
 | `devshell` | Development shell |
 | `prelude` | Straylight prelude access |
 | `prelude-demos` | Prelude demo packages |
@@ -79,7 +79,7 @@ aleph.nixpkgs = {
 
 ```nix
 aleph.overlays = {
-  enable = true;              # Enable straylight overlays (default: true)
+  enable = true;              # Enable aleph overlays (default: true)
   extra = [ ];                # Additional overlays
 };
 ```
@@ -104,7 +104,7 @@ Sets up:
 - Formatter (treefmt with nixfmt-rfc-style, stylua, taplo, shfmt)
 - Linter (statix + deadnix)
 - Documentation (mdBook)
-- Overlays (all straylight overlays)
+- Overlays (all aleph overlays)
 - Devshell (development environment)
 - Prelude (functional library access)
 - Container (namespace utilities)
@@ -122,17 +122,17 @@ Configures nixpkgs with:
 
 Applies overlays to pkgs:
 
-- `straylight.prelude`
-- `straylight.platform`
-- `straylight.gpu`
-- `straylight.stdenv`
-- `straylight.cross`
-- `straylight.container`
-- `straylight.script`
+- `aleph.prelude`
+- `aleph.platform`
+- `aleph.gpu`
+- `aleph.stdenv`
+- `aleph.cross`
+- `aleph.container`
+- `aleph.script`
 
 ### prelude
 
-Exposes `config.straylight.prelude` containing:
+Exposes `config.aleph.prelude` containing:
 
 - All prelude functions
 - `stdenv` matrix

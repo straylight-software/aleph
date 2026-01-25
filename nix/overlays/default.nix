@@ -1,14 +1,14 @@
 # overlays/default.nix
 #
-# Composes all aleph-naught overlays:
+# Composes all aleph overlays:
 #   - packages: mdspan, etc.
 #   - llvm-git: LLVM from git with SM120 Blackwell support
 #   - nvidia-sdk: cuda-packages_13 bundled, no fallbacks
 #   - nvidia-sdk-ngc: CUDA/cuDNN/TensorRT extracted from NGC containers
 #   - nvidia-sdk-packages: autopatchelf'd nvidia-sdk, nvidia-tritonserver, etc.
-#   - prelude: straylight.prelude, straylight.stdenv, straylight.cross, etc.
-#   - container: straylight.container.mkNamespaceEnv, unshare-run, etc.
-#   - script: straylight.script.gen-wrapper, straylight.script.check, etc.
+#   - prelude: aleph.prelude, aleph.stdenv, aleph.cross, etc.
+#   - container: aleph.container.mkNamespaceEnv, unshare-run, etc.
+#   - script: aleph.script.gen-wrapper, aleph.script.check, etc.
 #   - ghc-wasm: GHC WASM backend for builtins.wasm integration
 #   - straylight-nix: nix binary with builtins.wasm support
 #   - libmodern: pkgs.libmodern.fmt, pkgs.libmodern.abseil-cpp, etc.
@@ -59,13 +59,17 @@ in
 
     # Composed default overlay
     # Order matters:
-    #   1. script must come before nvidia-sdk-packages (needs straylight.script.compiled)
-    #   2. nvidia-sdk-ngc must come before nvidia-sdk-packages (needs container FOD)
+    #   1. prelude-overlay FIRST so all others can use aleph.*
+    #   2. script must come before nvidia-sdk-packages (needs aleph.script.compiled)
+    #   3. nvidia-sdk-ngc must come before nvidia-sdk-packages (needs container FOD)
+    #
+    # Note: Nix overlays use lazy fixed-point evaluation, so prelude can access
+    # final.llvm-git even though llvm-git-overlay is listed later.
     default = compose-many-extensions [
+      prelude-overlay
       packages-overlay
       llvm-git-overlay
       nvidia-sdk-overlay
-      prelude-overlay
       container-overlay
       script-overlay
       nvidia-sdk-ngc-overlay

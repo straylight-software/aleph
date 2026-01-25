@@ -52,7 +52,7 @@ let
   container-module =
     { config, lib, ... }:
     let
-      cfg = config.aleph-naught.container;
+      cfg = config.aleph.container;
     in
     {
       _class = "flake";
@@ -61,7 +61,7 @@ let
       # // options //
       # ──────────────────────────────────────────────────────────────────────────
 
-      options.aleph-naught.container = {
+      options.aleph.container = {
         enable = mk-enable-option "container and VM isolation tools" // {
           default = true;
         };
@@ -156,10 +156,10 @@ let
             # // compiled haskell scripts //
             # ──────────────────────────────────────────────────────────────────────
             #
-            # These are compiled from nix/scripts/*.hs via the straylight.script overlay.
+            # These are compiled from nix/scripts/*.hs via the aleph.script overlay.
             # Type-safe, fast startup (~2ms), no bash variable injection risks.
 
-            inherit (pkgs.straylight.script) compiled;
+            inherit (pkgs.aleph.script) compiled;
 
             # ──────────────────────────────────────────────────────────────────────
             # // dhall config for firecracker //
@@ -175,7 +175,7 @@ let
               , buildInitScript = "${isospin-build-init}"
               , defaultCpus = ${toString cfg.isospin.cpus}
               , defaultMemMib = ${toString cfg.isospin.mem-mib}
-              , cacheDir = "/var/cache/straylight/oci"
+              , cacheDir = "/var/cache/aleph/oci"
               }
             '';
 
@@ -213,7 +213,7 @@ let
               , chDefaultCpus = ${toString cfg.cloud-hypervisor.cpus}
               , chDefaultMemMib = ${toString (cfg.cloud-hypervisor.mem-gib * 1024)}
               , chHugepages = ${if cfg.cloud-hypervisor.hugepages then "True" else "False"}
-              , chCacheDir = "/var/cache/straylight/oci"
+              , chCacheDir = "/var/cache/aleph/oci"
               }
             '';
 
@@ -309,7 +309,7 @@ let
               # // vfio helpers //
               # ──────────────────────────────────────────────────────────────────
               #
-              # These are compiled Haskell scripts from straylight.script.compiled.
+              # These are compiled Haskell scripts from aleph.script.compiled.
               # Type-safe, ~2ms startup, no bash injection risks.
 
               inherit (compiled) vfio-bind vfio-unbind vfio-list;

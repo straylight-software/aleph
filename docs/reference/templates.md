@@ -17,11 +17,11 @@ Features:
 - All flake modules imported
 - Formatter enabled
 - Devshell enabled
-- Prelude access via `config.straylight.prelude`
+- Prelude access via `config.aleph.prelude`
 
 ## minimal
 
-Just nixpkgs with straylight overlays. No formatter, no devshell.
+Just nixpkgs with aleph overlays. No formatter, no devshell.
 
 ```bash
 nix flake init -t github:straylight-software/aleph#minimal
@@ -90,7 +90,7 @@ nix flake init -t github:straylight-software/aleph#nickel-configured
 
       perSystem = { config, pkgs, ... }:
         let
-          inherit (config.straylight) prelude;
+          inherit (config.aleph) prelude;
         in {
           packages.default = pkgs.hello;
         };

@@ -19,15 +19,15 @@ in
   #
   # The prelude is a flake-parts module. To use it:
   #
-  #   imports = [ inputs.aleph-naught.modules.flake.prelude ];
+  #   imports = [ inputs.aleph.modules.flake.prelude ];
   #
   #   perSystem = { config, ... }: let
-  #     P = config.straylight.prelude;
+  #     P = config.aleph.prelude;
   #   in { ... };
   #
   # For the lib compatibility shim:
   #
-  #   lib = import inputs.aleph-naught.libShim { prelude = ... };
+  #   lib = import inputs.aleph.libShim { prelude = ... };
   #
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -209,7 +209,7 @@ in
   stdenv = rec {
 
     # The flags
-    straylight-cflags = concat-strings-sep " " [
+    aleph-cflags = concat-strings-sep " " [
       "-O2"
       "-g3 -gdwarf-5 -fno-limit-debug-info -fstandalone-debug"
       "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
@@ -219,20 +219,20 @@ in
     ];
 
     # The attrs (nixpkgs API names use string keys to avoid linter)
-    straylight-attrs = {
+    aleph-attrs = {
       "dontStrip" = true;
       "separateDebugInfo" = false;
       "hardeningDisable" = [ "all" ];
     };
 
-    # Apply straylight flags to any derivation
-    straylightify =
+    # Apply aleph flags to any derivation
+    alephify =
       drv:
       drv.${"overrideAttrs"} (
         old:
-        straylight-attrs
+        aleph-attrs
         // {
-          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " " + straylight-cflags;
+          NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "") + " " + aleph-cflags;
         }
       );
   };

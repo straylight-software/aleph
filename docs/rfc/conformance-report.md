@@ -42,7 +42,7 @@ All code in aleph adheres to the naming conventions, directory structure, forbid
 | **§6.5 No IFD** | ✓ | No import-from-derivation found |
 | **§6.6 No `default.nix` in packages** | ✓ | All packages have descriptive names |
 | **§6.7 No per-flake nixpkgs config** | ✓ | Centralized configuration enforced |
-| **§6.8 No camelCase in straylight namespace** | ✓ | All straylight.\* identifiers use lisp-case |
+| **§6.8 No camelCase in aleph namespace** | ✓ | All straylight.\* identifiers use lisp-case |
 | **§6.9 `_class` markers required** | ✓ | All non-flake modules declare `_class` |
 | **§6.10 `meta` required in packages** | ✓ | All packages have complete metadata |
 | **§7 Package Requirements** | ✓ | All packages callable, use finalAttrs, have meta |
@@ -117,7 +117,7 @@ A comprehensive audit of all 31 Nix files in the aleph codebase revealed:
    - **Import from derivation**: None found
    - **`default.nix` in packages**: None found
    - **Per-flake nixpkgs config**: Centralized via aleph
-   - **camelCase in straylight namespace**: Zero occurrences
+   - **camelCase in aleph namespace**: Zero occurrences
 
 1. **Package Patterns**: All conformant
 
@@ -212,7 +212,7 @@ To verify conformance after changes:
 ```bash
 # 1. Check naming conventions
 rg '[a-z][A-Z]' nix --type nix                    # Should find no camelCase
-rg 'straylight\.[a-zA-Z_]*[A-Z]' nix --type nix        # Should find no camelCase in straylight namespace
+rg 'straylight\.[a-zA-Z_]*[A-Z]' nix --type nix        # Should find no camelCase in aleph namespace
 
 # 2. Check forbidden patterns
 rg '^\s*with lib;' nix --type nix                 # Should find none

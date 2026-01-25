@@ -42,7 +42,7 @@
 { inputs }:
 { config, lib, ... }:
 let
-  cfg = config.aleph-naught.nixpkgs;
+  cfg = config.aleph.nixpkgs;
 in
 {
   _class = "flake";
@@ -51,7 +51,7 @@ in
   # // options //
   # ────────────────────────────────────────────────────────────────────────────
 
-  options.aleph-naught.nixpkgs = {
+  options.aleph.nixpkgs = {
     # NVIDIA GPU support - we say "nv" not "cuda"
     nv = {
       enable = lib.mkEnableOption "NVIDIA GPU support";
@@ -93,7 +93,7 @@ in
     { system, ... }:
     let
       # Overlay to inject WASM-enabled nix from straylight nix
-      straylightNixOverlay = _final: _prev: {
+      alephNixOverlay = _final: _prev: {
         inherit (inputs.nix.packages.${system}) nix;
       };
 
@@ -101,7 +101,7 @@ in
       pkgs = import inputs.nixpkgs {
         inherit system;
         # straylight nix provides WASM-enabled nix (builtins.wasm + wasm32-wasip1)
-        overlays = [ straylightNixOverlay ] ++ cfg.overlays;
+        overlays = [ alephNixOverlay ] ++ cfg.overlays;
         # nixpkgs API uses "cuda" - that's their vocabulary, not ours
         config = {
           allowUnfree = cfg.allow-unfree;
@@ -116,7 +116,7 @@ in
       _module.args.pkgs = lib.mkDefault pkgs;
 
       # Re-export as legacyPackages so consumers can access our configured nixpkgs:
-      #   inputs.aleph-naught.legacyPackages.${system}
+      #   inputs.aleph.legacyPackages.${system}
       # This is the standard flake output for "the package set".
       legacyPackages = lib.mkDefault pkgs;
     };

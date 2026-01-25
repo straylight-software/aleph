@@ -7,7 +7,7 @@ Build a derivation using `aleph` `stdenv`s.
 ```nix
 perSystem = { config, pkgs, ... }:
   let
-    inherit (config.straylight.prelude) stdenv;
+    inherit (config.aleph.prelude) stdenv;
   in {
     packages.my-tool = stdenv.default {
       pname = "my-tool";
@@ -48,7 +48,7 @@ stdenv.nvidia { ... }
 
 ```nix
 let
-  inherit (config.straylight.prelude) cross;
+  inherit (config.aleph.prelude) cross;
 in {
 
   # Build for Grace Hopper (aarch64 + Hopper GPU)

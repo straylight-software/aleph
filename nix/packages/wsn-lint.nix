@@ -7,7 +7,7 @@
   lib,
 }:
 let
-  inherit (pkgs.straylight) write-shell-application;
+  inherit (pkgs.aleph) write-shell-application;
 
   linter-src = ../../linter;
 

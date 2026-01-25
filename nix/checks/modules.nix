@@ -21,10 +21,10 @@ let
   to-upper = lib.toUpper;
   when-attr = lib.optionalAttrs;
 
-  inherit (pkgs.straylight) run-command stdenv;
+  inherit (pkgs.aleph) run-command stdenv;
 
   # Get script source and GHC from the overlay
-  inherit (pkgs.straylight.script) src ghc;
+  inherit (pkgs.aleph.script) src ghc;
 
   # Render Dhall template with environment variables
   render-dhall =
@@ -85,7 +85,7 @@ let
   # ==============================================================================
   # TEST: aleph-compiled-scripts
   # ==============================================================================
-  # Verify all compiled scripts in straylight.script.compiled build successfully
+  # Verify all compiled scripts in aleph.script.compiled build successfully
 
   script-names = [
     "vfio-bind"
@@ -106,11 +106,11 @@ let
   script-check-lines = join "\n" (
     map (name: ''
       echo "  Checking ${name}..."
-      if [ ! -x "${pkgs.straylight.script.compiled.${name}}/bin/${name}" ]; then
+      if [ ! -x "${pkgs.aleph.script.compiled.${name}}/bin/${name}" ]; then
         echo "FAILED: ${name} not found or not executable"
         exit 1
       fi
-      echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
+      echo "    ${pkgs.aleph.script.compiled.${name}}/bin/${name}"
     '') script-names
   );
 

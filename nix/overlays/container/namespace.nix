@@ -5,10 +5,10 @@
 {
   final,
   lib,
-  straylight-lib,
+  aleph-lib,
 }:
 let
-  inherit (final.straylight) build-env write-shell-application;
+  inherit (final.aleph) build-env write-shell-application;
 in
 {
   # Create a namespace environment runner
@@ -41,16 +41,16 @@ in
         ];
       };
 
-      fhs-binds = lib.optionals fhs (straylight-lib.namespace.fhs-lib-flags "${lib-env}/lib");
-      gpu-binds = lib.optionals gpu straylight-lib.namespace.gpu-flags;
-      net-binds = lib.optionals network straylight-lib.namespace.network-flags;
+      fhs-binds = lib.optionals fhs (aleph-lib.namespace.fhs-lib-flags "${lib-env}/lib");
+      gpu-binds = lib.optionals gpu aleph-lib.namespace.gpu-flags;
+      net-binds = lib.optionals network aleph-lib.namespace.network-flags;
 
       all-binds = lib.concatStringsSep " \\\n        " (
-        straylight-lib.namespace.base-flags
+        aleph-lib.namespace.base-flags
         ++ fhs-binds
         ++ gpu-binds
         ++ net-binds
-        ++ straylight-lib.namespace.user-flags
+        ++ aleph-lib.namespace.user-flags
         ++ extra-binds
       );
     in

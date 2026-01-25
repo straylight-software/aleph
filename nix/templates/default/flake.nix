@@ -1,23 +1,23 @@
 {
-  description = "Project powered by aleph-naught";
+  description = "Project powered by aleph";
 
   inputs = {
-    aleph-naught.url = "github:straylight-software/aleph-naught";
-    nixpkgs.follows = "aleph-naught/nixpkgs";
-    flake-parts.follows = "aleph-naught/flake-parts";
+    aleph.url = "github:straylight-software/aleph";
+    nixpkgs.follows = "aleph/nixpkgs";
+    flake-parts.follows = "aleph/flake-parts";
   };
 
   outputs =
-    inputs@{ flake-parts, aleph-naught, ... }:
+    inputs@{ flake-parts, aleph, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ aleph-naught.modules.flake.default ];
+      imports = [ aleph.modules.flake.default ];
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
 
-      aleph-naught = {
+      aleph = {
         formatter.enable = true;
         devshell.enable = true;
         nixpkgs.allow-unfree = true;
@@ -26,8 +26,8 @@
       "perSystem" =
         { config, pkgs, ... }:
         let
-          # The Weyl Prelude is available via config.straylight.prelude
-          inherit (config.straylight) prelude;
+          # The Aleph Prelude is available via config.aleph.prelude
+          inherit (config.aleph) prelude;
           inherit (prelude)
             stdenv
             fetch

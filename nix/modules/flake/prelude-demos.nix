@@ -25,7 +25,7 @@
       ...
     }:
     let
-      P = config.straylight.prelude;
+      P = config.aleph.prelude;
 
       # ──────────────────────────────────────────────────────────────────────────
       # // lisp-case aliases for lib functions //
@@ -1951,7 +1951,7 @@
       demo-lib-shim = run-suite "lib.nix Compatibility Shim" (
         let
           # Import the lib shim using the pure prelude
-          pure-prelude = config.straylight.prelude;
+          pure-prelude = config.aleph.prelude;
           # Note: in flake context, paths are relative to the file
           L = import ../../prelude/lib.nix { prelude = pure-prelude; };
         in

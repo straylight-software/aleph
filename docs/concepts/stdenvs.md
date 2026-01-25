@@ -6,7 +6,7 @@ Build environments with real debug info. The "Turing Registry" defines flags tha
 
 Source: `nix/prelude/turing-registry.nix`
 
-All straylight stdenvs include these flags:
+All aleph stdenvs include these flags:
 
 ```bash
 # Optimization
@@ -43,7 +43,7 @@ Derivation attributes:
 
 ## Available Stdenvs
 
-Access via `config.straylight.prelude.stdenv` or `pkgs.straylight.stdenv`:
+Access via `config.aleph.prelude.stdenv` or `pkgs.aleph.stdenv`:
 
 ### Linux
 
@@ -76,7 +76,7 @@ Aliases:
 ```nix
 perSystem = { config, ... }:
   let
-    inherit (config.straylight.prelude) stdenv;
+    inherit (config.aleph.prelude) stdenv;
   in {
     packages.my-tool = stdenv.default {
       pname = "my-tool";
@@ -96,7 +96,7 @@ perSystem = { config, ... }:
 
 Source: `nix/prelude/cross.nix`
 
-Access via `config.straylight.prelude.cross` or `pkgs.straylight.cross`:
+Access via `config.aleph.prelude.cross` or `pkgs.aleph.cross`:
 
 ### From x86_64
 
@@ -117,7 +117,7 @@ Usage:
 ```nix
 perSystem = { config, ... }:
   let
-    inherit (config.straylight.prelude) cross;
+    inherit (config.aleph.prelude) cross;
   in {
     packages.grace-build = cross.grace {
       pname = "my-tool";
@@ -150,9 +150,9 @@ Capabilities:
 Source: `nix/prelude/platform.nix`
 
 ```nix
-pkgs.straylight.platform.current      # Current platform info
-pkgs.straylight.platform.is-linux     # true on Linux
-pkgs.straylight.platform.is-darwin    # true on Darwin
-pkgs.straylight.platform.is-x86       # true on x86_64
-pkgs.straylight.platform.is-arm       # true on aarch64
+pkgs.aleph.platform.current      # Current platform info
+pkgs.aleph.platform.is-linux     # true on Linux
+pkgs.aleph.platform.is-darwin    # true on Darwin
+pkgs.aleph.platform.is-x86       # true on x86_64
+pkgs.aleph.platform.is-arm       # true on aarch64
 ```

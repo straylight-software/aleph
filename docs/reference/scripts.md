@@ -71,16 +71,16 @@ jq, crane, bwrap
 Via overlay:
 
 ```nix
-pkgs.straylight.script.compiled.unshare-run
-pkgs.straylight.script.compiled.fhs-run
-pkgs.straylight.script.compiled.vfio-bind
+pkgs.aleph.script.compiled.unshare-run
+pkgs.aleph.script.compiled.fhs-run
+pkgs.aleph.script.compiled.vfio-bind
 ```
 
 Via devshell:
 
 ```nix
 devShells.default = pkgs.mkShell {
-  packages = with pkgs.straylight.script.compiled; [
+  packages = with pkgs.aleph.script.compiled; [
     unshare-run
     fhs-run
     gpu-run
@@ -91,5 +91,5 @@ devShells.default = pkgs.mkShell {
 All scripts at once:
 
 ```nix
-packages = [ pkgs.straylight.script.all-compiled ];
+packages = [ pkgs.aleph.script.all-compiled ];
 ```

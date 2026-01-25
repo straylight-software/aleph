@@ -12,7 +12,7 @@ let
 
   # Turing Registry - authoritative build flags
   turing-registry =
-    pkgs.straylight.turing-registry or {
+    pkgs.aleph.turing-registry or {
       cflags = [ ];
       cxxflags = [ ];
     };

@@ -1,7 +1,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║                         ALEPH-NAUGHT TEST SUITE                            ║
 # ║                                                                            ║
-# ║  Aggregator for all checks in aleph-naught.                                ║
+# ║  Aggregator for all checks in aleph.                                ║
 # ║  Run with: nix flake check                                                 ║
 # ║  Or individually: nix build .#checks.<system>.test-<name>                  ║
 # ╚════════════════════════════════════════════════════════════════════════════╝

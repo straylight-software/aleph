@@ -4,9 +4,7 @@
 #
 { final, lib }:
 let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (final.aleph) fixed-output-derivation;
 in
 {
   # Extract OCI image to Nix store (content-addressed)
@@ -25,36 +23,27 @@ in
       hash ? "",
       platform ? "linux/amd64",
     }:
-    final.stdenvNoCC.mkDerivation (
-      translate-attrs {
-        inherit name;
-        __contentAddressed = true;
+    fixed-output-derivation {
+      inherit name hash;
 
-        native-build-inputs = [
-          final.crane
-          final.gnutar
-          final.gzip
-        ];
+      native-build-inputs = [
+        final.crane
+        final.gnutar
+        final.gzip
+      ];
 
-        SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
+      SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
 
-        meta = {
-          description = "OCI container image rootfs extracted to Nix store";
-        };
-      }
-      // {
-        # NOTE: FOD attrs are nixpkgs API, quoted
-        "outputHashAlgo" = "sha256";
-        "outputHashMode" = "recursive";
-        "outputHash" = hash;
+      build-script = ''
+        mkdir -p $out
+        crane export --platform ${platform} "${ref}" - | tar -xf - -C $out
+      '';
 
-        "buildCommand" = ''
-          mkdir -p $out
-          crane export --platform ${platform} "${ref}" - | tar -xf - -C $out
-        '';
-      }
-    );
+      meta = {
+        description = "OCI container image rootfs extracted to Nix store";
+      };
+    };
 
   # Run OCI images in bwrap/unshare namespace — compiled Haskell, not bash
-  unshare-run = final.straylight.script.compiled.unshare-run;
+  unshare-run = final.aleph.script.compiled.unshare-run;
 }

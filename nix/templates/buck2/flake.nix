@@ -29,7 +29,7 @@
       # ════════════════════════════════════════════════════════════════════════
       # Buck2 Build Configuration
       # ════════════════════════════════════════════════════════════════════════
-      aleph-naught.build = {
+      aleph.build = {
         enable = true;
 
         # Auto-generate .buckconfig, .buckroot, none/BUCK if missing
@@ -47,7 +47,7 @@
       };
 
       # Enable LLVM and NVIDIA overlays
-      aleph-naught.nixpkgs.nv.enable = true;
+      aleph.nixpkgs.nv.enable = true;
 
       "perSystem" =
         { pkgs, config, ... }:
@@ -55,11 +55,11 @@
           # Development shell with Buck2 and toolchains
           # Uses packages from the build module (includes llvm-git, nvidia-sdk, etc.)
           "devShells".default = pkgs.mkShell {
-            packages = [ pkgs.buck2 ] ++ config.straylight.build.packages;
+            packages = [ pkgs.buck2 ] ++ config.aleph.build.packages;
 
             # Shell hook from build module links prelude, toolchains,
             # and generates .buckconfig.local with Nix store paths
-            inherit (config.straylight.build) shellHook;
+            inherit (config.aleph.build) shellHook;
           };
 
           packages.default = pkgs.hello;

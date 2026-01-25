@@ -26,7 +26,7 @@ A standard library for Nix. Functional primitives, typed shell scripts, and buil
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
 
       perSystem = { config, pkgs, ... }:
-        let inherit (config.straylight) prelude; in
+        let inherit (config.aleph) prelude; in
         {
           packages.default = prelude.stdenv.default {
             pname = "example";

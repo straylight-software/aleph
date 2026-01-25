@@ -262,7 +262,7 @@ in
   # ──────────────────────────────────────────────────────────────────────────
   #                        // toolchain paths //
   # ──────────────────────────────────────────────────────────────────────────
-  # For downstream consumers (straylight-compile, fxy, etc.)
+  # For downstream consumers (aleph-compile, fxy, etc.)
 
   paths = lib.optionalAttrs platform.is-linux {
     clang-resource-dir = "${llvm.clang.cc.lib}/lib/clang/${lib.versions.major llvm.clang.version}";

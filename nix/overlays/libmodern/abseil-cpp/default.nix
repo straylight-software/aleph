@@ -6,18 +6,15 @@
 # Abseil produces ~130 separate static libraries. We combine them into
 # a single libabseil.a with a clean pkg-config file.
 #
+# NOTE: mk-static-cpp already accepts lisp-case attrs and handles translation.
+#
 {
   final,
   lib,
   mk-static-cpp,
   combine-archive,
 }:
-let
-  # Import prelude for translate-attrs
-  translations = import ../../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-in
-mk-static-cpp (translate-attrs {
+mk-static-cpp {
   pname = "abseil-cpp";
   version = "20250127.1";
 
@@ -51,4 +48,4 @@ mk-static-cpp (translate-attrs {
     homepage = "https://abseil.io/";
     license = lib.licenses.asl20;
   };
-})
+}

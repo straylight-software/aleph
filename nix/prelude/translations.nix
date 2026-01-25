@@ -80,6 +80,18 @@ let
     # writeShellApplication
     "runtime-inputs" = "runtimeInputs";
     "derivation-args" = "derivationArgs";
+
+    # autoPatchelf
+    "auto-patchelf-ignore-missing-deps" = "autoPatchelfIgnoreMissingDeps";
+
+    # Fixed-output derivations (FOD)
+    "output-hash-algo" = "outputHashAlgo";
+    "output-hash-mode" = "outputHashMode";
+    "output-hash" = "outputHash";
+    "build-command" = "buildCommand";
+
+    # Patching
+    "post-patch" = "postPatch";
   };
 
   # ──────────────────────────────────────────────────────────────────────────

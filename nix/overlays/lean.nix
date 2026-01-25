@@ -15,44 +15,22 @@
 final: prev:
 let
   inherit (prev) lib;
-  inherit (prev.straylight) prelude translate-attrs;
+  inherit (prev.aleph) prelude build-env;
   inherit (prelude) licenses platforms get';
 
-  # Lisp-case wrappers for nixpkgs functions with attribute translation
+  # Lisp-case wrappers for nixpkgs functions
   # Uses get' (from prelude) to avoid camelCase identifiers in code
   call-package = get' "callPackage" prev;
   fetch-from-github = get' "fetchFromGitHub" prev;
   rust-platform = get' "rustPlatform" prev;
-  build-rust-package = f: (get' "buildRustPackage" rust-platform) (attrs: translate-attrs (f attrs));
-  build-env = attrs: (get' "buildEnv" prev) (translate-attrs attrs);
+  # TODO: need a aleph.build-rust-package wrapper
+  build-rust-package = get' "buildRustPackage" rust-platform;
 in
 {
   # Elan - Lean version manager (like rustup for Rust)
   # This allows lake to download the correct Lean version for each project
-  elan =
-    prev.elan or (call-package (
-      { stdenv }:
-      build-rust-package (attrs: {
-        pname = "elan";
-        version = "4.1.2";
-
-        src = fetch-from-github {
-          owner = "leanprover";
-          repo = "elan";
-          rev = "v${attrs.version}";
-          hash = "sha256-abc123"; # Would need real hash
-        };
-
-        cargo-hash = "sha256-xyz789"; # Would need real hash
-
-        meta = {
-          description = "Lean version manager";
-          homepage = "https://github.com/leanprover/elan";
-          license = licenses.asl20;
-          platforms = platforms.unix;
-        };
-      })
-    ) { });
+  # NOTE: Using prev.elan from nixpkgs (no custom build needed)
+  elan = prev.elan;
 
   # lean4-mathlib-env - Lean 4 environment with mathlib cache
   # Uses elan to fetch the correct toolchain

@@ -661,7 +661,7 @@ Every `mkDerivation` in the prelude:
 
 Users never see these. They're axioms.
 
-> **Status**: CA derivations are temporarily disabled until the straylight nix fork
+> **Status**: CA derivations are temporarily disabled until the aleph nix fork
 > lands with improved CA support. Structured attrs remain enabled.
 
 ### 16. Bundle Export

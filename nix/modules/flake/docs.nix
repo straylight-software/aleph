@@ -24,12 +24,12 @@ let
   list-of = lib.types.listOf;
   eval-modules = lib.evalModules;
 
-  cfg = config.aleph-naught.docs;
+  cfg = config.aleph.docs;
 in
 {
   _class = "flake";
 
-  options.aleph-naught.docs = {
+  options.aleph.docs = {
     enable = mk-enable-option "documentation generation";
 
     title = mk-option {
@@ -119,7 +119,7 @@ in
                 enable = true
               '';
             in
-            run-command "aleph-naught-docs-options"
+            run-command "aleph-docs-options"
               {
                 nativeBuildInputs = [ ndg-pkg ];
               }
@@ -129,7 +129,7 @@ in
 
         prelude-functions-src = ../../../nix/prelude/functions.nix;
         docs-prelude-drv =
-          run-command "aleph-naught-docs-prelude"
+          run-command "aleph-docs-prelude"
             {
               nativeBuildInputs = [ pkgs.nixdoc ];
             }
@@ -149,7 +149,7 @@ in
           docs-prelude = docs-prelude-drv;
 
           docs-prose =
-            run-command "aleph-naught-docs-prose"
+            run-command "aleph-docs-prose"
               {
                 nativeBuildInputs = [ pkgs.mdbook ];
                 inherit (cfg) src;
@@ -165,7 +165,7 @@ in
                 mdbook build -d $out
               '';
 
-          docs = run-command "aleph-naught-docs" { } ''
+          docs = run-command "aleph-docs" { } ''
             mkdir -p $out
 
             cp -r ${config.packages.docs-prose}/. $out/
@@ -186,7 +186,7 @@ in
           ];
 
           shellHook = ''
-            echo "━━━ aleph-naught docs ━━━"
+            echo "━━━ aleph docs ━━━"
             echo "mdbook serve     - preview prose docs"
             echo "nix build .#docs - build combined output"
           '';

@@ -60,7 +60,7 @@ in
     final: _prev:
     if has-straylight-nix then
       {
-        straylight = (_prev.straylight or { }) // {
+        aleph = (_prev.aleph or { }) // {
           nix = mk-straylight-nix-packages final final.stdenv.hostPlatform.system;
         };
       }

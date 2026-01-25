@@ -91,7 +91,7 @@ in
     final: prev:
     if has-ghc-wasm-meta then
       {
-        straylight = (prev.straylight or { }) // {
+        aleph = (prev.aleph or { }) // {
           ghc-wasm = mk-ghc-wasm-packages final.stdenv.hostPlatform.system;
         };
       }

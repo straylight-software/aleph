@@ -34,13 +34,13 @@ let
 in
 { config, lib, ... }:
 let
-  cfg = config.aleph-naught.lint;
+  cfg = config.aleph.lint;
 in
 {
   _class = "flake";
 
-  options.aleph-naught.lint = {
-    enable = lib.mkEnableOption "aleph-naught lint configs" // {
+  options.aleph.lint = {
+    enable = lib.mkEnableOption "aleph lint configs" // {
       default = true;
     };
   };
@@ -52,7 +52,7 @@ in
       { pkgs, ... }:
       let
         # Create a configs directory derivation with all lint configs
-        configs-dir = pkgs.linkFarm "straylight-lint-configs" [
+        configs-dir = pkgs.linkFarm "aleph-lint-configs" [
           {
             name = ".clang-format";
             path = lint-configs.clang-format;

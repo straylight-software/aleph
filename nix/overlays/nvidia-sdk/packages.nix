@@ -305,7 +305,7 @@ let
   triton-rootfs = prev.nvidia-sdk-ngc-rootfs or null;
 
   # Haskell extraction script
-  nvidia-sdk-script = final.straylight.script.compiled.nvidia-sdk;
+  nvidia-sdk-script = final.aleph.script.compiled.nvidia-sdk;
 
   mk-container-pkg =
     {

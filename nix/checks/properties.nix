@@ -35,7 +35,7 @@ let
   name-value-pair = lib.nameValuePair;
   to-upper = lib.toUpper;
 
-  inherit (pkgs.straylight) run-command;
+  inherit (pkgs.aleph) run-command;
 
   list-filter = builtins.filter;
   list-length = builtins.length;

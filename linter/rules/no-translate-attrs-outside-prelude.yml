@@ -8,6 +8,10 @@ ignores:
   - "nix/prelude/**"
   # flake-parts modules (TODO: wrap these too)
   - "nix/modules/flake/**"
+  # nvidia-sdk overlays use translate-attrs directly to avoid circular deps
+  # with straylight.stdenv (which queries final.nvidia-sdk in toolchain.nix)
+  - "nix/overlays/nvidia-sdk/**"
+  - "nix/overlays/nixpkgs-nvidia-sdk.nix"
 rule:
   any:
     # translate-attrs function call

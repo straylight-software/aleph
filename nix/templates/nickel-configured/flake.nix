@@ -2,23 +2,23 @@
   description = "Nickel-configured infrastructure (agenix users/machines)";
 
   inputs = {
-    aleph-naught.url = "github:straylight-software/aleph-naught";
-    nixpkgs.follows = "aleph-naught/nixpkgs";
-    flake-parts.follows = "aleph-naught/flake-parts";
+    aleph.url = "github:straylight-software/aleph";
+    nixpkgs.follows = "aleph/nixpkgs";
+    flake-parts.follows = "aleph/flake-parts";
     agenix.url = "github:ryantm/agenix";
   };
 
   outputs =
     inputs@{
       flake-parts,
-      aleph-naught,
+      aleph,
       agenix,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
-        aleph-naught.modules.flake.nixpkgs
-        aleph-naught.modules.flake.prelude
+        aleph.modules.flake.nixpkgs
+        aleph.modules.flake.prelude
       ];
 
       systems = [
@@ -26,7 +26,7 @@
         "aarch64-linux"
       ];
 
-      aleph-naught.nixpkgs.allow-unfree = true;
+      aleph.nixpkgs.allow-unfree = true;
 
       "perSystem" =
         { prelude, pkgs, ... }:

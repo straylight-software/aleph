@@ -152,8 +152,8 @@ Source: `nix/scripts/*.hs`
 ### Via Overlay
 
 ```nix
-pkgs.straylight.script.ghc           # GHC with Aleph.Script
-pkgs.straylight.script.compiled.unshare-run  # Pre-compiled script
+pkgs.aleph.script.ghc           # GHC with Aleph.Script
+pkgs.aleph.script.compiled.unshare-run  # Pre-compiled script
 ```
 
 ### Via Prelude
@@ -161,7 +161,7 @@ pkgs.straylight.script.compiled.unshare-run  # Pre-compiled script
 ```nix
 perSystem = { config, ... }:
   let
-    inherit (config.straylight.prelude) ghc;
+    inherit (config.aleph.prelude) ghc;
   in {
     packages.my-script = ghc.turtle-script {
       name = "my-script";
@@ -175,7 +175,7 @@ perSystem = { config, ... }:
 ## Development Shell
 
 ```bash
-nix develop .#straylight-script
+nix develop .#aleph-script
 runghc -i. check.hs        # Quick validation
 runghc -i. Props.hs        # Property tests
 runghc -i. gen-wrapper.hs rg  # Generate wrapper for ripgrep

@@ -10,7 +10,7 @@
   cmake,
 }:
 let
-  inherit (pkgs.straylight) stdenv;
+  inherit (pkgs.aleph) stdenv;
 
   # External API alias
   fetch-from-github = pkgs.fetchFromGitHub;

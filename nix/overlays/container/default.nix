@@ -3,14 +3,14 @@
 # Container, Namespace, and Firecracker overlay
 #
 # Provides:
-#   - pkgs.straylight.container.mk-namespace-env - Create namespace runners
-#   - pkgs.straylight.container.mk-oci-rootfs - Content-addressed OCI extraction
-#   - pkgs.straylight.container.mk-firecracker-image - Build Firecracker disk images
-#   - pkgs.straylight.container.mk-simple-index - Generate PEP 503 indexes
-#   - pkgs.straylight.container.extract - Binary extraction with patchelf
-#   - pkgs.straylight.container.oci-run - Run OCI images in namespaces
-#   - pkgs.straylight.container.fhs-run - Run binaries with FHS layout
-#   - pkgs.straylight.container.gpu-run - Run with GPU access
+#   - pkgs.aleph.container.mk-namespace-env - Create namespace runners
+#   - pkgs.aleph.container.mk-oci-rootfs - Content-addressed OCI extraction
+#   - pkgs.aleph.container.mk-firecracker-image - Build Firecracker disk images
+#   - pkgs.aleph.container.mk-simple-index - Generate PEP 503 indexes
+#   - pkgs.aleph.container.extract - Binary extraction with patchelf
+#   - pkgs.aleph.container.oci-run - Run OCI images in namespaces
+#   - pkgs.aleph.container.fhs-run - Run binaries with FHS layout
+#   - pkgs.aleph.container.gpu-run - Run with GPU access
 #
 # Philosophy:
 #   - Namespaces, not daemons (bwrap, not Docker)
@@ -25,7 +25,7 @@ final: prev:
 let
   inherit (prev) lib;
 
-  straylight-lib = import ../../lib { inherit lib; };
+  aleph-lib = import ../../lib { inherit lib; };
 
   # Import platform stub helpers
   platform-stub = import ../../prelude/platform-stub.nix {
@@ -38,15 +38,15 @@ let
   # ══════════════════════════════════════════════════════════════════════════════
 
   namespace-mod = lib.optionalAttrs final.stdenv.isLinux (
-    import ./namespace.nix { inherit final lib straylight-lib; }
+    import ./namespace.nix { inherit final lib aleph-lib; }
   );
   oci-mod = lib.optionalAttrs final.stdenv.isLinux (import ./oci.nix { inherit final lib; });
   firecracker-mod = lib.optionalAttrs final.stdenv.isLinux (
     import ./firecracker.nix { inherit final lib; }
   );
-  extract-mod = import ./extract.nix { inherit final lib straylight-lib; };
+  extract-mod = import ./extract.nix { inherit final lib aleph-lib; };
   ngc-mod = lib.optionalAttrs final.stdenv.isLinux (
-    import ./ngc.nix { inherit final lib straylight-lib; }
+    import ./ngc.nix { inherit final lib aleph-lib; }
   );
   pep503-mod = import ./pep503.nix { inherit final; };
 
@@ -56,7 +56,7 @@ let
 
   fhs-run =
     if final.stdenv.isLinux then
-      final.straylight.script.compiled.fhs-run
+      final.aleph.script.compiled.fhs-run
     else
       platform-stub.mk-platform-stub {
         name = "fhs-run";
@@ -71,7 +71,7 @@ let
 
   gpu-run =
     if final.stdenv.isLinux then
-      final.straylight.script.compiled.gpu-run
+      final.aleph.script.compiled.gpu-run
     else
       platform-stub.mk-platform-stub {
         name = "gpu-run";
@@ -86,10 +86,10 @@ let
 
 in
 {
-  straylight = (prev.straylight or { }) // {
+  aleph = (prev.aleph or { }) // {
     container = {
       # Library functions (re-exported for convenience)
-      lib = straylight-lib;
+      lib = aleph-lib;
 
       # From namespace.nix (Linux only, with stubs)
       mk-namespace-env = namespace-mod.mk-namespace-env or (throw "mk-namespace-env requires Linux");

@@ -1,15 +1,15 @@
 {
-  description = "NVIDIA/ML project powered by aleph-naught";
+  description = "NVIDIA/ML project powered by aleph";
 
   inputs = {
-    aleph-naught.url = "github:straylight-software/aleph-naught";
-    nixpkgs.follows = "aleph-naught/nixpkgs";
-    flake-parts.follows = "aleph-naught/flake-parts";
+    aleph.url = "github:straylight-software/aleph";
+    nixpkgs.follows = "aleph/nixpkgs";
+    flake-parts.follows = "aleph/flake-parts";
     systems.url = "github:nix-systems/default-linux";
   };
 
   outputs =
-    inputs@{ flake-parts, aleph-naught, ... }:
+    inputs@{ flake-parts, aleph, ... }:
     let
       # Memoized nixpkgs instances - one import per system, not per module.
       # See: https://zimbatm.com/notes/1000-instances-of-nixpkgs
@@ -18,7 +18,7 @@
         import inputs.nixpkgs {
           inherit system;
           overlays = [
-            aleph-naught.overlays.default
+            aleph.overlays.default
           ];
           config = {
             "cudaSupport" = true;
@@ -29,10 +29,10 @@
       );
     in
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ aleph-naught.modules.flake.default ];
+      imports = [ aleph.modules.flake.default ];
       systems = import inputs.systems;
 
-      aleph-naught = {
+      aleph = {
         formatter.enable = true;
         devshell = {
           enable = true;
@@ -49,8 +49,8 @@
           # Use memoized nixpkgs instance
           pkgs = nixpkgs-instances.${system};
 
-          # The Weyl Prelude is available via config.straylight.prelude
-          inherit (config.straylight) prelude;
+          # The Aleph Prelude is available via config.aleph.prelude
+          inherit (config.aleph) prelude;
         in
         {
           # Override _module.args.pkgs with our memoized instance

@@ -19,7 +19,7 @@
 }:
 let
   inherit (pkgs) lib;
-  inherit (pkgs.straylight) run-command;
+  inherit (pkgs.aleph) run-command;
 
   to-string = builtins.toString;
 

@@ -1,7 +1,7 @@
 # nix/overlays/script.nix
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                           // straylight.script //
+#                           // aleph.script //
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     He'd operated on an almost permanent adrenaline high, a byproduct of
@@ -18,11 +18,11 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
-#   straylight.script.gen-wrapper    unified wrapper generator (auto-detects format)
-#   straylight.script.check          validation script for all tooling
-#   straylight.script.ghc            GHC with Aleph.Script modules
-#   straylight.script.tools          pre-generated tool wrappers
-#   straylight.script.compiled.*     compiled Haskell scripts for container/VM ops
+#   aleph.script.gen-wrapper    unified wrapper generator (auto-detects format)
+#   aleph.script.check          validation script for all tooling
+#   aleph.script.ghc            GHC with Aleph.Script modules
+#   aleph.script.tools          pre-generated tool wrappers
+#   aleph.script.compiled.*     compiled Haskell scripts for container/VM ops
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 final: prev:
@@ -135,8 +135,8 @@ let
         mkdir -p $out/bin
         cp ${name} $out/bin/
         ${lib.optionalString has-config ''
-          mkdir -p $out/share/straylight
-          cp ${config-file} $out/share/straylight/config.dhall
+          mkdir -p $out/share/aleph
+          cp ${config-file} $out/share/aleph/config.dhall
         ''}
         runHook postInstall
       '';
@@ -145,7 +145,7 @@ let
         let
           wrap-args =
             lib.optional (deps != [ ]) "--prefix PATH : ${lib.makeBinPath deps}"
-            ++ lib.optional has-config "--set CONFIG_FILE $out/share/straylight/config.dhall";
+            ++ lib.optional has-config "--set CONFIG_FILE $out/share/aleph/config.dhall";
         in
         lib.optionalString (wrap-args != [ ]) ''
           wrapProgram $out/bin/${name} \
@@ -166,7 +166,7 @@ let
 
 in
 {
-  straylight = (prev.straylight or { }) // {
+  aleph = (prev.aleph or { }) // {
     script = {
       # ──────────────────────────────────────────────────────────────────────
       # // source //
@@ -191,12 +191,12 @@ in
       # Unified wrapper generator. Auto-detects clap vs GNU format.
       #
       # Usage:
-      #   straylight.script.gen-wrapper rg              # stdout
-      #   straylight.script.gen-wrapper grep --gnu     # force GNU format
-      #   straylight.script.gen-wrapper fd --write     # write to Tools/Fd.hs
+      #   aleph.script.gen-wrapper rg              # stdout
+      #   aleph.script.gen-wrapper grep --gnu     # force GNU format
+      #   aleph.script.gen-wrapper fd --write     # write to Tools/Fd.hs
 
       gen-wrapper = final.writeShellApplication {
-        name = "straylight-gen-wrapper";
+        name = "aleph-gen-wrapper";
         "runtimeInputs" = [ ghc-with-script ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/gen-wrapper.hs "$@"
@@ -210,7 +210,7 @@ in
       # Quick validation: compiles all wrappers, parses corpus, checks invariants.
 
       check = final.writeShellApplication {
-        name = "straylight-script-check";
+        name = "aleph-script-check";
         "runtimeInputs" = [ ghc-with-script ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs "$@"
@@ -224,7 +224,7 @@ in
       # Property tests: parser totality, idempotence, preservation, compilation.
 
       props = final.writeShellApplication {
-        name = "straylight-script-props";
+        name = "aleph-script-props";
         "runtimeInputs" = [ ghc-with-tests ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs "$@"
@@ -238,7 +238,7 @@ in
       # Development shell for working on Aleph.Script.
 
       shell = final.mkShell {
-        name = "straylight-script-shell";
+        name = "aleph-script-shell";
         "buildInputs" = [
           ghc-with-tests
           # CLI tools for testing wrappers
@@ -303,9 +303,9 @@ in
         ];
         # All tools
         all =
-          final.straylight.script.tools.clap
-          ++ final.straylight.script.tools.gnu
-          ++ final.straylight.script.tools.handcrafted;
+          final.aleph.script.tools.clap
+          ++ final.aleph.script.tools.gnu
+          ++ final.aleph.script.tools.handcrafted;
       };
 
       # ──────────────────────────────────────────────────────────────────────
@@ -473,8 +473,8 @@ in
 
       # Convenience: build all compiled scripts
       all-compiled = final.symlinkJoin {
-        name = "straylight-scripts";
-        paths = builtins.attrValues final.straylight.script.compiled;
+        name = "aleph-scripts";
+        paths = builtins.attrValues final.aleph.script.compiled;
       };
 
       # ──────────────────────────────────────────────────────────────────────

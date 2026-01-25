@@ -505,7 +505,7 @@ pkgs.stdenv.mkDerivation {
 };
 
 # Usage
-straylight.script.compiled = {
+aleph.script.compiled = {
   vfio-bind = mkCompiledScript {
     name = "vfio-bind";
     deps = [ pkgs.pciutils ];
@@ -523,13 +523,13 @@ straylight.script.compiled = {
 
 ```bash
 # Generate a wrapper from --help output
-nix run .#straylight.script.gen-wrapper -- rg
+nix run .#aleph.script.gen-wrapper -- rg
 
 # Force GNU format
-nix run .#straylight.script.gen-wrapper -- grep --gnu
+nix run .#aleph.script.gen-wrapper -- grep --gnu
 
 # Write directly to Tools/
-nix run .#straylight.script.gen-wrapper -- fd --write
+nix run .#aleph.script.gen-wrapper -- fd --write
 ```
 
 The generator:

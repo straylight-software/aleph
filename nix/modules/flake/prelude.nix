@@ -1,7 +1,7 @@
 # nix/modules/flake/prelude.nix
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                           // the straylight prelude //
+#                           // the aleph prelude //
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     "The Sprawl was a long strange way home over the Pacific now, and he
@@ -12,18 +12,18 @@
 # A flake-parts module that exposes the Weyl Prelude from the overlay.
 #
 # The prelude overlay (nix/overlays/prelude.nix) provides:
-#   - straylight.prelude: functional library
-#   - straylight.stdenv: build environment matrix
-#   - straylight.cross: cross-compilation targets
-#   - straylight.platform: platform detection
-#   - straylight.gpu: GPU architecture metadata
-#   - straylight.turing-registry: non-negotiable build flags
+#   - aleph.prelude: functional library
+#   - aleph.stdenv: build environment matrix
+#   - aleph.cross: cross-compilation targets
+#   - aleph.platform: platform detection
+#   - aleph.gpu: GPU architecture metadata
+#   - aleph.turing-registry: non-negotiable build flags
 #
 # Access via _module.args:
 #   perSystem = { prelude, pkgs, ... }: { ... }
 #
 # Or via config:
-#   perSystem = { config, ... }: let p = config.straylight.prelude; in { ... }
+#   perSystem = { config, ... }: let p = config.aleph.prelude; in { ... }
 #
 # See RFC-003: docs/languages/nix/rfc/003-prelude.md
 #
@@ -48,7 +48,7 @@ in
     perSystem = mkPerSystemOption (
       { lib, ... }:
       {
-        options.straylight = {
+        options.aleph = {
           prelude = lib.mkOption {
             type = lib.types.raw;
             description = "The instantiated Weyl Prelude for this system";
@@ -66,11 +66,11 @@ in
     perSystem =
       { pkgs, system, ... }:
       let
-        # Get the prelude from the overlay (must have aleph-naught overlay applied)
-        straylight =
-          pkgs.straylight or (throw ''
-            straylight.prelude requires the aleph-naught overlay to be applied.
-            Make sure you import aleph-naught.flakeModules.std or apply the overlay manually.
+        # Get the prelude from the overlay (must have aleph overlay applied)
+        aleph =
+          pkgs.aleph or (throw ''
+            aleph.prelude requires the aleph overlay to be applied.
+            Make sure you import aleph.flakeModules.std or apply the overlay manually.
           '');
 
         # ──────────────────────────────────────────────────────────────────────
@@ -98,25 +98,25 @@ in
 
         python =
           let
-            version = straylight.versions.python;
+            version = aleph.versions.python;
             pkg = pkgs.python312;
             pkgs' = pkgs.python312Packages;
           in
           {
             inherit version pkg pkgs';
             interpreter = pkg;
-            build = attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs);
-            app = attrs: pkgs'.buildPythonApplication (straylight.translate-attrs attrs);
+            build = attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs);
+            app = attrs: pkgs'.buildPythonApplication (aleph.translate-attrs attrs);
             lib =
-              attrs: pkgs'.buildPythonPackage (straylight.translate-attrs attrs // { format = "setuptools"; });
+              attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs // { format = "setuptools"; });
           };
 
         ghc =
           let
-            version = straylight.versions.ghc;
+            version = aleph.versions.ghc;
             pkg = hs-pkgs.ghc;
             pkgs' = hs-pkgs;
-            build = attrs: pkgs'.mkDerivation (straylight.translate-attrs attrs);
+            build = attrs: pkgs'.mkDerivation (aleph.translate-attrs attrs);
           in
           {
             inherit
@@ -201,11 +201,11 @@ in
 
         lean =
           let
-            version = straylight.versions.lean;
+            version = aleph.versions.lean;
             pkg = pkgs.lean4;
             build =
               attrs:
-              straylight.stdenv.default (
+              aleph.stdenv.default (
                 attrs
                 // {
                   native-deps = (attrs.native-deps or [ ]) ++ [ pkg ];
@@ -219,11 +219,11 @@ in
 
         rust =
           let
-            version = straylight.versions.rust;
+            version = aleph.versions.rust;
             pkg = pkgs.rustc;
             toolchain = pkgs.rustPlatform;
             crates = pkgs.rustPackages;
-            build = attrs: pkgs.rustPlatform.buildRustPackage (straylight.translate-attrs attrs);
+            build = attrs: pkgs.rustPlatform.buildRustPackage (aleph.translate-attrs attrs);
           in
           {
             inherit
@@ -239,24 +239,24 @@ in
           };
 
         cpp = {
-          bin = straylight.stdenv.default;
-          lib = straylight.stdenv.default;
-          staticlib = straylight.stdenv.static;
-          header-only = straylight.stdenv.default;
+          bin = aleph.stdenv.default;
+          lib = aleph.stdenv.default;
+          staticlib = aleph.stdenv.static;
+          header-only = aleph.stdenv.default;
           nvidia = {
             build =
               attrs:
-              (straylight.stdenv.nvidia or straylight.stdenv.default) (
+              (aleph.stdenv.nvidia or aleph.stdenv.default) (
                 builtins.removeAttrs attrs [ "target-gpu" ]
               );
             kernel =
               attrs:
-              (straylight.stdenv.nvidia or straylight.stdenv.default) (
+              (aleph.stdenv.nvidia or aleph.stdenv.default) (
                 builtins.removeAttrs attrs [ "target-gpu" ]
               );
             host =
               attrs:
-              (straylight.stdenv.nvidia or straylight.stdenv.default) (
+              (aleph.stdenv.nvidia or aleph.stdenv.default) (
                 builtins.removeAttrs attrs [ "target-gpu" ]
               );
           };
@@ -544,7 +544,7 @@ in
               "dont-check"
             ];
           in
-          straylight.stdenv.default (
+          aleph.stdenv.default (
             {
               inherit pname version src;
               buildInputs = deps;
@@ -1088,9 +1088,9 @@ in
         # // assembled prelude //
         # ──────────────────────────────────────────────────────────────────────
 
-        prelude = straylight.prelude // {
+        prelude = aleph.prelude // {
           # Re-export overlay contents
-          inherit (straylight)
+          inherit (aleph)
             platform
             gpu
             turing-registry
@@ -1144,8 +1144,8 @@ in
 
       in
       {
-        # Expose via config.straylight.prelude
-        straylight.prelude = prelude;
+        # Expose via config.aleph.prelude
+        aleph.prelude = prelude;
 
         # Expose via _module.args for direct access: { prelude, ... }:
         _module.args.prelude = prelude;

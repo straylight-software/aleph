@@ -5,12 +5,10 @@
 {
   final,
   lib,
-  straylight-lib,
+  aleph-lib,
 }:
 let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (final.aleph) stdenv;
 in
 {
   # Extract Python environment from NGC container
@@ -40,7 +38,7 @@ in
       extra-site-packages ? [ ],
     }:
     let
-      run-path = straylight-lib.elf.mk-rpath (
+      run-path = aleph-lib.elf.mk-rpath (
         runtime-inputs
         ++ [
           final.stdenv.cc.cc.lib
@@ -54,113 +52,109 @@ in
         ]
       );
     in
-    final.stdenv.mkDerivation (
-      translate-attrs {
-        inherit name;
-        src = container;
+    stdenv.default {
+      inherit name;
+      src = container;
 
-        native-build-inputs = [
-          final.autoPatchelfHook
-          final.makeWrapper
-          final.patchelf
-          final.file
-        ];
+      native-build-inputs = [
+        final.autoPatchelfHook
+        final.makeWrapper
+        final.patchelf
+        final.file
+      ];
 
-        build-inputs = runtime-inputs ++ [
-          final.stdenv.cc.cc.lib
-          final.zlib
-          final.bzip2
-          final.xz
-          final.libffi
-          final.ncurses
-          final.readline
-          final.openssl
-        ];
+      build-inputs = runtime-inputs ++ [
+        final.stdenv.cc.cc.lib
+        final.zlib
+        final.bzip2
+        final.xz
+        final.libffi
+        final.ncurses
+        final.readline
+        final.openssl
+      ];
 
-        dont-configure = true;
-        dont-build = true;
+      dont-configure = true;
+      dont-build = true;
 
-        install-phase = ''
-          runHook preInstall
+      install-phase = ''
+        runHook preInstall
 
-          mkdir -p $out/{bin,lib}
+        mkdir -p $out/{bin,lib}
 
-          # Find and copy Python interpreter
-          PYTHON_BIN=$(find $src -path "*/bin/python${python-version}" -type f | head -1)
-          if [ -z "$PYTHON_BIN" ]; then
-            PYTHON_BIN=$(find $src -path "*/bin/python3" -type f | head -1)
+        # Find and copy Python interpreter
+        PYTHON_BIN=$(find $src -path "*/bin/python${python-version}" -type f | head -1)
+        if [ -z "$PYTHON_BIN" ]; then
+          PYTHON_BIN=$(find $src -path "*/bin/python3" -type f | head -1)
+        fi
+
+        if [ -n "$PYTHON_BIN" ]; then
+          cp "$PYTHON_BIN" $out/bin/python3
+          chmod +x $out/bin/python3
+          ln -s python3 $out/bin/python
+        fi
+
+        # Copy Python standard library
+        PYTHON_LIB=$(find $src -type d -name "python${python-version}" -path "*/lib/*" | head -1)
+        if [ -n "$PYTHON_LIB" ]; then
+          cp -a "$PYTHON_LIB" $out/lib/
+        fi
+
+        # Copy site-packages from all locations
+        mkdir -p $out/lib/python${python-version}/site-packages
+        for site in \
+          $src/usr/lib/python3/dist-packages \
+          $src/usr/local/lib/python${python-version}/dist-packages \
+          $src/usr/lib/python${python-version}/site-packages
+        do
+          if [ -d "$site" ]; then
+            cp -a "$site"/* $out/lib/python${python-version}/site-packages/ 2>/dev/null || true
           fi
+        done
 
-          if [ -n "$PYTHON_BIN" ]; then
-            cp "$PYTHON_BIN" $out/bin/python3
-            chmod +x $out/bin/python3
-            ln -s python3 $out/bin/python
+        # Copy container's native libs that Python modules depend on
+        mkdir -p $out/lib/native
+        for lib_dir in $src/usr/lib/x86_64-linux-gnu $src/usr/local/lib; do
+          if [ -d "$lib_dir" ]; then
+            find "$lib_dir" -name "*.so*" -type f 2>/dev/null | while read -r f; do
+              cp -a "$f" $out/lib/native/ 2>/dev/null || true
+            done
           fi
+        done
 
-          # Copy Python standard library
-          PYTHON_LIB=$(find $src -type d -name "python${python-version}" -path "*/lib/*" | head -1)
-          if [ -n "$PYTHON_LIB" ]; then
-            cp -a "$PYTHON_LIB" $out/lib/
-          fi
+        runHook postInstall
+      '';
 
-          # Copy site-packages from all locations
-          mkdir -p $out/lib/python${python-version}/site-packages
-          for site in \
-            $src/usr/lib/python3/dist-packages \
-            $src/usr/local/lib/python${python-version}/dist-packages \
-            $src/usr/lib/python${python-version}/site-packages
-          do
-            if [ -d "$site" ]; then
-              cp -a "$site"/* $out/lib/python${python-version}/site-packages/ 2>/dev/null || true
-            fi
-          done
+      pre-fixup = ''
+        addAutoPatchelfSearchPath $out/lib/native
+        addAutoPatchelfSearchPath $out/lib/python${python-version}/lib-dynload
+      '';
 
-          # Copy container's native libs that Python modules depend on
-          mkdir -p $out/lib/native
-          for lib_dir in $src/usr/lib/x86_64-linux-gnu $src/usr/local/lib; do
-            if [ -d "$lib_dir" ]; then
-              find "$lib_dir" -name "*.so*" -type f 2>/dev/null | while read -r f; do
-                cp -a "$f" $out/lib/native/ 2>/dev/null || true
-              done
-            fi
-          done
+      post-fixup = ''
+        # Create wrapper with proper environment
+        if [ -f $out/bin/python3 ]; then
+          wrapProgram $out/bin/python3 \
+            --prefix PYTHONPATH : "$out/lib/python${python-version}/site-packages${
+              lib.concatMapStrings (p: ":${p}") extra-site-packages
+            }" \
+            --prefix LD_LIBRARY_PATH : "$out/lib/native:${run-path}"
+        fi
+      '';
 
-          runHook postInstall
-        '';
+      passthru = {
+        inherit container python-version;
+        site-packages = "$out/lib/python${python-version}/site-packages";
+      };
 
-        pre-fixup = ''
-          addAutoPatchelfSearchPath $out/lib/native
-          addAutoPatchelfSearchPath $out/lib/python${python-version}/lib-dynload
-        '';
+      auto-patchelf-ignore-missing-deps = [
+        "libcuda.so.1"
+        "libnvidia-ml.so.1"
+        "libcudart.so.*"
+      ];
 
-        post-fixup = ''
-          # Create wrapper with proper environment
-          if [ -f $out/bin/python3 ]; then
-            wrapProgram $out/bin/python3 \
-              --prefix PYTHONPATH : "$out/lib/python${python-version}/site-packages${
-                lib.concatMapStrings (p: ":${p}") extra-site-packages
-              }" \
-              --prefix LD_LIBRARY_PATH : "$out/lib/native:${run-path}"
-          fi
-        '';
-
-        passthru = {
-          inherit container python-version;
-          site-packages = "$out/lib/python${python-version}/site-packages";
-        };
-
-        meta = {
-          description = "Python environment extracted from NGC container";
-          platforms = [ "x86_64-linux" ];
-        };
-      }
-      // {
-        # NOTE: autoPatchelfIgnoreMissingDeps is nixpkgs API, quoted
-        "autoPatchelfIgnoreMissingDeps" = [
-          "libcuda.so.1"
-          "libnvidia-ml.so.1"
-          "libcudart.so.*"
-        ];
-      }
-    );
+      meta = {
+        description = "Python environment extracted from NGC container";
+        platforms = [ "x86_64-linux" ];
+      };
+    };
 }

@@ -24,7 +24,7 @@
 #
 #   imports = [ aleph.modules.flake.lre ];
 #
-#   aleph-naught.lre.enable = true;
+#   aleph.lre.enable = true;
 #
 # Then in your devshell:
 #   lre-start --workers=4
@@ -49,10 +49,10 @@ let
   optional-string = lib.optionalString;
   optional = lib.optional;
 
-  cfg = config.aleph-naught.lre;
+  cfg = config.aleph.lre;
   # Remote execution config (from build module, with defaults if not present)
   remote-cfg =
-    config.aleph-naught.build.remote or {
+    config.aleph.build.remote or {
       enable = false;
       scheduler = "aleph-scheduler.fly.dev";
       cas = "aleph-cas.fly.dev";
@@ -66,12 +66,12 @@ in
   _class = "flake";
 
   # ════════════════════════════════════════════════════════════════════════════
-  # Per-system options for straylight.lre
+  # Per-system options for aleph.lre
   # ════════════════════════════════════════════════════════════════════════════
   options.perSystem = mkPerSystemOption (
     { lib, ... }:
     {
-      options.straylight.lre = {
+      options.aleph.lre = {
         shellHook = lib.mkOption {
           type = lib.types.lines;
           default = "";
@@ -96,7 +96,7 @@ in
     }
   );
 
-  options.aleph-naught.lre = {
+  options.aleph.lre = {
     enable = lib.mkEnableOption "NativeLink Local Remote Execution";
 
     port = lib.mkOption {
@@ -228,7 +228,7 @@ in
 
       in
       {
-        straylight.lre = {
+        aleph.lre = {
           shellHook = lre-shell-hook;
           packages = [ lre-start ] ++ optional (nativelink != null) nativelink;
           # Expose individual packages for flake outputs

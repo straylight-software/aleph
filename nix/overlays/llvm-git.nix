@@ -9,20 +9,14 @@
 inputs: _final: prev:
 let
   inherit (prev) lib;
-
-  # translation layer for derivation attributes
-  translations = import ../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (prev.aleph) stdenv;
 
   # lisp-case platform check (use attribute access to avoid lint)
   is-linux = prev.stdenv.isLinux;
 
-  # mk-derivation wrapper that translates lisp-case attrs to camelCase
-  mk-derivation = args: prev.stdenv.mkDerivation (translate-attrs args);
-
   # Only build on Linux (CUDA requirement)
   llvm-git = lib.optionalAttrs is-linux {
-    llvm-git = mk-derivation {
+    llvm-git = stdenv.default {
       pname = "llvm-git";
       version = "22.0.0-git";
 

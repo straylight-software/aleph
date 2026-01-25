@@ -74,7 +74,7 @@ let
           args'
           // {
             passthru = (args'.passthru or { }) // {
-              straylight = {
+              aleph = {
                 inherit name cflags ldflags;
                 target = triple;
               };
@@ -96,7 +96,7 @@ let
         };
 
       passthru = {
-        straylight = {
+        aleph = {
           inherit name cflags ldflags;
           target = triple;
           inherit (turing-registry) attrs;
@@ -205,10 +205,27 @@ let
     ldflags = "";
   };
 
+  # ──────────────────────────────────────────────────────────────────────────
+  #                         // no-cc stdenv //
+  # ──────────────────────────────────────────────────────────────────────────
+  # For derivations that don't need a compiler (FODs, pure extraction, etc.)
+
+  no-cc-stdenv = {
+    __functor =
+      _self: args:
+      let
+        args' = translate-attrs args;
+      in
+      final.stdenvNoCC.mkDerivation args';
+
+    raw = final.stdenvNoCC.mkDerivation;
+  };
+
 in
 linux-stdenvs
 // {
   default = if platform.is-linux then linux-stdenvs.clang-glibc-dynamic else darwin-stdenv;
+  no-cc = no-cc-stdenv;
 }
 // when platform.is-darwin {
   darwin = darwin-stdenv;

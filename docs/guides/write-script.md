@@ -32,7 +32,7 @@ main = script $ do
 ```nix
 perSystem = { config, pkgs, ... }:
   let
-    inherit (config.straylight.prelude) ghc;
+    inherit (config.aleph.prelude) ghc;
   in {
     packages.my-script = ghc.turtle-script {
       name = "my-script";
@@ -176,7 +176,7 @@ runWithOpts opts = do
 
 ```bash
 # Enter script development shell
-nix develop .#straylight-script
+nix develop .#aleph-script
 
 # Run script directly (interpreted, ~160ms startup)
 runghc -i. my-script.hs
@@ -195,9 +195,9 @@ Use the pre-compiled scripts in the overlay:
   # Add to devshell
   devShells.default = pkgs.mkShell {
     packages = [
-      pkgs.straylight.script.compiled.oci-run
-      pkgs.straylight.script.compiled.fhs-run
-      pkgs.straylight.script.compiled.gpu-run
+      pkgs.aleph.script.compiled.oci-run
+      pkgs.aleph.script.compiled.fhs-run
+      pkgs.aleph.script.compiled.gpu-run
     ];
   };
 }

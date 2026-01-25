@@ -38,12 +38,12 @@ All identifiers within Straylight Standard Nix SHALL use `lisp-case` (kebab-case
 ```nix
 # Conformant
 straylight-api-server
-config.straylight.services.inference-server.model-path
+config.aleph.services.inference-server.model-path
 nix/modules/nixos/gpu-worker-common.nix
 
 # Non-conformant
 straylightApiServer
-config.straylight.services.inferenceServer.modelPath
+config.aleph.services.inferenceServer.modelPath
 ```
 
 #### Exceptions
@@ -165,7 +165,7 @@ Unless at great need, configuration is typed as Dhall and consumed with nixpkgs 
 | Import from derivation | Forces builds during evaluation |
 | `default.nix` in packages | Discards filename information |
 | Per-flake nixpkgs config | Creates version mismatches |
-| camelCase in straylight namespaces | Violates naming convention |
+| camelCase in aleph namespaces | Violates naming convention |
 | Missing `_class` | Silent cross-module-system failures |
 | Missing `meta` in packages | Breaks documentation and compliance |
 

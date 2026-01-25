@@ -46,7 +46,7 @@ let
       schema = import ./options-schema.nix { inherit lib; };
     in
     {
-      options.aleph-naught = schema;
+      options.aleph = schema;
     };
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -90,7 +90,7 @@ let
   #                                                    // build module export
   # ──────────────────────────────────────────────────────────────────────────
   # Standalone build module for downstream flakes that just want Buck2
-  # without the full aleph-naught devshell
+  # without the full aleph devshell
   build-standalone = {
     _class = "flake";
 
@@ -106,7 +106,7 @@ let
   # Standalone shortlist module: hermetic C++ libraries + Buck2 toolchain
   # Usage:
   #   imports = [ aleph.modules.flake.shortlist-standalone ];
-  #   aleph-naught.shortlist.enable = true;
+  #   aleph.shortlist.enable = true;
   shortlist-standalone = {
     _class = "flake";
 
@@ -127,13 +127,13 @@ let
   #
   # Usage in downstream flake.nix:
   #
-  #   inputs.aleph.url = "github:straylight/aleph";
+  #   inputs.aleph.url = "github:straylight-software/aleph";
   #
   #   outputs = { self, aleph, ... }:
   #     aleph.inputs.flake-parts.lib.mkFlake { inherit inputs; } {
   #       imports = [ aleph.modules.flake.full ];
   #
-  #       aleph-naught = {
+  #       aleph = {
   #         build.enable = true;
   #         shortlist.enable = true;
   #         lre.enable = true;

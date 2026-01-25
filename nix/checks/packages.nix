@@ -1,7 +1,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║                        ALEPH-NAUGHT PACKAGE TESTS                          ║
 # ║                                                                            ║
-# ║  Tests for packages exposed by aleph-naught.                               ║
+# ║  Tests for packages exposed by aleph.                               ║
 # ║  Ensures packages are properly built and usable.                           ║
 # ╚════════════════════════════════════════════════════════════════════════════╝
 {
@@ -14,7 +14,7 @@ let
   # ────────────────────────────────────────────────────────────────────────────
   # Lisp-case functions from prelude
   # ────────────────────────────────────────────────────────────────────────────
-  inherit (pkgs.straylight.prelude)
+  inherit (pkgs.aleph.prelude)
     get'
     map-attrs'
     read-file
@@ -24,7 +24,7 @@ let
     when-attr
     ;
 
-  inherit (pkgs.straylight) run-command stdenv;
+  inherit (pkgs.aleph) run-command stdenv;
 
   # ────────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for pkgs.* functions

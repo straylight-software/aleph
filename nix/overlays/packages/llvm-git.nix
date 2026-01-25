@@ -6,9 +6,13 @@
 #   - Building from source avoids this wrapper entirely
 #
 # Pinned to known-good SM120 support (2026-01-04)
+#
+# NOTE: This is a callPackage-style file. Use the overlay version at
+# nix/overlays/llvm-git.nix for the primary LLVM build.
+#
 {
   lib,
-  stdenv,
+  aleph,
   cmake,
   ninja,
   python3,
@@ -18,12 +22,7 @@
   libffi,
   llvm-project-src,
 }:
-let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-in
-stdenv.mkDerivation (translate-attrs {
+aleph.stdenv.default {
   pname = "llvm-git";
   version = "22.0.0-git";
 
@@ -66,4 +65,4 @@ stdenv.mkDerivation (translate-attrs {
     license = lib.licenses.ncsa;
     platforms = lib.platforms.linux;
   };
-})
+}

@@ -64,12 +64,12 @@ nix flake check    # Run all checks
 
 ## Using the Prelude
 
-Access the prelude via `config.straylight.prelude`:
+Access the prelude via `config.aleph.prelude`:
 
 ```nix
 perSystem = { config, pkgs, ... }:
   let
-    inherit (config.straylight) prelude;
+    inherit (config.aleph) prelude;
     inherit (prelude) stdenv map filter fold;
   in {
     packages.my-tool = stdenv.default {

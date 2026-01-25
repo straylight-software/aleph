@@ -11,13 +11,13 @@
   ...
 }:
 let
-  cfg = config.straylight.nv;
+  cfg = config.aleph.nv;
 in
 {
   _class = "nixos";
 
-  options.straylight.nv = {
-    enable = lib.mkEnableOption "NVIDIA driver via aleph-naught";
+  options.aleph.nv = {
+    enable = lib.mkEnableOption "NVIDIA driver via aleph";
 
     open = lib.mkOption {
       type = lib.types.bool;

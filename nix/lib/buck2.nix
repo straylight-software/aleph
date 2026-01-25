@@ -13,7 +13,6 @@
 let
   # Import prelude functions directly
   prelude = import ../prelude/functions.nix { lib = inputs.nixpkgs.lib; };
-  translations = import ../prelude/translations.nix { lib = inputs.nixpkgs.lib; };
 
   inherit (prelude)
     map-attrs'
@@ -23,7 +22,6 @@ let
     head
     to-string
     ;
-  inherit (translations) translate-attrs;
 
   # Scripts directory
   scripts-dir = ./scripts;
@@ -40,9 +38,9 @@ let
         value = to-string v;
       }) vars;
     in
-    pkgs.runCommand name
+    pkgs.aleph.run-command name
       (
-        translate-attrs {
+        {
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
@@ -162,29 +160,26 @@ in
       packages = mk-packages pkgs;
       output-name = if output != null then output else target-name;
     in
-    pkgs.stdenv.mkDerivation (
-      translate-attrs {
-        name = target-name;
-        inherit src;
+    pkgs.aleph.stdenv.default {
+      name = target-name;
+      inherit src;
 
-        native-build-inputs = packages;
+      native-build-inputs = packages;
 
-        configure-phase = read-file (scripts-dir + "/buck2-configure.bash");
-        build-phase = read-file (scripts-dir + "/buck2-build.bash");
-        install-phase = read-file (scripts-dir + "/buck2-install.bash");
+      configure-phase = read-file (scripts-dir + "/buck2-configure.bash");
+      build-phase = read-file (scripts-dir + "/buck2-build.bash");
+      install-phase = read-file (scripts-dir + "/buck2-install.bash");
 
-        meta = {
-          description = "Buck2 target ${target} built as Nix derivation";
-        };
-      }
-      // {
-        # Environment variables for scripts (these are custom, not translated)
-        inherit buck2-prelude;
-        inherit buckconfig-file;
-        inherit output-name;
-        buck2-target = target;
-      }
-    );
+      # Environment variables for scripts (passed through as-is)
+      inherit buck2-prelude;
+      inherit buckconfig-file;
+      inherit output-name;
+      buck2-target = target;
+
+      meta = {
+        description = "Buck2 target ${target} built as Nix derivation";
+      };
+    };
 
   # Get the buckconfig file for inspection/debugging
   buckconfig-file = mk-buckconfig-file;

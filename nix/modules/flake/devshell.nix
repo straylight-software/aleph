@@ -34,14 +34,14 @@ let
   list-of = lib.types.listOf;
   attrs-of = lib.types.attrsOf;
 
-  cfg = config.aleph-naught.devshell;
-  build-cfg = config.aleph-naught.build;
+  cfg = config.aleph.devshell;
+  build-cfg = config.aleph.build;
 in
 {
   _class = "flake";
 
-  options.aleph-naught.devshell = {
-    enable = mk-enable-option "aleph-naught devshell";
+  options.aleph.devshell = {
+    enable = mk-enable-option "aleph devshell";
     nv.enable = mk-enable-option "NVIDIA SDK in devshell";
     ghc-wasm.enable = mk-enable-option "GHC WASM backend (for builtins.wasm plugins)";
     straylight-nix.enable = mk-enable-option "straylight-nix with builtins.wasm support";
@@ -142,7 +142,7 @@ in
       {
         devShells.default = pkgs.mkShell (
           {
-            name = "straylight-dev";
+            name = "aleph-dev";
 
             hardeningDisable = [ "all" ];
             NIX_HARDENING_ENABLE = "";
@@ -177,17 +177,17 @@ in
             ++ optionals (cfg.nv.enable && pkgs ? llvm-git) [
               pkgs.llvm-git
             ]
-            ++ optionals (!cfg.nv.enable && pkgs ? straylight && pkgs.straylight ? llvm) [
-              pkgs.straylight.llvm.clang
-              pkgs.straylight.llvm.lld
+            ++ optionals (!cfg.nv.enable && pkgs ? aleph && pkgs.aleph ? llvm) [
+              pkgs.aleph.llvm.clang
+              pkgs.aleph.llvm.lld
             ]
             ++ optionals (cfg.nv.enable && pkgs ? nvidia-sdk) [
               pkgs.nvidia-sdk
             ]
             # GHC WASM toolchain for builtins.wasm plugin development
-            ++ optionals (cfg.ghc-wasm.enable && pkgs ? straylight && pkgs.straylight ? ghc-wasm) (
+            ++ optionals (cfg.ghc-wasm.enable && pkgs ? aleph && pkgs.aleph ? ghc-wasm) (
               let
-                ghc-wasm = pkgs.straylight.ghc-wasm;
+                ghc-wasm = pkgs.aleph.ghc-wasm;
               in
               filter (p: p != null) [
                 ghc-wasm.ghc-wasm
@@ -197,17 +197,17 @@ in
               ]
             )
             # straylight-nix with builtins.wasm support
-            ++ optionals (cfg.straylight-nix.enable && pkgs ? straylight && pkgs.straylight ? nix) (
+            ++ optionals (cfg.straylight-nix.enable && pkgs ? aleph && pkgs.aleph ? nix) (
               filter (p: p != null) [
-                pkgs.straylight.nix.nix
+                pkgs.aleph.nix.nix
               ]
             )
             ++ (cfg.extra-packages pkgs)
             # Buck2 build system packages (excludes GHC since devshell has its own ghc-with-all-deps)
             # This includes llvm-git, nvidia-sdk, rustc, lean4, python, etc.
-            ++ filter (p: !(has-prefix "ghc-" (p.name or ""))) (config.straylight.build.packages or [ ])
+            ++ filter (p: !(has-prefix "ghc-" (p.name or ""))) (config.aleph.build.packages or [ ])
             # LRE packages (nativelink, lre-start)
-            ++ (config.straylight.lre.packages or [ ]);
+            ++ (config.aleph.lre.packages or [ ]);
 
             shellHook =
               let
@@ -217,20 +217,20 @@ in
                   fi
                 '';
                 straylight-nix-check = optional-string cfg.straylight-nix.enable ''
-                  if [ -n "${pkgs.straylight.nix.nix or ""}" ]; then
-                    echo "straylight-nix: $(${pkgs.straylight.nix.nix}/bin/nix --version)"
-                    echo "builtins.wasm: $(${pkgs.straylight.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
+                  if [ -n "${pkgs.aleph.nix.nix or ""}" ]; then
+                    echo "straylight-nix: $(${pkgs.aleph.nix.nix}/bin/nix --version)"
+                    echo "builtins.wasm: $(${pkgs.aleph.nix.nix}/bin/nix eval --expr 'builtins ? wasm')"
                   fi
                 '';
               in
               ''
-                echo "━━━ aleph-naught devshell ━━━"
+                echo "━━━ aleph devshell ━━━"
                 echo "GHC: $(${ghc-with-all-deps}/bin/ghc --version)"
                 ${ghc-wasm-check}
                 ${straylight-nix-check}
-                ${config.straylight.build.shellHook or ""}
-                ${config.straylight.shortlist.shellHook or ""}
-                ${config.straylight.lre.shellHook or ""}
+                ${config.aleph.build.shellHook or ""}
+                ${config.aleph.shortlist.shellHook or ""}
+                ${config.aleph.lre.shellHook or ""}
                 ${cfg.extra-shell-hook}
               '';
           }

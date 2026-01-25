@@ -23,18 +23,18 @@ let
   # HASKELL DEPENDENCIES
   # ══════════════════════════════════════════════════════════════════════════════
 
-  # Use the consolidated GHC 9.12 from straylight.script
+  # Use the consolidated GHC 9.12 from aleph.script
   # This ensures all Haskell code uses the same GHC version
-  ghc-with-deps = final.straylight.script.ghc;
+  ghc-with-deps = final.aleph.script.ghc;
 
   # ══════════════════════════════════════════════════════════════════════════════
   # HELPER SCRIPTS
   # ══════════════════════════════════════════════════════════════════════════════
 
-  # combine-archive: Use Buck2-built version from straylight.script.compiled
+  # combine-archive: Use Buck2-built version from aleph.script.compiled
   # Falls back to local build if Buck2 output not available yet
   combine-archive =
-    final.straylight.script.compiled.combine-archive or (final.stdenv.mkDerivation {
+    final.aleph.script.compiled.combine-archive or (final.stdenv.mkDerivation {
       name = "combine-archive";
       src = ../../../src/tools/scripts;
       "dontUnpack" = true;

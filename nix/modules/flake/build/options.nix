@@ -1,6 +1,6 @@
 # nix/modules/flake/build/options.nix
 #
-# Options for aleph-naught.build module
+# Options for aleph.build module
 #
 { lib, flake-parts-lib }:
 let
@@ -20,12 +20,12 @@ let
 in
 {
   # ════════════════════════════════════════════════════════════════════════════
-  # Per-system options for straylight.build
+  # Per-system options for aleph.build
   # ════════════════════════════════════════════════════════════════════════════
   perSystem = mk-per-system-option (
     { ... }:
     {
-      options.straylight.build = {
+      options.aleph.build = {
         buck2-toolchain = mk-option {
           type = types.raw;
           default = { };
@@ -51,7 +51,7 @@ in
   );
 
   # ════════════════════════════════════════════════════════════════════════════
-  # Top-level aleph-naught.build options
+  # Top-level aleph.build options
   # ════════════════════════════════════════════════════════════════════════════
   build = {
     enable = mk-enable-option "Buck2 build system integration";

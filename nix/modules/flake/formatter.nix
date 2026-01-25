@@ -15,14 +15,14 @@
 { inputs }:
 { config, lib, ... }:
 let
-  cfg = config.aleph-naught.formatter;
+  cfg = config.aleph.formatter;
 in
 {
   _class = "flake";
   imports = [ inputs.treefmt-nix.flakeModule ];
 
-  options.aleph-naught.formatter = {
-    enable = lib.mkEnableOption "aleph-naught formatter" // {
+  options.aleph.formatter = {
+    enable = lib.mkEnableOption "aleph formatter" // {
       default = true;
     };
 

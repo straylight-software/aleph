@@ -18,9 +18,9 @@ A functional library for Nix. 100+ functions with Haskell-style naming and seman
 
 Composable nixpkgs transformations. Eight overlays that can be used individually or together.
 
-- **prelude**: `pkgs.straylight.prelude`, `pkgs.straylight.stdenv`, `pkgs.straylight.cross`
-- **container**: `pkgs.straylight.container.mk-namespace-env`, `unshare-run`, `fhs-run`, `gpu-run`
-- **script**: `pkgs.straylight.script.ghc`, `gen-wrapper`, `check`, compiled scripts
+- **prelude**: `pkgs.aleph.prelude`, `pkgs.aleph.stdenv`, `pkgs.aleph.cross`
+- **container**: `pkgs.aleph.container.mk-namespace-env`, `unshare-run`, `fhs-run`, `gpu-run`
+- **script**: `pkgs.aleph.script.ghc`, `gen-wrapper`, `check`, compiled scripts
 - **libmodern**: `pkgs.libmodern.fmt`, `pkgs.libmodern.abseil-cpp`, `pkgs.libmodern.libsodium`
 - **ghc-wasm**: GHC WASM backend for `builtins.wasm` integration
 - **llvm-git**: LLVM from git with SM120 Blackwell support

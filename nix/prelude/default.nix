@@ -22,10 +22,10 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
-#   straylight.prelude           the functional library + builders
-#   straylight.platform          platform detection
-#   straylight.gpu               GPU architecture metadata
-#   straylight.turing-registry   the non-negotiable build flags
+#   aleph.prelude           the functional library + builders
+#   aleph.platform          platform detection
+#   aleph.gpu               GPU architecture metadata
+#   aleph.turing-registry   the non-negotiable build flags
 #
 #   aleph.eval             evaluate typed Haskell expressions
 #   aleph.import           import typed modules as attrsets
@@ -112,6 +112,65 @@ let
   # build-env: like pkgs.buildEnv but accepts lisp-case attrs
   build-env = args: final.buildEnv (translate-attrs args);
 
+  # fixed-output-derivation: typed wrapper for FODs
+  #
+  # Creates a fixed-output derivation with proper content-addressing.
+  # Uses stdenvNoCC since FODs don't need a compiler.
+  #
+  # Required attrs:
+  #   name         - derivation name
+  #   hash         - expected output hash (SRI format, e.g. "sha256-...")
+  #   build-script - shell script to produce output
+  #
+  # Optional attrs:
+  #   hash-algo    - hash algorithm (default: "sha256")
+  #   hash-mode    - "flat" or "recursive" (default: "recursive")
+  #   native-build-inputs, etc. - passed through with translation
+  #
+  # Example:
+  #   aleph.fixed-output-derivation {
+  #     name = "my-fetched-thing";
+  #     hash = "sha256-abc123...";
+  #     native-build-inputs = [ pkgs.curl ];
+  #     build-script = ''
+  #       curl -o $out https://example.com/file
+  #     '';
+  #   }
+  #
+  fixed-output-derivation =
+    {
+      name,
+      hash,
+      build-script,
+      hash-algo ? "sha256",
+      hash-mode ? "recursive",
+      ...
+    }@args:
+    let
+      # Extract FOD-specific attrs, pass rest through
+      rest = builtins.removeAttrs args [
+        "name"
+        "hash"
+        "build-script"
+        "hash-algo"
+        "hash-mode"
+      ];
+    in
+    final.stdenvNoCC.mkDerivation (
+      translate-attrs (
+        rest
+        // {
+          inherit name;
+          # FOD configuration
+          output-hash-algo = hash-algo;
+          output-hash-mode = hash-mode;
+          output-hash = hash;
+          # The build script
+          build-command = build-script;
+        }
+      )
+    );
+
   prelude =
     functions
     // languages
@@ -128,6 +187,7 @@ let
         run-command
         write-shell-application
         build-env
+        fixed-output-derivation
         ;
       inherit versions license;
     };
@@ -135,10 +195,10 @@ let
 in
 {
   # ──────────────────────────────────────────────────────────────────────────
-  #                            // straylight namespace //
+  #                            // aleph namespace //
   # ──────────────────────────────────────────────────────────────────────────
 
-  straylight = {
+  aleph = {
     inherit
       prelude
       types
@@ -150,6 +210,7 @@ in
       run-command
       write-shell-application
       build-env
+      fixed-output-derivation
       ;
     inherit (toolchain) llvm;
     inherit versions license;
@@ -179,11 +240,11 @@ in
   # ──────────────────────────────────────────────────────────────────────────
   # For migration. These will be removed.
 
-  aleph-naughtenv = stdenv.default;
-  aleph-naughtenv-static = stdenv.static or stdenv.default;
-  aleph-naughtenv-musl = stdenv.clang-musl-dynamic or stdenv.default;
-  aleph-naughtenv-musl-static = stdenv.portable or stdenv.default;
-  aleph-naughtenv-nvidia = if stdenv ? nvidia then stdenv.nvidia else null;
-  straylight-cross = cross;
-  aleph-naughtenv-info = final.straylight.info;
+  alephenv = stdenv.default;
+  alephenv-static = stdenv.static or stdenv.default;
+  alephenv-musl = stdenv.clang-musl-dynamic or stdenv.default;
+  alephenv-musl-static = stdenv.portable or stdenv.default;
+  alephenv-nvidia = if stdenv ? nvidia then stdenv.nvidia else null;
+  aleph-cross = cross;
+  alephenv-info = final.aleph.info;
 }

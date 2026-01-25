@@ -10,10 +10,10 @@
 #
 #                                                         — Neuromancer
 #
-# Shared options schema for aleph-naught modules.
+# Shared options schema for aleph modules.
 # Used by both the flake-parts modules and NDG documentation generation.
 #
-# This is the single source of truth for all aleph-naught option definitions.
+# This is the single source of truth for all aleph option definitions.
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib }:
@@ -33,7 +33,7 @@ in
   # ────────────────────────────────────────────────────────────────────────────
 
   formatter = {
-    enable = mk-enable-option "aleph-naught formatter" // {
+    enable = mk-enable-option "aleph formatter" // {
       default = true;
     };
     indent-width = mk-option {
@@ -129,7 +129,7 @@ in
   # ────────────────────────────────────────────────────────────────────────────
 
   overlays = {
-    enable = mk-enable-option "aleph-naught overlays" // {
+    enable = mk-enable-option "aleph overlays" // {
       default = true;
     };
     extra = mk-option {
@@ -144,7 +144,7 @@ in
   # ────────────────────────────────────────────────────────────────────────────
 
   devshell = {
-    enable = mk-enable-option "aleph-naught devshell";
+    enable = mk-enable-option "aleph devshell";
     nv.enable = mk-enable-option "NVIDIA development tools";
     extra-packages = mk-option {
       type = function-to (list-of types.package);

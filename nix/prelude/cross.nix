@@ -61,7 +61,7 @@ let
       // {
         NIX_CFLAGS_COMPILE = (args.NIX_CFLAGS_COMPILE or "") + " " + turing-registry.cxxflags-str;
         passthru = (args.passthru or { }) // {
-          straylight-target = target-name;
+          aleph-target = target-name;
         };
       }
     );

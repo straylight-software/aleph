@@ -5,10 +5,10 @@
 {
   final,
   lib,
-  straylight-lib,
+  aleph-lib,
 }:
 let
-  inherit (final.straylight) stdenv;
+  inherit (final.aleph) stdenv;
 in
 {
   # Extract and patch binary packages
@@ -32,7 +32,7 @@ in
       meta ? { },
     }:
     let
-      run-path = straylight-lib.elf.mk-rpath runtime-inputs;
+      run-path = aleph-lib.elf.mk-rpath runtime-inputs;
       interpreter-path = "$(cat ${final.stdenv.cc}/nix-support/dynamic-linker)";
     in
     stdenv.default (

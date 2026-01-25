@@ -32,7 +32,7 @@
 #
 #   imports = [ aleph.modules.flake.shortlist ];
 #
-#   aleph-naught.shortlist.enable = true;
+#   aleph.shortlist.enable = true;
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 _:
@@ -52,13 +52,13 @@ let
   optional-string = lib.optionalString;
   mk-per-system-option = flake-parts-lib.mkPerSystemOption;
 
-  cfg = config.aleph-naught.shortlist;
+  cfg = config.aleph.shortlist;
 in
 {
   _class = "flake";
 
   # ════════════════════════════════════════════════════════════════════════════
-  # Per-system options for straylight.shortlist
+  # Per-system options for aleph.shortlist
   # ════════════════════════════════════════════════════════════════════════════
   options.perSystem = mk-per-system-option (
     { lib, ... }:
@@ -66,7 +66,7 @@ in
       mk-option' = lib.mkOption;
     in
     {
-      options.straylight.shortlist = {
+      options.aleph.shortlist = {
         libraries = mk-option' {
           type = lib.types.attrsOf lib.types.package;
           default = { };
@@ -90,7 +90,7 @@ in
     }
   );
 
-  options.aleph-naught.shortlist = {
+  options.aleph.shortlist = {
     enable = mk-enable-option "Hermetic C++ shortlist libraries";
 
     # Individual library toggles
@@ -188,7 +188,7 @@ in
 
       in
       {
-        straylight.shortlist = {
+        aleph.shortlist = {
           inherit libraries;
           buckconfig = buckconfig-section;
           shortlist-file = shortlist-file;

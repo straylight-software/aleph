@@ -4,7 +4,7 @@
 #
 { final, lib }:
 let
-  inherit (final.straylight) run-command;
+  inherit (final.aleph) run-command;
   to-string = builtins.toString;
 in
 {

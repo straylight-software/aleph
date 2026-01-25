@@ -128,7 +128,7 @@ in
   };
 
   # ════════════════════════════════════════════════════════════════════════════
-  # INTERNAL: aleph-naught's own development
+  # INTERNAL: aleph's own development
   # ════════════════════════════════════════════════════════════════════════════
 
   imports = [
@@ -151,9 +151,9 @@ in
   ];
 
   # Enable shortlist, LRE, and NativeLink containers for aleph itself
-  aleph-naught.shortlist.enable = true;
-  aleph-naught.lre.enable = true;
-  aleph-naught.nativelink.enable = true;
+  aleph.shortlist.enable = true;
+  aleph.lre.enable = true;
+  aleph.nativelink.enable = true;
 
   "perSystem" =
     {
@@ -397,16 +397,16 @@ in
       nix2gpu = { };
     };
 
-  aleph-naught.devshell = {
+  aleph.devshell = {
     enable = true;
     nv.enable = true;
     straylight-nix.enable = true;
   };
 
-  aleph-naught.nixpkgs.nv.enable = true;
+  aleph.nixpkgs.nv.enable = true;
 
   # Buck2 build system integration
-  aleph-naught.build = {
+  aleph.build = {
     enable = true;
     prelude.enable = true;
     toolchain = {
@@ -438,13 +438,13 @@ in
     };
   };
 
-  aleph-naught.docs = {
+  aleph.docs = {
     enable = true;
     title = "Weyl Standard Nix";
     description = "A specification for reproducible, composable infrastructure on Nix";
     theme = "ono-sendai";
 
-    # Document all aleph-naught modules
+    # Document all aleph modules
     modules = [ flake-modules.options-only ];
   };
 }
