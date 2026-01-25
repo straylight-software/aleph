@@ -14,8 +14,12 @@
 #
 final: prev:
 let
-  inherit (prev) lib stdenvNoCC;
+  inherit (prev) lib;
   inherit (prev.stdenv.hostPlatform) system;
+
+  # Import prelude for translate-attrs
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
 
   # ════════════════════════════════════════════════════════════════════════════
   # container-to-nix: Fixed-output derivation for container pulling
@@ -30,32 +34,35 @@ let
       image-ref,
       hash,
     }:
-    stdenvNoCC.mkDerivation {
-      inherit name;
+    prev.stdenvNoCC.mkDerivation (
+      translate-attrs {
+        inherit name;
 
-      nativeBuildInputs = [
-        final.crane
-        final.gnutar
-        final.gzip
-      ];
+        native-build-inputs = [
+          final.crane
+          final.gnutar
+          final.gzip
+        ];
 
-      # Fixed-output derivation
-      outputHashAlgo = "sha256";
-      outputHashMode = "recursive";
-      outputHash = hash;
+        # SSL certs for HTTPS
+        SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
 
-      # SSL certs for HTTPS
-      SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
+        meta = {
+          description = "NVIDIA container image rootfs for SDK extraction";
+        };
+      }
+      // {
+        # NOTE: FOD attrs are nixpkgs API, quoted
+        "outputHashAlgo" = "sha256";
+        "outputHashMode" = "recursive";
+        "outputHash" = hash;
 
-      buildCommand = ''
-        mkdir -p $out
-        crane export ${image-ref} - | tar -xf - -C $out
-      '';
-
-      meta = {
-        description = "NVIDIA container image rootfs for SDK extraction";
-      };
-    };
+        "buildCommand" = ''
+          mkdir -p $out
+          crane export ${image-ref} - | tar -xf - -C $out
+        '';
+      }
+    );
 
   # ════════════════════════════════════════════════════════════════════════════
   # Container definitions
@@ -64,11 +71,11 @@ let
   containers = {
     tritonserver = {
       version = "25.11";
-      x86_64-linux = {
+      "x86_64-linux" = {
         ref = "nvcr.io/nvidia/tritonserver:25.11-py3";
         hash = "sha256-yrTbMURSSc5kx4KTegTErpDjCWcjb9Ehp7pOUtP34pM=";
       };
-      aarch64-linux = {
+      "aarch64-linux" = {
         ref = "nvcr.io/nvidia/tritonserver:25.11-py3-igpu";
         hash = ""; # Not yet computed
       };
@@ -76,11 +83,11 @@ let
 
     cuda-devel = {
       version = "13.0.1";
-      x86_64-linux = {
+      "x86_64-linux" = {
         ref = "nvidia/cuda:13.0.1-devel-ubuntu22.04";
         hash = ""; # Not yet computed
       };
-      aarch64-linux = {
+      "aarch64-linux" = {
         ref = "nvidia/cuda:13.0.1-devel-ubuntu22.04";
         hash = "";
       };
