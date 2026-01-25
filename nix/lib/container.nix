@@ -9,6 +9,27 @@
 #   - VM isolation for network builds (Firecracker, not sandbox escape)
 #
 { lib }:
+let
+  # Lisp-case aliases for lib.* functions
+  concat-map = lib.concatMap;
+  concat-map-strings-sep = lib.concatMapStringsSep;
+  concat-strings-sep = lib.concatStringsSep;
+  elem-at = lib.elemAt;
+  has-infix = lib.hasInfix;
+  map-attrs-to-list = lib.mapAttrsToList;
+  optional-attrs = lib.optionalAttrs;
+  optional-string = lib.optionalString;
+  remove-suffix = lib.removeSuffix;
+  replace-strings = lib.replaceStrings;
+  split-string = lib.splitString;
+  to-lower = lib.toLower;
+
+  # Lisp-case aliases for builtins.* functions
+  read-file = builtins.readFile;
+  to-json = builtins.toJSON;
+
+  inherit (lib) head tail length;
+in
 {
   # ════════════════════════════════════════════════════════════════════════════
   # OCI IMAGE UTILITIES
@@ -27,13 +48,13 @@
     parse-ref =
       ref:
       let
-        parts = lib.splitString "/" ref;
-        has-registry = lib.length parts > 2 || (lib.length parts == 2 && lib.hasInfix "." (lib.head parts));
-        registry = if has-registry then lib.head parts else "docker.io";
-        repo-with-tag = if has-registry then lib.concatStringsSep "/" (lib.tail parts) else ref;
-        tag-parts = lib.splitString ":" repo-with-tag;
-        repo = lib.head tag-parts;
-        tag = if lib.length tag-parts > 1 then lib.elemAt tag-parts 1 else "latest";
+        parts = split-string "/" ref;
+        has-registry = length parts > 2 || (length parts == 2 && has-infix "." (head parts));
+        registry = if has-registry then head parts else "docker.io";
+        repo-with-tag = if has-registry then concat-strings-sep "/" (tail parts) else ref;
+        tag-parts = split-string ":" repo-with-tag;
+        repo = head tag-parts;
+        tag = if length tag-parts > 1 then elem-at tag-parts 1 else "latest";
       in
       {
         inherit registry repo tag;
@@ -50,7 +71,7 @@
       let
         parsed = parse-ref ref;
       in
-      lib.replaceStrings
+      replace-strings
         [
           "/"
           ":"
@@ -160,7 +181,7 @@
         network-interfaces ? [ ],
         drives ? [ ],
       }:
-      builtins.toJSON (
+      to-json (
         {
           boot-source = {
             kernel_image_path = kernel-path;
@@ -180,7 +201,7 @@
             mem_size_mib = mem-mib;
           };
         }
-        // lib.optionalAttrs (network-interfaces != [ ]) {
+        // optional-attrs (network-interfaces != [ ]) {
           inherit network-interfaces;
         }
       );
@@ -214,22 +235,22 @@
         env ? { },
       }:
       let
-        env-exports = lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=\"${v}\"") env);
-        network-setup = lib.optionalString with-network (builtins.readFile ./scripts/fc-init-network.sh);
-        build-section = lib.optionalString (build-cmd != null) (
-          builtins.readFile ./scripts/fc-init-build.sh
+        env-exports = concat-strings-sep "\n" (map-attrs-to-list (k: v: "export ${k}=\"${v}\"") env);
+        network-setup = optional-string with-network (read-file ./scripts/fc-init-network.sh);
+        build-section = optional-string (build-cmd != null) (
+          read-file ./scripts/fc-init-build.sh
           + "\n"
           + build-cmd
           + "\nEXIT=$?\necho \":: Exit code: $EXIT\"\necho o > /proc/sysrq-trigger"
         );
-        interactive-section = lib.optionalString (build-cmd == null) "exec setsid cttyhack /bin/bash -l";
-        template = builtins.readFile ./scripts/fc-init.sh.in;
+        interactive-section = optional-string (build-cmd == null) "exec setsid cttyhack /bin/bash -l";
+        template = read-file ./scripts/fc-init.sh.in;
       in
-      lib.replaceStrings
+      replace-strings
         [ "@env-exports@" "@base-init@" "@network-setup@" "@build-section@" "@interactive-section@" ]
         [
           env-exports
-          (builtins.readFile ./scripts/fc-init-base.sh)
+          (read-file ./scripts/fc-init-base.sh)
           network-setup
           build-section
           interactive-section
@@ -281,8 +302,8 @@
     #
     mk-rpath =
       packages:
-      lib.concatStringsSep ":" (
-        lib.concatMap (
+      concat-strings-sep ":" (
+        concat-map (
           pkg:
           let
             p = pkg.lib or pkg.out or pkg;
@@ -308,7 +329,7 @@
         find ${dir} -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
           [ -L "$f" ] && continue
           file "$f" | grep -q ELF || continue
-          ${lib.optionalString (interpreter-path != null) ''
+          ${optional-string (interpreter-path != null) ''
             if file "$f" | grep -q "executable"; then
               patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
             fi
@@ -326,14 +347,14 @@
         out,
       }:
       let
-        interpreter-patch = lib.optionalString (interpreter-path != null) ''
+        interpreter-patch = optional-string (interpreter-path != null) ''
           if file "$f" | grep -q "executable"; then
             patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
           fi
         '';
-        template = builtins.readFile ./scripts/patch-elf-preserve.sh.in;
+        template = read-file ./scripts/patch-elf-preserve.sh.in;
       in
-      lib.replaceStrings [ "@out@" "@rpath@" "@interpreter-patch@" ] [ out rpath interpreter-patch ]
+      replace-strings [ "@out@" "@rpath@" "@interpreter-patch@" ] [ out rpath interpreter-patch ]
         template;
   };
 
@@ -344,7 +365,7 @@
   pep503 = {
     # Normalize package name per PEP 503
     # "Foo_Bar" -> "foo-bar"
-    normalize-name = name: lib.toLower (lib.replaceStrings [ "_" "." ] [ "-" "-" ] name);
+    normalize-name = name: to-lower (replace-strings [ "_" "." ] [ "-" "-" ] name);
 
     # Parse wheel filename
     # "numpy-1.24.0-cp311-cp311-linux_x86_64.whl"
@@ -352,16 +373,16 @@
     parse-wheel-name =
       filename:
       let
-        base = lib.removeSuffix ".whl" filename;
-        parts = lib.splitString "-" base;
+        base = remove-suffix ".whl" filename;
+        parts = split-string "-" base;
       in
-      if lib.length parts >= 5 then
+      if length parts >= 5 then
         {
-          name = lib.head parts;
-          version = lib.elemAt parts 1;
-          python = lib.elemAt parts 2;
-          abi = lib.elemAt parts 3;
-          platform = lib.elemAt parts 4;
+          name = head parts;
+          version = elem-at parts 1;
+          python = elem-at parts 2;
+          abi = elem-at parts 3;
+          platform = elem-at parts 4;
         }
       else
         null;
@@ -370,7 +391,7 @@
     mk-package-index =
       { name, wheels }:
       let
-        links = lib.concatMapStringsSep "\n" (
+        links = concat-map-strings-sep "\n" (
           w: ''<a href="${w.filename}#sha256=${w.hash}">${w.filename}</a><br/>''
         ) wheels;
       in
@@ -389,7 +410,7 @@
     mk-root-index =
       packages:
       let
-        links = lib.concatMapStringsSep "\n" (p: ''<a href="${p}/">${p}</a><br/>'') packages;
+        links = concat-map-strings-sep "\n" (p: ''<a href="${p}/">${p}</a><br/>'') packages;
       in
       ''
         <!DOCTYPE html>

@@ -47,12 +47,20 @@ in
       pkgs,
       ...
     }:
+    let
+      # Lisp-case aliases for lib functions
+      mk-option = lib.mkOption;
+      optional-string = lib.optionalString;
+      concat-strings-sep = lib.concatStringsSep;
+      map-attrs-to-list = lib.mapAttrsToList;
+      versions-major = lib.versions.major;
+    in
     {
       options.buck2 = {
         # ──────────────────────────────────────────────────────────────────────
         # Toolchain paths
         # ──────────────────────────────────────────────────────────────────────
-        toolchain = lib.mkOption {
+        toolchain = mk-option {
           type = lib.types.attrsOf lib.types.str;
           description = "Toolchain paths for .buckconfig.local";
         };
@@ -60,7 +68,7 @@ in
         # ──────────────────────────────────────────────────────────────────────
         # Shortlist paths
         # ──────────────────────────────────────────────────────────────────────
-        shortlist = lib.mkOption {
+        shortlist = mk-option {
           type = lib.types.attrsOf lib.types.str;
           default = { };
           description = "Shortlist library paths for .buckconfig.local";
@@ -69,7 +77,7 @@ in
         # ──────────────────────────────────────────────────────────────────────
         # Generated .buckconfig.local content
         # ──────────────────────────────────────────────────────────────────────
-        buckconfig = lib.mkOption {
+        buckconfig = mk-option {
           type = lib.types.lines;
           description = "Generated .buckconfig.local content";
         };
@@ -77,7 +85,7 @@ in
         # ──────────────────────────────────────────────────────────────────────
         # Packages needed for Buck2 builds
         # ──────────────────────────────────────────────────────────────────────
-        packages = lib.mkOption {
+        packages = mk-option {
           type = lib.types.listOf lib.types.package;
           description = "Packages needed for Buck2 builds";
         };
@@ -85,7 +93,7 @@ in
         # ──────────────────────────────────────────────────────────────────────
         # Build function :: { target, output?, name? } -> derivation
         # ──────────────────────────────────────────────────────────────────────
-        build = lib.mkOption {
+        build = mk-option {
           type = lib.types.functionTo lib.types.package;
           description = "Build a Buck2 target as a Nix derivation";
         };
@@ -93,7 +101,7 @@ in
         # ──────────────────────────────────────────────────────────────────────
         # Run function :: { target, name? } -> app
         # ──────────────────────────────────────────────────────────────────────
-        run = lib.mkOption {
+        run = mk-option {
           type = lib.types.functionTo lib.types.attrs;
           description = "Create a flake app from a Buck2 target";
         };
@@ -116,12 +124,12 @@ in
             objdump = "${llvm.clang}/bin/llvm-objdump";
             ranlib = "${llvm.clang}/bin/llvm-ranlib";
             strip = "${llvm.clang}/bin/llvm-strip";
-            clang_resource_dir = "${llvm.clang}/lib/clang/${lib.versions.major llvm.clang.version}";
-            gcc_include = "${pkgs.gcc.cc}/include/c++/${lib.versions.major pkgs.gcc.cc.version}";
-            gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${lib.versions.major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
+            clang_resource_dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
+            gcc_include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
+            gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
             glibc_include = "${pkgs.glibc.dev}/include";
             glibc_lib = "${pkgs.glibc}/lib";
-            gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${lib.versions.major pkgs.gcc.cc.version}";
+            gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
             libcxx_include = "${llvm.libcxx.dev}/include/c++/v1";
             compiler_rt = "${llvm.compiler-rt}/lib";
           };
@@ -150,10 +158,10 @@ in
           '';
 
           # Generate [shortlist] section from config
-          shortlist-section = lib.optionalString (config.buck2.shortlist != { }) ''
+          shortlist-section = optional-string (config.buck2.shortlist != { }) ''
 
             [shortlist]
-            ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "${k} = ${v}") config.buck2.shortlist)}
+            ${concat-strings-sep "\n" (map-attrs-to-list (k: v: "${k} = ${v}") config.buck2.shortlist)}
           '';
 
           # Full buckconfig content

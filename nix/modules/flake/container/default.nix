@@ -27,6 +27,16 @@
 { lib, ... }:
 let
   # ────────────────────────────────────────────────────────────────────────────
+  # // lib aliases (lisp-case) //
+  # ────────────────────────────────────────────────────────────────────────────
+
+  mk-enable-option = lib.mkEnableOption;
+  mk-option = lib.mkOption;
+  mk-if = lib.mkIf;
+  make-bin-path = lib.makeBinPath;
+  optional-attrs = lib.optionalAttrs;
+
+  # ────────────────────────────────────────────────────────────────────────────
   # // imports //
   # ────────────────────────────────────────────────────────────────────────────
 
@@ -52,22 +62,22 @@ let
       # ──────────────────────────────────────────────────────────────────────────
 
       options.aleph-naught.container = {
-        enable = lib.mkEnableOption "container and VM isolation tools" // {
+        enable = mk-enable-option "container and VM isolation tools" // {
           default = true;
         };
 
         isospin = {
-          enable = lib.mkEnableOption "Isospin (Firecracker fork) VM tools" // {
+          enable = mk-enable-option "Isospin (Firecracker fork) VM tools" // {
             default = true;
           };
 
-          cpus = lib.mkOption {
+          cpus = mk-option {
             type = lib.types.int;
             default = 4;
             description = "Default vCPU count";
           };
 
-          mem-mib = lib.mkOption {
+          mem-mib = mk-option {
             type = lib.types.int;
             default = 4096;
             description = "Default memory in MiB";
@@ -75,23 +85,23 @@ let
         };
 
         cloud-hypervisor = {
-          enable = lib.mkEnableOption "Cloud Hypervisor VM tools (VFIO GPU)" // {
+          enable = mk-enable-option "Cloud Hypervisor VM tools (VFIO GPU)" // {
             default = true;
           };
 
-          cpus = lib.mkOption {
+          cpus = mk-option {
             type = lib.types.int;
             default = 8;
             description = "Default vCPU count";
           };
 
-          mem-gib = lib.mkOption {
+          mem-gib = mk-option {
             type = lib.types.int;
             default = 16;
             description = "Default memory in GiB";
           };
 
-          hugepages = lib.mkOption {
+          hugepages = mk-option {
             type = lib.types.bool;
             default = false;
             description = "Use hugepages (recommended for GPU, requires pre-allocated hugepages)";
@@ -103,7 +113,7 @@ let
       # // config //
       # ──────────────────────────────────────────────────────────────────────────
 
-      config = lib.mkIf cfg.enable {
+      config = mk-if cfg.enable {
         perSystem =
           { pkgs, system, ... }:
           let
@@ -170,13 +180,13 @@ let
             '';
 
             # Wrapped isospin-run with Dhall config injected
-            isospin-run-wrapped = lib.mkIf (fc-kernel-pkg != null) (
+            isospin-run-wrapped = mk-if (fc-kernel-pkg != null) (
               pkgs.runCommand "isospin-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
                 makeWrapper ${compiled.isospin-run}/bin/isospin-run $out/bin/isospin-run \
                   --set CONFIG_FILE ${isospin-dhall-config} \
                   --prefix PATH : ${
-                    lib.makeBinPath [
+                    make-bin-path [
                       pkgs.crane
                       pkgs.gnutar
                       pkgs.fakeroot
@@ -208,13 +218,13 @@ let
             '';
 
             # Wrapped cloud-hypervisor-run with Dhall config injected
-            cloud-hypervisor-run-wrapped = lib.mkIf (ch-kernel-pkg != null) (
+            cloud-hypervisor-run-wrapped = mk-if (ch-kernel-pkg != null) (
               pkgs.runCommand "cloud-hypervisor-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
                 makeWrapper ${compiled.cloud-hypervisor-run}/bin/cloud-hypervisor-run $out/bin/cloud-hypervisor-run \
                   --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
                   --prefix PATH : ${
-                    lib.makeBinPath [
+                    make-bin-path [
                       pkgs.crane
                       pkgs.gnutar
                       pkgs.fakeroot
@@ -227,13 +237,13 @@ let
             );
 
             # Wrapped cloud-hypervisor-gpu with Dhall config injected
-            cloud-hypervisor-gpu-wrapped = lib.mkIf (ch-kernel-pkg != null) (
+            cloud-hypervisor-gpu-wrapped = mk-if (ch-kernel-pkg != null) (
               pkgs.runCommand "cloud-hypervisor-gpu" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
                 makeWrapper ${compiled.cloud-hypervisor-gpu}/bin/cloud-hypervisor-gpu $out/bin/cloud-hypervisor-gpu \
                   --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
                   --prefix PATH : ${
-                    lib.makeBinPath [
+                    make-bin-path [
                       pkgs.crane
                       pkgs.gnutar
                       pkgs.fakeroot
@@ -254,7 +264,7 @@ let
 
           in
           {
-            packages = lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
+            packages = optional-attrs (system == "x86_64-linux" || system == "aarch64-linux") {
 
               # ──────────────────────────────────────────────────────────────────
               # // crane tools (OCI image operations) //
@@ -280,7 +290,7 @@ let
 
               # Compiled Haskell version (type-safe, ~2ms startup)
               # Uses Dhall config for store path injection
-              isospin-run = lib.mkIf (cfg.isospin.enable && fc-kernel-pkg != null) isospin-run-wrapped;
+              isospin-run = mk-if (cfg.isospin.enable && fc-kernel-pkg != null) isospin-run-wrapped;
 
               # ──────────────────────────────────────────────────────────────────
               # // cloud hypervisor tools //
@@ -288,10 +298,10 @@ let
 
               # Compiled Haskell version (type-safe, ~2ms startup)
               # Uses Dhall config for store path injection
-              cloud-hypervisor-run = lib.mkIf (
+              cloud-hypervisor-run = mk-if (
                 cfg.cloud-hypervisor.enable && ch-kernel-pkg != null
               ) cloud-hypervisor-run-wrapped;
-              cloud-hypervisor-gpu = lib.mkIf (
+              cloud-hypervisor-gpu = mk-if (
                 cfg.cloud-hypervisor.enable && ch-kernel-pkg != null
               ) cloud-hypervisor-gpu-wrapped;
 

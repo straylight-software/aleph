@@ -11,6 +11,16 @@
 #
 { inputs, lib }:
 let
+  # Lisp-case aliases for lib.* and builtins.*
+  map-attrs' = lib.mapAttrs';
+  name-value-pair = lib.nameValuePair;
+  to-upper = lib.toUpper;
+  replace-strings = builtins.replaceStrings;
+  versions-major = lib.versions.major;
+  read-file = builtins.readFile;
+  remove-prefix = lib.removePrefix;
+  remove-suffix = lib.removeSuffix;
+
   # Scripts directory
   scripts-dir = ./scripts;
 
@@ -18,8 +28,8 @@ let
   render-dhall =
     pkgs: name: src: vars:
     let
-      env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      env-vars = map-attrs' (
+        k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
     pkgs.runCommand name
@@ -50,12 +60,12 @@ let
       objdump = "${llvm.clang}/bin/llvm-objdump";
       ranlib = "${llvm.clang}/bin/llvm-ranlib";
       strip = "${llvm.clang}/bin/llvm-strip";
-      clang_resource_dir = "${llvm.clang}/lib/clang/${lib.versions.major llvm.clang.version}";
-      gcc_include = "${pkgs.gcc.cc}/include/c++/${lib.versions.major pkgs.gcc.cc.version}";
-      gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${lib.versions.major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
+      clang_resource_dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
+      gcc_include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
+      gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
       glibc_include = "${pkgs.glibc.dev}/include";
       glibc_lib = "${pkgs.glibc}/lib";
-      gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${lib.versions.major pkgs.gcc.cc.version}";
+      gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
       libcxx_include = "${llvm.libcxx.dev}/include/c++/v1";
       compiler_rt = "${llvm.compiler-rt}/lib";
       fmt = "${pkgs.fmt}";
@@ -73,7 +83,7 @@ let
     };
 
   # For backwards compatibility: generate buckconfig content string
-  mk-buckconfig = pkgs: builtins.readFile (mk-buckconfig-file pkgs);
+  mk-buckconfig = pkgs: read-file (mk-buckconfig-file pkgs);
 
   # Build packages needed for Buck2
   mk-packages =
@@ -117,8 +127,8 @@ in
     }:
     let
       # Convert //foo/bar:baz to foo-bar-baz for derivation name
-      raw-name = builtins.replaceStrings [ "//" "/" ":" ] [ "" "-" "-" ] target;
-      clean-name = lib.removePrefix "-" (lib.removeSuffix "-" raw-name);
+      raw-name = replace-strings [ "//" "/" ":" ] [ "" "-" "-" ] target;
+      clean-name = remove-prefix "-" (remove-suffix "-" raw-name);
       target-name =
         if name != null then
           name
@@ -146,9 +156,9 @@ in
       outputName = output-name;
       buck2Target = target;
 
-      configurePhase = builtins.readFile (scripts-dir + "/buck2-configure.bash");
-      buildPhase = builtins.readFile (scripts-dir + "/buck2-build.bash");
-      installPhase = builtins.readFile (scripts-dir + "/buck2-install.bash");
+      configurePhase = read-file (scripts-dir + "/buck2-configure.bash");
+      buildPhase = read-file (scripts-dir + "/buck2-build.bash");
+      installPhase = read-file (scripts-dir + "/buck2-install.bash");
 
       meta = {
         description = "Buck2 target ${target} built as Nix derivation";

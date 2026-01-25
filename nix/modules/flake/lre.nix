@@ -40,6 +40,15 @@
 }:
 let
   inherit (flake-parts-lib) mkPerSystemOption;
+
+  # Lisp-case aliases for lib.* functions
+  map-attrs' = lib.mapAttrs';
+  name-value-pair = lib.nameValuePair;
+  to-upper = lib.toUpper;
+  replace-strings = builtins.replaceStrings;
+  optional-string = lib.optionalString;
+  optional = lib.optional;
+
   cfg = config.aleph-naught.lre;
   # Remote execution config (from build module, with defaults if not present)
   remote-cfg =
@@ -127,8 +136,8 @@ in
         render-dhall =
           name: src: vars:
           let
-            env-vars = lib.mapAttrs' (
-              k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+            env-vars = map-attrs' (
+              k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
             ) vars;
           in
           pkgs.runCommand name
@@ -203,7 +212,7 @@ in
               else
                 "local NativeLink (port ${toString cfg.port})";
           in
-          lib.optionalString isLinux ''
+          optional-string isLinux ''
             # Append RE configuration to .buckconfig.local
             # (build.nix shellHook creates .buckconfig.local, we append to it)
             if [ -f ".buckconfig.local" ]; then
@@ -221,7 +230,7 @@ in
       {
         straylight.lre = {
           shellHook = lre-shell-hook;
-          packages = [ lre-start ] ++ lib.optional (nativelink != null) nativelink;
+          packages = [ lre-start ] ++ optional (nativelink != null) nativelink;
           # Expose individual packages for flake outputs
           inherit lre-start nativelink;
         };
