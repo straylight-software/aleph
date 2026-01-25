@@ -37,6 +37,18 @@
   ...
 }:
 let
+  # lisp-case aliases for lib functions
+  concat-strings-sep = lib.concatStringsSep;
+  get-exe = lib.getExe;
+  list-of = lib.types.listOf;
+  mk-enable-option = lib.mkEnableOption;
+  mk-force = lib.mkForce;
+  mk-if = lib.mkIf;
+  mk-option = lib.mkOption;
+  null-or = lib.types.nullOr;
+  optional-string = lib.optionalString;
+  string-after = lib.stringAfter;
+
   cfg = config.services.nix-proxy;
 
   # mitmproxy addon script for caching/logging
@@ -52,7 +64,7 @@ let
     runtimeEnv = {
       NIX_PROXY_CACHE_DIR = "${cfg.cacheDir}";
       NIX_PROXY_LOG_DIR = "${cfg.logDir}";
-      NIX_PROXY_ALLOWLIST = lib.concatStringsSep "," cfg.allowlist;
+      NIX_PROXY_ALLOWLIST = concat-strings-sep "," cfg.allowlist;
     };
     text = ''
       exec mitmdump \
@@ -60,7 +72,7 @@ let
         --listen-port ${toString cfg.port} \
         --set confdir=${cfg.certDir} \
         --scripts ${proxy-addon} \
-        ${lib.optionalString cfg.quiet "--quiet"} \
+        ${optional-string cfg.quiet "--quiet"} \
         "$@"
     '';
   };
@@ -70,40 +82,40 @@ in
   _class = "nixos";
 
   options.services.nix-proxy = {
-    enable = lib.mkEnableOption "Nix network proxy for controlled fetching";
+    enable = mk-enable-option "Nix network proxy for controlled fetching";
 
-    port = lib.mkOption {
+    port = mk-option {
       type = lib.types.port;
       default = 8080;
       description = "Port for the proxy to listen on";
     };
 
-    listenAddress = lib.mkOption {
+    listenAddress = mk-option {
       type = lib.types.str;
       default = "127.0.0.1";
       description = "Address for the proxy to listen on";
     };
 
-    cacheDir = lib.mkOption {
+    cacheDir = mk-option {
       type = lib.types.path;
       default = "/var/cache/nix-proxy";
       description = "Directory for cached fetches (content-addressed)";
     };
 
-    logDir = lib.mkOption {
+    logDir = mk-option {
       type = lib.types.path;
       default = "/var/log/nix-proxy";
       description = "Directory for fetch logs";
     };
 
-    certDir = lib.mkOption {
+    certDir = mk-option {
       type = lib.types.path;
       default = "/var/lib/nix-proxy/certs";
       description = "Directory for mitmproxy CA certificate";
     };
 
-    allowlist = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
+    allowlist = mk-option {
+      type = list-of lib.types.str;
       default = [ ];
       description = ''
         Domain allowlist. Empty means allow all.
@@ -123,7 +135,7 @@ in
       ];
     };
 
-    quiet = lib.mkOption {
+    quiet = mk-option {
       type = lib.types.bool;
       default = true;
       description = "Suppress mitmproxy output (logs still written to logDir)";
@@ -131,33 +143,33 @@ in
 
     # R2 cache sync (optional)
     cache.r2 = {
-      enable = lib.mkOption {
+      enable = mk-option {
         type = lib.types.bool;
         default = false;
         description = "Sync cache to Cloudflare R2";
       };
 
-      bucket = lib.mkOption {
+      bucket = mk-option {
         type = lib.types.str;
         default = "";
         description = "R2 bucket name";
       };
 
-      endpoint = lib.mkOption {
+      endpoint = mk-option {
         type = lib.types.str;
         default = "";
         description = "R2 endpoint URL";
       };
 
-      credentialsFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+      credentials-file = mk-option {
+        type = null-or lib.types.path;
         default = null;
         description = "Path to file containing AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY";
       };
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = mk-if cfg.enable {
     # Enable the experimental feature required for impure-env
     nix.settings = {
       extra-experimental-features = [ "configurable-impure-env" ];
@@ -187,7 +199,7 @@ in
     ];
 
     # Generate CA cert on first boot
-    system.activationScripts.nix-proxy-cert = lib.stringAfter [ "var" ] ''
+    system.activationScripts.nix-proxy-cert = string-after [ "var" ] ''
       if [ ! -f "${cfg.certDir}/mitmproxy-ca-cert.pem" ]; then
         echo "Generating mitmproxy CA certificate..."
         ${pkgs.mitmproxy}/bin/mitmdump --set confdir=${cfg.certDir} -q &
@@ -212,7 +224,7 @@ in
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = lib.getExe proxy-script;
+        ExecStart = get-exe proxy-script;
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -230,12 +242,12 @@ in
     };
 
     # Optional: R2 sync timer
-    systemd.services.nix-proxy-sync = lib.mkIf cfg.cache.r2.enable {
+    systemd.services.nix-proxy-sync = mk-if cfg.cache.r2.enable {
       description = "Sync Nix proxy cache to R2";
       serviceConfig = {
         Type = "oneshot";
-        EnvironmentFile = lib.mkIf (cfg.cache.r2.credentialsFile != null) cfg.cache.r2.credentialsFile;
-        ExecStart = lib.getExe (
+        EnvironmentFile = mk-if (cfg.cache.r2.credentials-file != null) cfg.cache.r2.credentials-file;
+        ExecStart = get-exe (
           pkgs.writeShellApplication {
             name = "nix-proxy-sync";
             runtimeInputs = [ pkgs.awscli2 ];
@@ -249,7 +261,7 @@ in
       };
     };
 
-    systemd.timers.nix-proxy-sync = lib.mkIf cfg.cache.r2.enable {
+    systemd.timers.nix-proxy-sync = mk-if cfg.cache.r2.enable {
       description = "Periodic sync of Nix proxy cache to R2";
       wantedBy = [ "timers.target" ];
       timerConfig = {
@@ -271,7 +283,7 @@ in
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       # mkForce needed to override the default set by nix-daemon.nix
-      CURL_CA_BUNDLE = lib.mkForce "${cfg.certDir}/mitmproxy-ca-cert.pem";
+      CURL_CA_BUNDLE = mk-force "${cfg.certDir}/mitmproxy-ca-cert.pem";
     };
   };
 }

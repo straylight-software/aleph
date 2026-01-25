@@ -17,6 +17,15 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib }:
+let
+  # lisp-case aliases for lib functions
+  inherit (lib) types;
+  mk-enable-option = lib.mkEnableOption;
+  mk-option = lib.mkOption;
+  list-of = types.listOf;
+  null-or = types.nullOr;
+  function-to = types.functionTo;
+in
 {
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -24,21 +33,21 @@
   # ────────────────────────────────────────────────────────────────────────────
 
   formatter = {
-    enable = lib.mkEnableOption "aleph-naught formatter" // {
+    enable = mk-enable-option "aleph-naught formatter" // {
       default = true;
     };
-    indent-width = lib.mkOption {
-      type = lib.types.int;
+    indent-width = mk-option {
+      type = types.int;
       default = 2;
       description = "Indent width in spaces";
     };
-    line-length = lib.mkOption {
-      type = lib.types.int;
+    line-length = mk-option {
+      type = types.int;
       default = 100;
       description = "Maximum line length";
     };
-    enable-check = lib.mkOption {
-      type = lib.types.bool;
+    enable-check = mk-option {
+      type = types.bool;
       default = true;
       description = "Enable flake check for treefmt";
     };
@@ -49,19 +58,19 @@
   # ────────────────────────────────────────────────────────────────────────────
 
   docs = {
-    enable = lib.mkEnableOption "documentation generation";
-    title = lib.mkOption {
-      type = lib.types.str;
+    enable = mk-enable-option "documentation generation";
+    title = mk-option {
+      type = types.str;
       default = "Documentation";
       description = "Documentation title";
     };
-    description = lib.mkOption {
-      type = lib.types.str;
+    description = mk-option {
+      type = types.str;
       default = "";
       description = "Project description";
     };
-    theme = lib.mkOption {
-      type = lib.types.enum [
+    theme = mk-option {
+      type = types.enum [
         "ono-sendai"
         "maas"
       ];
@@ -72,16 +81,16 @@
         - maas: Light mode (clean room schematics)
       '';
     };
-    src = lib.mkOption {
-      type = lib.types.path;
+    src = mk-option {
+      type = types.path;
       description = "mdBook documentation source directory";
     };
-    options-src = lib.mkOption {
-      type = lib.types.path;
+    options-src = mk-option {
+      type = types.path;
       description = "NDG options documentation source directory";
     };
-    modules = lib.mkOption {
-      type = lib.types.listOf lib.types.raw;
+    modules = mk-option {
+      type = list-of types.raw;
       default = [ ];
       description = "NixOS modules to extract options from via NDG";
     };
@@ -93,23 +102,23 @@
 
   nixpkgs = {
     nv = {
-      enable = lib.mkEnableOption "NVIDIA GPU support";
-      capabilities = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
+      enable = mk-enable-option "NVIDIA GPU support";
+      capabilities = mk-option {
+        type = list-of types.str;
         default = [
           "8.9"
           "9.0"
         ];
         description = "NVIDIA capabilities (8.9=Ada, 9.0=Hopper, 12.0=Blackwell)";
       };
-      forward-compat = lib.mkOption {
-        type = lib.types.bool;
+      forward-compat = mk-option {
+        type = types.bool;
         default = false;
         description = "Enable forward compatibility";
       };
     };
-    allow-unfree = lib.mkOption {
-      type = lib.types.bool;
+    allow-unfree = mk-option {
+      type = types.bool;
       default = true;
       description = "Allow unfree packages";
     };
@@ -120,11 +129,11 @@
   # ────────────────────────────────────────────────────────────────────────────
 
   overlays = {
-    enable = lib.mkEnableOption "aleph-naught overlays" // {
+    enable = mk-enable-option "aleph-naught overlays" // {
       default = true;
     };
-    extra = lib.mkOption {
-      type = lib.types.listOf lib.types.raw;
+    extra = mk-option {
+      type = list-of types.raw;
       default = [ ];
       description = "Additional overlays";
     };
@@ -135,15 +144,15 @@
   # ────────────────────────────────────────────────────────────────────────────
 
   devshell = {
-    enable = lib.mkEnableOption "aleph-naught devshell";
-    nv.enable = lib.mkEnableOption "NVIDIA development tools";
-    extra-packages = lib.mkOption {
-      type = lib.types.functionTo (lib.types.listOf lib.types.package);
+    enable = mk-enable-option "aleph-naught devshell";
+    nv.enable = mk-enable-option "NVIDIA development tools";
+    extra-packages = mk-option {
+      type = function-to (list-of types.package);
       default = _: [ ];
       description = "Extra packages (receives pkgs)";
     };
-    extra-shell-hook = lib.mkOption {
-      type = lib.types.lines;
+    extra-shell-hook = mk-option {
+      type = types.lines;
       default = "";
       description = "Extra shell hook commands";
     };
@@ -154,15 +163,15 @@
   # ────────────────────────────────────────────────────────────────────────────
 
   build = {
-    enable = lib.mkEnableOption "Buck2 build system integration";
+    enable = mk-enable-option "Buck2 build system integration";
     prelude = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
+      enable = mk-option {
+        type = types.bool;
         default = true;
         description = "Include straylight-buck2-prelude in flake outputs";
       };
-      path = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+      path = mk-option {
+        type = null-or types.path;
         default = null;
         description = ''
           Path to buck2 prelude. If null, uses inputs.buck2-prelude.
@@ -172,9 +181,9 @@
     };
     toolchain = {
       cxx = {
-        enable = lib.mkEnableOption "C++ toolchain (LLVM 22)";
-        c-flags = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        enable = mk-enable-option "C++ toolchain (LLVM 22)";
+        c-flags = mk-option {
+          type = list-of types.str;
           default = [
             "-O2"
             "-g3"
@@ -184,8 +193,8 @@
           ];
           description = "C compiler flags";
         };
-        cxx-flags = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        cxx-flags = mk-option {
+          type = list-of types.str;
           default = [
             "-O2"
             "-g3"
@@ -196,8 +205,8 @@
           ];
           description = "C++ compiler flags";
         };
-        link-style = lib.mkOption {
-          type = lib.types.enum [
+        link-style = mk-option {
+          type = types.enum [
             "static"
             "shared"
           ];
@@ -206,9 +215,9 @@
         };
       };
       nv = {
-        enable = lib.mkEnableOption "NVIDIA toolchain (clang + nvidia-sdk)";
-        archs = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        enable = mk-enable-option "NVIDIA toolchain (clang + nvidia-sdk)";
+        archs = mk-option {
+          type = list-of types.str;
           default = [
             "sm_90"
             "sm_100"
@@ -223,9 +232,9 @@
         };
       };
       haskell = {
-        enable = lib.mkEnableOption "Haskell toolchain (GHC from Nix)";
-        packages = lib.mkOption {
-          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+        enable = mk-enable-option "Haskell toolchain (GHC from Nix)";
+        packages = mk-option {
+          type = function-to (list-of types.package);
           default = hp: [
             hp.text
             hp.bytestring
@@ -235,11 +244,11 @@
           description = "Haskell packages for Buck2 toolchain";
         };
       };
-      lean.enable = lib.mkEnableOption "Lean 4 toolchain";
+      lean.enable = mk-enable-option "Lean 4 toolchain";
       python = {
-        enable = lib.mkEnableOption "Python toolchain (with nanobind/pybind11)";
-        packages = lib.mkOption {
-          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+        enable = mk-enable-option "Python toolchain (with nanobind/pybind11)";
+        packages = mk-option {
+          type = function-to (list-of types.package);
           default = ps: [
             ps.nanobind
             ps.pybind11
@@ -249,13 +258,13 @@
         };
       };
     };
-    generate-buckconfig = lib.mkOption {
-      type = lib.types.bool;
+    generate-buckconfig = mk-option {
+      type = types.bool;
       default = true;
       description = "Generate .buckconfig.local in devshell";
     };
-    generate-wrappers = lib.mkOption {
-      type = lib.types.bool;
+    generate-wrappers = mk-option {
+      type = types.bool;
       default = true;
       description = "Generate bin/ wrappers for toolchains";
     };

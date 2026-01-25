@@ -47,6 +47,17 @@
   ...
 }:
 let
+  # Lisp-case aliases for lib functions
+  mk-option = lib.mkOption;
+  mk-enable-option = lib.mkEnableOption;
+  mk-if = lib.mkIf;
+  optional = lib.optional;
+  optionals = lib.optionals;
+  map-attrs = lib.mapAttrs;
+  literal-expression = lib.literalExpression;
+  to-json = builtins.toJSON;
+  to-string = builtins.toString;
+
   cfg = config.services.lre;
 
   # Scheduler configuration (CAS + AC + Scheduler + optional Worker API)
@@ -62,12 +73,12 @@ let
                 filesystem = {
                   content_path = "${cfg.persistence.directory}/cas/content";
                   temp_path = "${cfg.persistence.directory}/cas/tmp";
-                  eviction_policy.max_bytes = cfg.casMaxBytes;
+                  eviction_policy.max_bytes = cfg.cas-max-bytes;
                 };
               }
             else
               {
-                memory.eviction_policy.max_bytes = cfg.casMaxBytes;
+                memory.eviction_policy.max_bytes = cfg.cas-max-bytes;
               };
         };
       }
@@ -78,11 +89,11 @@ let
             {
               content_path = "${cfg.persistence.directory}/ac/content";
               temp_path = "${cfg.persistence.directory}/ac/tmp";
-              eviction_policy.max_bytes = cfg.acMaxBytes;
+              eviction_policy.max_bytes = cfg.ac-max-bytes;
             }
           else
             {
-              eviction_policy.max_bytes = cfg.acMaxBytes;
+              eviction_policy.max_bytes = cfg.ac-max-bytes;
             };
       }
     ];
@@ -97,7 +108,7 @@ let
             OSFamily = "priority";
             "container-image" = "priority";
           }
-          // cfg.platformProperties;
+          // cfg.platform-properties;
         };
       }
     ];
@@ -105,7 +116,7 @@ let
     servers = [
       # Main API server (CAS, AC, Execution, Capabilities)
       {
-        listener.http.socket_address = "${cfg.listenAddress}:${toString cfg.port}";
+        listener.http.socket_address = "${cfg.listen-address}:${to-string cfg.port}";
         services = {
           cas = [ { cas_store = "CAS_MAIN_STORE"; } ];
           ac = [ { ac_store = "AC_MAIN_STORE"; } ];
@@ -125,16 +136,16 @@ let
         };
       }
     ]
-    ++ lib.optional cfg.worker.enable {
+    ++ optional cfg.worker.enable {
       # Worker API server (separate port for worker registration)
-      listener.http.socket_address = "${cfg.listenAddress}:${toString cfg.worker.apiPort}";
+      listener.http.socket_address = "${cfg.listen-address}:${to-string cfg.worker.api-port}";
       services = {
         worker_api.scheduler = "MAIN_SCHEDULER";
         health = { };
       };
     };
 
-    global.max_open_files = cfg.maxOpenFiles;
+    global.max_open_files = cfg.max-open-files;
   };
 
   # Worker configuration
@@ -144,7 +155,7 @@ let
         name = "GRPC_LOCAL_STORE";
         grpc = {
           instance_name = "";
-          endpoints = [ { address = "grpc://127.0.0.1:${toString cfg.port}"; } ];
+          endpoints = [ { address = "grpc://127.0.0.1:${to-string cfg.port}"; } ];
           store_type = "cas";
         };
       }
@@ -152,7 +163,7 @@ let
         name = "GRPC_LOCAL_AC_STORE";
         grpc = {
           instance_name = "";
-          endpoints = [ { address = "grpc://127.0.0.1:${toString cfg.port}"; } ];
+          endpoints = [ { address = "grpc://127.0.0.1:${to-string cfg.port}"; } ];
           store_type = "ac";
         };
       }
@@ -163,7 +174,7 @@ let
             filesystem = {
               content_path = "${cfg.persistence.directory}/worker/cas";
               temp_path = "${cfg.persistence.directory}/worker/tmp";
-              eviction_policy.max_bytes = cfg.worker.cacheMaxBytes;
+              eviction_policy.max_bytes = cfg.worker.cache-max-bytes;
             };
           };
           slow.ref_store.name = "GRPC_LOCAL_STORE";
@@ -174,7 +185,7 @@ let
     workers = [
       {
         local = {
-          worker_api_endpoint.uri = "grpc://127.0.0.1:${toString cfg.worker.apiPort}";
+          worker_api_endpoint.uri = "grpc://127.0.0.1:${to-string cfg.worker.api-port}";
           cas_fast_slow_store = "WORKER_FAST_SLOW_STORE";
           upload_action_result.ac_store = "GRPC_LOCAL_AC_STORE";
           work_directory = "${cfg.persistence.directory}/worker/work";
@@ -187,7 +198,7 @@ let
             ];
             "container-image".values = [ "" ];
           }
-          // lib.mapAttrs (_: v: { values = [ v ]; }) cfg.worker.platformProperties;
+          // map-attrs (_: v: { values = [ v ]; }) cfg.worker.platform-properties;
         };
       }
     ];
@@ -195,89 +206,87 @@ let
     servers = [ ];
   };
 
-  scheduler-config-file = pkgs.writeText "nativelink-scheduler.json" (
-    builtins.toJSON scheduler-config
-  );
+  scheduler-config-file = pkgs.writeText "nativelink-scheduler.json" (to-json scheduler-config);
 
-  worker-config-file = pkgs.writeText "nativelink-worker.json" (builtins.toJSON worker-config);
+  worker-config-file = pkgs.writeText "nativelink-worker.json" (to-json worker-config);
 
 in
 {
   _class = "nixos";
 
   options.services.lre = {
-    enable = lib.mkEnableOption "NativeLink Local Remote Execution service";
+    enable = mk-enable-option "NativeLink Local Remote Execution service";
 
-    package = lib.mkOption {
+    package = mk-option {
       type = lib.types.package;
       default = pkgs.nativelink or (throw "nativelink package not available");
-      defaultText = lib.literalExpression "pkgs.nativelink";
+      defaultText = literal-expression "pkgs.nativelink";
       description = "NativeLink package to use";
     };
 
-    port = lib.mkOption {
+    port = mk-option {
       type = lib.types.port;
       default = 50051;
       description = "Port for NativeLink gRPC services (CAS, AC, execution)";
     };
 
-    listenAddress = lib.mkOption {
+    listen-address = mk-option {
       type = lib.types.str;
       default = "127.0.0.1";
       description = "Address to listen on. Use 0.0.0.0 for all interfaces.";
     };
 
-    openFirewall = lib.mkOption {
+    open-firewall = mk-option {
       type = lib.types.bool;
       default = false;
       description = "Open firewall port for NativeLink";
     };
 
-    casMaxBytes = lib.mkOption {
+    cas-max-bytes = mk-option {
       type = lib.types.int;
       default = 10 * 1024 * 1024 * 1024; # 10 GB
       description = "Maximum size of CAS (Content Addressable Storage) in bytes";
     };
 
-    acMaxBytes = lib.mkOption {
+    ac-max-bytes = mk-option {
       type = lib.types.int;
       default = 512 * 1024 * 1024; # 512 MB
       description = "Maximum size of AC (Action Cache) in bytes";
     };
 
-    maxOpenFiles = lib.mkOption {
+    max-open-files = mk-option {
       type = lib.types.int;
       default = 65536;
       description = "Maximum number of open files";
     };
 
-    platformProperties = lib.mkOption {
+    platform-properties = mk-option {
       type = lib.types.attrsOf lib.types.str;
       default = { };
       description = "Additional platform properties for the scheduler";
     };
 
     persistence = {
-      enable = lib.mkOption {
+      enable = mk-option {
         type = lib.types.bool;
         default = true;
         description = "Persist CAS and AC to disk (survives restarts)";
       };
 
-      directory = lib.mkOption {
+      directory = mk-option {
         type = lib.types.path;
         default = "/var/lib/nativelink";
         description = "Directory for persistent storage";
       };
     };
 
-    user = lib.mkOption {
+    user = mk-option {
       type = lib.types.str;
       default = "nativelink";
       description = "User to run NativeLink as";
     };
 
-    group = lib.mkOption {
+    group = mk-option {
       type = lib.types.str;
       default = "nativelink";
       description = "Group to run NativeLink as";
@@ -285,7 +294,7 @@ in
 
     # Worker configuration
     worker = {
-      enable = lib.mkOption {
+      enable = mk-option {
         type = lib.types.bool;
         default = false;
         description = ''
@@ -295,19 +304,19 @@ in
         '';
       };
 
-      apiPort = lib.mkOption {
+      api-port = mk-option {
         type = lib.types.port;
         default = 50061;
         description = "Port for worker API (worker registration)";
       };
 
-      cacheMaxBytes = lib.mkOption {
+      cache-max-bytes = mk-option {
         type = lib.types.int;
         default = 5 * 1024 * 1024 * 1024; # 5 GB
         description = "Maximum size of worker's local cache in bytes";
       };
 
-      platformProperties = lib.mkOption {
+      platform-properties = mk-option {
         type = lib.types.attrsOf lib.types.str;
         default = { };
         description = "Additional platform properties for the worker";
@@ -319,17 +328,17 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    users.users.${cfg.user} = lib.mkIf (cfg.user == "nativelink") {
+  config = mk-if cfg.enable {
+    users.users.${cfg.user} = mk-if (cfg.user == "nativelink") {
       isSystemUser = true;
       inherit (cfg) group;
       description = "NativeLink service user";
       home = cfg.persistence.directory;
     };
 
-    users.groups.${cfg.group} = lib.mkIf (cfg.group == "nativelink") { };
+    users.groups.${cfg.group} = mk-if (cfg.group == "nativelink") { };
 
-    systemd.tmpfiles.rules = lib.mkIf cfg.persistence.enable (
+    systemd.tmpfiles.rules = mk-if cfg.persistence.enable (
       [
         "d ${cfg.persistence.directory} 0750 ${cfg.user} ${cfg.group} -"
         "d ${cfg.persistence.directory}/cas 0750 ${cfg.user} ${cfg.group} -"
@@ -339,7 +348,7 @@ in
         "d ${cfg.persistence.directory}/ac/content 0750 ${cfg.user} ${cfg.group} -"
         "d ${cfg.persistence.directory}/ac/tmp 0750 ${cfg.user} ${cfg.group} -"
       ]
-      ++ lib.optionals cfg.worker.enable [
+      ++ optionals cfg.worker.enable [
         "d ${cfg.persistence.directory}/worker 0750 ${cfg.user} ${cfg.group} -"
         "d ${cfg.persistence.directory}/worker/cas 0750 ${cfg.user} ${cfg.group} -"
         "d ${cfg.persistence.directory}/worker/tmp 0750 ${cfg.user} ${cfg.group} -"
@@ -373,13 +382,13 @@ in
         RestrictSUIDSGID = true;
         LockPersonality = true;
 
-        ReadWritePaths = lib.mkIf cfg.persistence.enable [ cfg.persistence.directory ];
-        LimitNOFILE = cfg.maxOpenFiles;
+        ReadWritePaths = mk-if cfg.persistence.enable [ cfg.persistence.directory ];
+        LimitNOFILE = cfg.max-open-files;
       };
     };
 
     # Worker service (optional)
-    systemd.services.nativelink-worker = lib.mkIf cfg.worker.enable {
+    systemd.services.nativelink-worker = mk-if cfg.worker.enable {
       description = "NativeLink Worker";
       wantedBy = [ "multi-user.target" ];
       after = [ "nativelink.service" ];
@@ -400,15 +409,15 @@ in
         ProtectKernelModules = true;
 
         ReadWritePaths = [ cfg.persistence.directory ];
-        LimitNOFILE = cfg.maxOpenFiles;
+        LimitNOFILE = cfg.max-open-files;
 
         # Give worker time to connect to scheduler
         ExecStartPre = "${pkgs.coreutils}/bin/sleep 2";
       };
     };
 
-    networking.firewall.allowedTCPPorts = lib.mkIf cfg.openFirewall (
-      [ cfg.port ] ++ lib.optional cfg.worker.enable cfg.worker.apiPort
+    networking.firewall.allowedTCPPorts = mk-if cfg.open-firewall (
+      [ cfg.port ] ++ optional cfg.worker.enable cfg.worker.api-port
     );
 
     environment.systemPackages = [ cfg.package ];

@@ -23,6 +23,15 @@ let
   inherit (prev.stdenv.hostPlatform) system;
 
   # ════════════════════════════════════════════════════════════════════════════
+  # Lisp-case aliases for lib.* functions
+  # ════════════════════════════════════════════════════════════════════════════
+
+  optional-string = lib.optionalString;
+  optional-attrs = lib.optionalAttrs;
+  make-library-path = lib.makeLibraryPath;
+  major-minor = lib.versions.majorMinor;
+
+  # ════════════════════════════════════════════════════════════════════════════
   # Runtime dependencies for autoPatchelfHook
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -51,7 +60,7 @@ let
     final.libxml2.overrideAttrs (_old: {
       inherit version;
       src = fetchurl {
-        url = "https://download.gnome.org/sources/libxml2/${lib.versions.majorMinor version}/libxml2-${version}.tar.xz";
+        url = "https://download.gnome.org/sources/libxml2/${major-minor version}/libxml2-${version}.tar.xz";
         sha256 = "sha256-YNdKJX0czsBHXnScui8hVZ5IE577pv8oIkNXx8eY3+4=";
       };
     });
@@ -243,14 +252,14 @@ let
           runHook preInstall
           mkdir -p $out
 
-          ${lib.optionalString (lib-path != null) ''
+          ${optional-string (lib-path != null) ''
             if [ -d "unpacked/${lib-path}" ]; then
               mkdir -p $out/lib
               cp -r unpacked/${lib-path}/* $out/lib/
             fi
           ''}
 
-          ${lib.optionalString (include-path != null) ''
+          ${optional-string (include-path != null) ''
             if [ -d "unpacked/${include-path}" ]; then
               mkdir -p $out/include
               cp -r unpacked/${include-path}/* $out/include/
@@ -346,7 +355,7 @@ let
         [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
         [ -d $out/nvvm/lib64 ] && lib_paths="$lib_paths:$out/nvvm/lib64"
         [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
-        lib_paths="$lib_paths:${lib.makeLibraryPath runtime-inputs}"
+        lib_paths="$lib_paths:${make-library-path runtime-inputs}"
 
         echo "Setting RPATH on ELF files before autoPatchelf..."
 
@@ -369,7 +378,7 @@ let
         local lib_paths="$out/lib"
         [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
         [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
-        lib_paths="$lib_paths:${lib.makeLibraryPath runtime-inputs}"
+        lib_paths="$lib_paths:${make-library-path runtime-inputs}"
 
         for exe in $out/bin/*; do
           if [ -f "$exe" ] && [ -x "$exe" ]; then
@@ -389,7 +398,7 @@ in
 # Wheel-based packages (preferred - no redistribution issues)
 # ══════════════════════════════════════════════════════════════════════════════
 
-lib.optionalAttrs (system == "x86_64-linux") {
+optional-attrs (system == "x86_64-linux") {
   nvidia-nccl = mk-wheel-pkg {
     pname = "nvidia-nccl";
     wheel-info = wheels.nccl;
@@ -485,7 +494,7 @@ lib.optionalAttrs (system == "x86_64-linux") {
 # Container-based packages (for full CUDA toolkit with nvcc, etc.)
 # ══════════════════════════════════════════════════════════════════════════════
 
-// lib.optionalAttrs (triton-rootfs != null) {
+// optional-attrs (triton-rootfs != null) {
   # Full CUDA SDK from container (toolkit binaries like nvcc)
   nvidia-cuda-toolkit = mk-container-pkg {
     pname = "nvidia-cuda-toolkit";

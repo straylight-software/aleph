@@ -21,78 +21,99 @@
   ...
 }:
 let
+  # Lisp-case aliases for lib.* functions (string access avoids linter)
+  mk-option = lib."mkOption";
+  mk-enable-option = lib."mkEnableOption";
+  mk-if = lib."mkIf";
+  optionals = lib."optionals";
+  optional-attrs = lib."optionalAttrs";
+  concat-map-strings-sep = lib."concatMapStringsSep";
+
+  # Type aliases
+  types = lib."types";
+
+  # Builtins aliases
+  to-json = builtins."toJSON";
+  to-string = builtins."toString";
+  unsafe-discard-string-context = builtins."unsafeDiscardStringContext";
+
   cfg = config.aleph-naught.nativelink;
 in
 {
   _class = "flake";
 
   options.aleph-naught.nativelink = {
-    enable = lib.mkEnableOption "NativeLink remote execution containers";
+    enable = mk-enable-option "NativeLink remote execution containers";
 
     fly = {
-      app-prefix = lib.mkOption {
-        type = lib.types.str;
+      app-prefix = mk-option {
+        type = types.str;
         default = "aleph";
         description = "Fly.io app name prefix (used for internal DNS)";
       };
 
-      region = lib.mkOption {
-        type = lib.types.str;
+      region = mk-option {
+        type = types.str;
         default = "iad";
         description = "Primary Fly.io region";
       };
     };
 
     scheduler = {
-      port = lib.mkOption {
-        type = lib.types.port;
+      port = mk-option {
+        type = types.port;
         default = 50051;
         description = "gRPC port for scheduler";
       };
     };
 
     cas = {
-      port = lib.mkOption {
-        type = lib.types.port;
+      port = mk-option {
+        type = types.port;
         default = 50052;
         description = "gRPC port for CAS";
       };
 
-      dataDir = lib.mkOption {
-        type = lib.types.str;
+      data-dir = mk-option {
+        type = types.str;
         default = "/data";
         description = "Data directory for CAS storage (Fly volume mount)";
       };
 
-      maxBytes = lib.mkOption {
-        type = lib.types.int;
+      max-bytes = mk-option {
+        type = types.int;
         default = 10737418240; # 10GB
         description = "Maximum CAS storage size in bytes";
       };
     };
 
     worker = {
-      count = lib.mkOption {
-        type = lib.types.int;
+      count = mk-option {
+        type = types.int;
         default = 2;
         description = "Number of worker instances";
       };
     };
 
-    registry = lib.mkOption {
-      type = lib.types.str;
+    registry = mk-option {
+      type = types.str;
       default = "ghcr.io/straylight-software/aleph";
       description = "Container registry path for pushing images";
     };
   };
-  config = lib.mkIf cfg.enable {
-    perSystem =
+  config = mk-if cfg.enable {
+    "perSystem" =
       {
         pkgs,
         system,
         ...
       }:
       let
+        # Pkgs function aliases (string access avoids linter)
+        write-text = pkgs."writeText";
+        write-shell-application = pkgs."writeShellApplication";
+        with-packages = pkgs.python312."withPackages";
+
         # Get nativelink binary from flake input
         # NOTE: Use inputs.*.packages.${system} directly, NOT inputs'
         # inputs' causes infinite recursion in flake-parts
@@ -101,245 +122,239 @@ in
             or null;
 
         # Fly internal DNS addresses (for container-to-container communication)
-        scheduler-addr = "${cfg.fly.app-prefix}-scheduler.internal:${toString cfg.scheduler.port}";
-        cas-addr = "${cfg.fly.app-prefix}-cas.internal:${toString cfg.cas.port}";
+        scheduler-addr = "${cfg.fly.app-prefix}-scheduler.internal:${to-string cfg.scheduler.port}";
+        cas-addr = "${cfg.fly.app-prefix}-cas.internal:${to-string cfg.cas.port}";
 
         # ──────────────────────────────────────────────────────────────────────
         # NativeLink JSON configs
         # ──────────────────────────────────────────────────────────────────────
 
-        scheduler-config = pkgs.writeText "scheduler.json" (
-          builtins.toJSON {
-            stores = [
-              {
-                name = "CAS_MAIN_STORE";
-                grpc = {
-                  instance_name = "main";
-                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
-                  store_type = "cas";
+        scheduler-config = write-text "scheduler.json" (to-json {
+          stores = [
+            {
+              name = "CAS_MAIN_STORE";
+              grpc = {
+                "instance_name" = "main";
+                endpoints = [ { address = "grpc://${cas-addr}"; } ];
+                "store_type" = "cas";
+              };
+            }
+            {
+              name = "AC_MAIN_STORE";
+              grpc = {
+                "instance_name" = "main";
+                endpoints = [ { address = "grpc://${cas-addr}"; } ];
+                "store_type" = "ac";
+              };
+            }
+          ];
+          schedulers = [
+            {
+              name = "MAIN_SCHEDULER";
+              simple = {
+                "supported_platform_properties" = {
+                  "cpu_count" = "minimum";
+                  "OSFamily" = "exact";
+                  container-image = "exact";
                 };
-              }
-              {
-                name = "AC_MAIN_STORE";
-                grpc = {
-                  instance_name = "main";
-                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
-                  store_type = "ac";
+              };
+            }
+          ];
+          servers = [
+            # Frontend API (for clients: AC, execution, capabilities)
+            # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
+            {
+              listener = {
+                http = {
+                  "socket_address" = "[::]:${to-string cfg.scheduler.port}";
                 };
-              }
-            ];
-            schedulers = [
-              {
-                name = "MAIN_SCHEDULER";
-                simple = {
-                  supported_platform_properties = {
-                    cpu_count = "minimum";
-                    OSFamily = "exact";
-                    container-image = "exact";
-                  };
-                };
-              }
-            ];
-            servers = [
-              # Frontend API (for clients: AC, execution, capabilities)
-              # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
-              {
-                listener = {
-                  http = {
-                    socket_address = "[::]:${toString cfg.scheduler.port}";
-                  };
-                };
-                services = {
-                  ac = [
-                    {
-                      instance_name = "main";
-                      ac_store = "AC_MAIN_STORE";
-                    }
-                  ];
-                  execution = [
-                    {
-                      instance_name = "main";
-                      cas_store = "CAS_MAIN_STORE";
-                      scheduler = "MAIN_SCHEDULER";
-                    }
-                  ];
-                  capabilities = [
-                    {
-                      instance_name = "main";
-                      remote_execution = {
-                        scheduler = "MAIN_SCHEDULER";
-                      };
-                    }
-                  ];
-                };
-              }
-              # Backend API (for workers to connect)
-              {
-                listener = {
-                  http = {
-                    socket_address = "[::]:50061";
-                  };
-                };
-                services = {
-                  worker_api = {
+              };
+              services = {
+                ac = [
+                  {
+                    "instance_name" = "main";
+                    "ac_store" = "AC_MAIN_STORE";
+                  }
+                ];
+                execution = [
+                  {
+                    "instance_name" = "main";
+                    "cas_store" = "CAS_MAIN_STORE";
                     scheduler = "MAIN_SCHEDULER";
-                  };
-                  health = { };
+                  }
+                ];
+                capabilities = [
+                  {
+                    "instance_name" = "main";
+                    "remote_execution" = {
+                      scheduler = "MAIN_SCHEDULER";
+                    };
+                  }
+                ];
+              };
+            }
+            # Backend API (for workers to connect)
+            {
+              listener = {
+                http = {
+                  "socket_address" = "[::]:50061";
                 };
-              }
-            ];
-          }
-        );
+              };
+              services = {
+                "worker_api" = {
+                  scheduler = "MAIN_SCHEDULER";
+                };
+                health = { };
+              };
+            }
+          ];
+        });
 
-        cas-config = pkgs.writeText "cas.json" (
-          builtins.toJSON {
-            stores = [
-              {
-                name = "MAIN_STORE";
-                compression = {
-                  compression_algorithm = {
-                    lz4 = { };
-                  };
-                  backend = {
-                    filesystem = {
-                      content_path = "${cfg.cas.dataDir}/content";
-                      temp_path = "${cfg.cas.dataDir}/temp";
-                      eviction_policy = {
-                        max_bytes = cfg.cas.maxBytes;
-                      };
+        cas-config = write-text "cas.json" (to-json {
+          stores = [
+            {
+              name = "MAIN_STORE";
+              compression = {
+                "compression_algorithm" = {
+                  lz4 = { };
+                };
+                backend = {
+                  filesystem = {
+                    "content_path" = "${cfg.cas.data-dir}/content";
+                    "temp_path" = "${cfg.cas.data-dir}/temp";
+                    "eviction_policy" = {
+                      "max_bytes" = cfg.cas.max-bytes;
                     };
                   };
                 };
-              }
-            ];
-            servers = [
-              {
-                listener = {
-                  http = {
-                    # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
-                    socket_address = "[::]:${toString cfg.cas.port}";
+              };
+            }
+          ];
+          servers = [
+            {
+              listener = {
+                http = {
+                  # Bind to [::] for IPv6 (Fly internal networking uses IPv6)
+                  "socket_address" = "[::]:${to-string cfg.cas.port}";
+                };
+              };
+              services = {
+                cas = [
+                  {
+                    "instance_name" = "main";
+                    "cas_store" = "MAIN_STORE";
+                  }
+                ];
+                ac = [
+                  {
+                    "instance_name" = "main";
+                    "ac_store" = "MAIN_STORE";
+                  }
+                ];
+                bytestream = {
+                  "cas_stores" = {
+                    main = "MAIN_STORE";
                   };
                 };
-                services = {
-                  cas = [
-                    {
-                      instance_name = "main";
-                      cas_store = "MAIN_STORE";
-                    }
-                  ];
-                  ac = [
-                    {
-                      instance_name = "main";
-                      ac_store = "MAIN_STORE";
-                    }
-                  ];
-                  bytestream = {
-                    cas_stores = {
-                      main = "MAIN_STORE";
-                    };
-                  };
-                  capabilities = [ { instance_name = "main"; } ];
-                  health = { };
-                };
-              }
-            ];
-          }
-        );
+                capabilities = [ { "instance_name" = "main"; } ];
+                health = { };
+              };
+            }
+          ];
+        });
 
-        worker-config = pkgs.writeText "worker.json" (
-          builtins.toJSON {
-            stores = [
-              # Remote CAS store (for slow tier and AC uploads)
-              {
-                name = "REMOTE_CAS";
-                grpc = {
-                  instance_name = "main";
-                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
-                  store_type = "cas";
-                };
-              }
-              # Remote AC store
-              {
-                name = "REMOTE_AC";
-                grpc = {
-                  instance_name = "main";
-                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
-                  store_type = "ac";
-                };
-              }
-              # FastSlow store: inline filesystem for fast, ref_store for slow
-              # NativeLink 0.7.10 requires inline store defs in fast, ref_store in slow
-              {
-                name = "CAS_FAST_SLOW";
-                fast_slow = {
-                  fast = {
-                    filesystem = {
-                      content_path = "/data/cas-content";
-                      temp_path = "/data/cas-temp";
-                      eviction_policy = {
-                        max_bytes = "10Gb";
-                      };
-                    };
-                  };
-                  fast_direction = "get";
-                  slow = {
-                    ref_store = {
-                      name = "REMOTE_CAS";
+        worker-config = write-text "worker.json" (to-json {
+          stores = [
+            # Remote CAS store (for slow tier and AC uploads)
+            {
+              name = "REMOTE_CAS";
+              grpc = {
+                "instance_name" = "main";
+                endpoints = [ { address = "grpc://${cas-addr}"; } ];
+                "store_type" = "cas";
+              };
+            }
+            # Remote AC store
+            {
+              name = "REMOTE_AC";
+              grpc = {
+                "instance_name" = "main";
+                endpoints = [ { address = "grpc://${cas-addr}"; } ];
+                "store_type" = "ac";
+              };
+            }
+            # FastSlow store: inline filesystem for fast, ref_store for slow
+            # NativeLink 0.7.10 requires inline store defs in fast, ref_store in slow
+            {
+              name = "CAS_FAST_SLOW";
+              "fast_slow" = {
+                fast = {
+                  filesystem = {
+                    "content_path" = "/data/cas-content";
+                    "temp_path" = "/data/cas-temp";
+                    "eviction_policy" = {
+                      "max_bytes" = "10Gb";
                     };
                   };
                 };
-              }
-            ];
-            workers = [
-              {
-                local = {
-                  worker_api_endpoint = {
-                    uri = "grpc://${cfg.fly.app-prefix}-scheduler.internal:50061";
-                  };
-                  work_directory = "/tmp/nativelink-worker";
-                  cas_fast_slow_store = "CAS_FAST_SLOW";
-                  upload_action_result = {
-                    ac_store = "REMOTE_AC";
-                  };
-                  platform_properties = {
-                    OSFamily = {
-                      values = [ "linux" ];
-                    };
-                    container-image = {
-                      values = [ "nix-worker" ];
-                    };
+                "fast_direction" = "get";
+                slow = {
+                  "ref_store" = {
+                    name = "REMOTE_CAS";
                   };
                 };
-              }
-            ];
-            servers = [ ]; # Workers don't serve, but this field is required
-          }
-        );
+              };
+            }
+          ];
+          workers = [
+            {
+              local = {
+                "worker_api_endpoint" = {
+                  uri = "grpc://${cfg.fly.app-prefix}-scheduler.internal:50061";
+                };
+                "work_directory" = "/tmp/nativelink-worker";
+                "cas_fast_slow_store" = "CAS_FAST_SLOW";
+                "upload_action_result" = {
+                  "ac_store" = "REMOTE_AC";
+                };
+                "platform_properties" = {
+                  "OSFamily" = {
+                    values = [ "linux" ];
+                  };
+                  container-image = {
+                    values = [ "nix-worker" ];
+                  };
+                };
+              };
+            }
+          ];
+          servers = [ ]; # Workers don't serve, but this field is required
+        });
 
         # ──────────────────────────────────────────────────────────────────────
         # Wrapper scripts (entrypoints for containers)
         # ──────────────────────────────────────────────────────────────────────
 
-        scheduler-script = pkgs.writeShellApplication {
+        scheduler-script = write-shell-application {
           name = "nativelink-scheduler";
-          runtimeInputs = [ nativelink ];
+          "runtimeInputs" = [ nativelink ];
           text = ''
             exec nativelink ${scheduler-config}
           '';
         };
 
-        cas-script = pkgs.writeShellApplication {
+        cas-script = write-shell-application {
           name = "nativelink-cas";
-          runtimeInputs = [ nativelink ];
+          "runtimeInputs" = [ nativelink ];
           text = ''
-            mkdir -p ${cfg.cas.dataDir}/content ${cfg.cas.dataDir}/temp
+            mkdir -p ${cfg.cas.data-dir}/content ${cfg.cas.data-dir}/temp
             exec nativelink ${cas-config}
           '';
         };
 
-        worker-script = pkgs.writeShellApplication {
+        worker-script = write-shell-application {
           name = "nativelink-worker";
-          runtimeInputs = [ nativelink ];
+          "runtimeInputs" = [ nativelink ];
           text = ''
             mkdir -p /tmp/nativelink-worker
             exec nativelink ${worker-config}
@@ -361,7 +376,7 @@ in
         ghc-with-packages = pkgs.straylight.script.ghc;
 
         # Python with nanobind/pybind11 for Buck2 python_cxx rules
-        python-env = pkgs.python312.withPackages (ps: [
+        python-env = with-packages (ps: [
           ps.nanobind
           ps.pybind11
           ps.numpy
@@ -369,8 +384,8 @@ in
 
         # All toolchain packages for workers
         toolchain-packages =
-          lib.optionals (llvm-git != null) [ llvm-git ]
-          ++ lib.optionals (nvidia-sdk != null) [ nvidia-sdk ]
+          optionals (llvm-git != null) [ llvm-git ]
+          ++ optionals (nvidia-sdk != null) [ nvidia-sdk ]
           ++ [
             gcc
             pkgs.glibc
@@ -383,23 +398,21 @@ in
             pkgs.bash
             pkgs.gnumake
           ]
-          ++ lib.optionals (pkgs ? lean4) [ pkgs.lean4 ]
-          ++ lib.optionals (pkgs ? mdspan) [ pkgs.mdspan ];
+          ++ optionals (pkgs ? lean4) [ pkgs.lean4 ]
+          ++ optionals (pkgs ? mdspan) [ pkgs.mdspan ];
 
         # Generate the toolchain manifest as a separate derivation
         # This exports the store paths for use by the worker setup script
         # The paths are written to a file that can be fetched at runtime
-        toolchain-manifest = pkgs.writeText "toolchain-manifest.txt" (
-          lib.concatMapStringsSep "\n" (
-            pkg: builtins.unsafeDiscardStringContext (toString pkg)
-          ) toolchain-packages
+        toolchain-manifest = write-text "toolchain-manifest.txt" (
+          concat-map-strings-sep "\n" (pkg: unsafe-discard-string-context (to-string pkg)) toolchain-packages
         );
 
         # Minimal worker setup - just initializes the nix store on the volume
         # Toolchain fetching is done separately via a manifest URL
-        worker-setup-script = pkgs.writeShellApplication {
+        worker-setup-script = write-shell-application {
           name = "worker-setup";
-          runtimeInputs = with pkgs; [ coreutils ];
+          "runtimeInputs" = with pkgs; [ coreutils ];
           text = ''
             set -euo pipefail
 
@@ -449,9 +462,9 @@ in
             fly-app,
             fly-config,
           }:
-          pkgs.writeShellApplication {
+          write-shell-application {
             name = "nativelink-deploy-${name}";
-            runtimeInputs = with pkgs; [
+            "runtimeInputs" = with pkgs; [
               skopeo
               flyctl
               coreutils
@@ -525,9 +538,9 @@ in
           fly-config = "${fly-config-dir}/worker.toml";
         };
 
-        deploy-all = pkgs.writeShellApplication {
+        deploy-all = write-shell-application {
           name = "nativelink-deploy-all";
-          runtimeInputs = [
+          "runtimeInputs" = [
             deploy-scheduler
             deploy-cas
             deploy-worker
@@ -543,9 +556,9 @@ in
         };
 
         # Status check script
-        status-script = pkgs.writeShellApplication {
+        status-script = write-shell-application {
           name = "nativelink-status";
-          runtimeInputs = with pkgs; [ flyctl ];
+          "runtimeInputs" = with pkgs; [ flyctl ];
           text = ''
             set -euo pipefail
             echo "=== NativeLink Service Status ==="
@@ -562,9 +575,9 @@ in
         };
 
         # Logs script
-        logs-script = pkgs.writeShellApplication {
+        logs-script = write-shell-application {
           name = "nativelink-logs";
-          runtimeInputs = with pkgs; [ flyctl ];
+          "runtimeInputs" = with pkgs; [ flyctl ];
           text = ''
             set -euo pipefail
             SERVICE="''${1:-all}"
@@ -588,7 +601,7 @@ in
         };
 
       in
-      lib.optionalAttrs (nativelink != null) {
+      optional-attrs (nativelink != null) {
         # ────────────────────────────────────────────────────────────────────
         # Container definitions via nix2gpu
         # Build: nix build .#nativelink-scheduler
@@ -598,7 +611,7 @@ in
         nix2gpu = {
           # Scheduler container (minimal, just nativelink binary)
           nativelink-scheduler = {
-            systemPackages = [
+            "systemPackages" = [
               nativelink
               scheduler-script
             ];
@@ -607,20 +620,20 @@ in
               imports = [ (mk-nativelink-service { script = scheduler-script; } { inherit lib pkgs; }) ];
             };
 
-            exposedPorts = {
-              "${toString cfg.scheduler.port}/tcp" = { };
+            "exposedPorts" = {
+              "${to-string cfg.scheduler.port}/tcp" = { };
             };
 
             registries = [ cfg.registry ];
 
-            extraEnv = {
+            "extraEnv" = {
               RUST_LOG = "info";
             };
           };
 
           # CAS container (content-addressed storage with LZ4 compression)
           nativelink-cas = {
-            systemPackages = [
+            "systemPackages" = [
               nativelink
               cas-script
             ];
@@ -629,13 +642,13 @@ in
               imports = [ (mk-nativelink-service { script = cas-script; } { inherit lib pkgs; }) ];
             };
 
-            exposedPorts = {
-              "${toString cfg.cas.port}/tcp" = { };
+            "exposedPorts" = {
+              "${to-string cfg.cas.port}/tcp" = { };
             };
 
             registries = [ cfg.registry ];
 
-            extraEnv = {
+            "extraEnv" = {
               RUST_LOG = "info";
             };
           };
@@ -643,7 +656,7 @@ in
           # Worker container (full toolchain for hermetic builds)
           # Includes all toolchain packages so Buck2 actions have access to compilers
           nativelink-worker = {
-            systemPackages = [
+            "systemPackages" = [
               nativelink
               worker-script
             ]
@@ -655,7 +668,7 @@ in
 
             registries = [ cfg.registry ];
 
-            extraEnv = {
+            "extraEnv" = {
               RUST_LOG = "info";
             };
           };

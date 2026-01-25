@@ -5,32 +5,44 @@
 { lib, flake-parts-lib }:
 let
   inherit (flake-parts-lib) mkPerSystemOption;
+
+  # lisp-case aliases for lib functions
+  mk-option = lib.mkOption;
+  mk-enable-option = lib.mkEnableOption;
+  mk-per-system-option = mkPerSystemOption;
+
+  # lisp-case aliases for lib.types
+  types = lib.types // {
+    null-or = lib.types.nullOr;
+    list-of = lib.types.listOf;
+    function-to = lib.types.functionTo;
+  };
 in
 {
   # ════════════════════════════════════════════════════════════════════════════
   # Per-system options for straylight.build
   # ════════════════════════════════════════════════════════════════════════════
-  perSystem = mkPerSystemOption (
-    { lib, ... }:
+  perSystem = mk-per-system-option (
+    { ... }:
     {
       options.straylight.build = {
-        buck2-toolchain = lib.mkOption {
-          type = lib.types.raw;
+        buck2-toolchain = mk-option {
+          type = types.raw;
           default = { };
           description = "Buck2 toolchain paths from .buckconfig.local";
         };
-        buckconfig-local = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
+        buckconfig-local = mk-option {
+          type = types.null-or types.path;
           default = null;
           description = "Path to generated .buckconfig.local";
         };
-        shellHook = lib.mkOption {
-          type = lib.types.lines;
+        shellHook = mk-option {
+          type = types.lines;
           default = "";
           description = "Shell hook for Buck2 setup";
         };
-        packages = lib.mkOption {
-          type = lib.types.listOf lib.types.package;
+        packages = mk-option {
+          type = types.list-of types.package;
           default = [ ];
           description = "Packages for Buck2 toolchains";
         };
@@ -42,20 +54,20 @@ in
   # Top-level aleph-naught.build options
   # ════════════════════════════════════════════════════════════════════════════
   build = {
-    enable = lib.mkEnableOption "Buck2 build system integration";
+    enable = mk-enable-option "Buck2 build system integration";
 
     # ──────────────────────────────────────────────────────────────────────────
     # Prelude Configuration
     # ──────────────────────────────────────────────────────────────────────────
     prelude = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
+      enable = mk-option {
+        type = types.bool;
         default = true;
         description = "Include straylight-buck2-prelude in flake outputs";
       };
 
-      path = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
+      path = mk-option {
+        type = types.null-or types.path;
         default = null;
         description = ''
           Path to buck2 prelude. If null, uses inputs.buck2-prelude.
@@ -69,10 +81,10 @@ in
     # ──────────────────────────────────────────────────────────────────────────
     toolchain = {
       cxx = {
-        enable = lib.mkEnableOption "C++ toolchain (LLVM 22)";
+        enable = mk-enable-option "C++ toolchain (LLVM 22)";
 
-        c-flags = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        c-flags = mk-option {
+          type = types.list-of types.str;
           default = [
             "-O2"
             "-g3"
@@ -89,8 +101,8 @@ in
           description = "C compiler flags";
         };
 
-        cxx-flags = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        cxx-flags = mk-option {
+          type = types.list-of types.str;
           default = [
             "-O2"
             "-g3"
@@ -108,8 +120,8 @@ in
           description = "C++ compiler flags";
         };
 
-        link-style = lib.mkOption {
-          type = lib.types.enum [
+        link-style = mk-option {
+          type = types.enum [
             "static"
             "shared"
           ];
@@ -119,10 +131,10 @@ in
       };
 
       nv = {
-        enable = lib.mkEnableOption "NVIDIA toolchain (clang + nvidia-sdk)";
+        enable = mk-enable-option "NVIDIA toolchain (clang + nvidia-sdk)";
 
-        archs = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
+        archs = mk-option {
+          type = types.list-of types.str;
           default = [
             "sm_90"
             "sm_100"
@@ -138,10 +150,10 @@ in
       };
 
       haskell = {
-        enable = lib.mkEnableOption "Haskell toolchain (GHC from Nix)";
+        enable = mk-enable-option "Haskell toolchain (GHC from Nix)";
 
-        packages = lib.mkOption {
-          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+        packages = mk-option {
+          type = types.function-to (types.list-of types.package);
           # Full Aleph.Script dependencies - matches src/tools/scripts/BUCK SCRIPT_PACKAGES
           # and nix/overlays/script.nix hsDeps
           default =
@@ -173,18 +185,18 @@ in
       };
 
       rust = {
-        enable = lib.mkEnableOption "Rust toolchain";
+        enable = mk-enable-option "Rust toolchain";
       };
 
       lean = {
-        enable = lib.mkEnableOption "Lean 4 toolchain";
+        enable = mk-enable-option "Lean 4 toolchain";
       };
 
       python = {
-        enable = lib.mkEnableOption "Python toolchain (with nanobind/pybind11)";
+        enable = mk-enable-option "Python toolchain (with nanobind/pybind11)";
 
-        packages = lib.mkOption {
-          type = lib.types.functionTo (lib.types.listOf lib.types.package);
+        packages = mk-option {
+          type = types.function-to (types.list-of types.package);
           default = ps: [
             ps.nanobind
             ps.pybind11
@@ -199,40 +211,40 @@ in
     # Remote Execution Configuration
     # ──────────────────────────────────────────────────────────────────────────
     remote = {
-      enable = lib.mkEnableOption "Fly.io remote execution (instead of local NativeLink)";
+      enable = mk-enable-option "Fly.io remote execution (instead of local NativeLink)";
 
-      scheduler = lib.mkOption {
-        type = lib.types.str;
+      scheduler = mk-option {
+        type = types.str;
         default = "aleph-scheduler.fly.dev";
         description = "Fly.io scheduler hostname";
       };
 
-      cas = lib.mkOption {
-        type = lib.types.str;
+      cas = mk-option {
+        type = types.str;
         default = "aleph-cas.fly.dev";
         description = "Fly.io CAS hostname";
       };
 
-      scheduler-port = lib.mkOption {
-        type = lib.types.port;
+      scheduler-port = mk-option {
+        type = types.port;
         default = 50051;
         description = "Scheduler gRPC port";
       };
 
-      cas-port = lib.mkOption {
-        type = lib.types.port;
+      cas-port = mk-option {
+        type = types.port;
         default = 50052;
         description = "CAS gRPC port";
       };
 
-      tls = lib.mkOption {
-        type = lib.types.bool;
+      tls = mk-option {
+        type = types.bool;
         default = true;
         description = "Use TLS for Fly.io connections";
       };
 
-      instance-name = lib.mkOption {
-        type = lib.types.str;
+      instance-name = mk-option {
+        type = types.str;
         default = "main";
         description = "RE instance name";
       };
@@ -241,20 +253,20 @@ in
     # ──────────────────────────────────────────────────────────────────────────
     # Output Configuration
     # ──────────────────────────────────────────────────────────────────────────
-    generate-buckconfig = lib.mkOption {
-      type = lib.types.bool;
+    generate-buckconfig = mk-option {
+      type = types.bool;
       default = true;
       description = "Generate .buckconfig.local in devshell";
     };
 
-    generate-wrappers = lib.mkOption {
-      type = lib.types.bool;
+    generate-wrappers = mk-option {
+      type = types.bool;
       default = true;
       description = "Generate bin/ wrappers for toolchains";
     };
 
-    generate-buckconfig-main = lib.mkOption {
-      type = lib.types.bool;
+    generate-buckconfig-main = mk-option {
+      type = types.bool;
       default = false;
       description = ''
         Generate .buckconfig if missing.
@@ -266,20 +278,20 @@ in
     # IDE Integration
     # ──────────────────────────────────────────────────────────────────────────
     compdb = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
+      enable = mk-option {
+        type = types.bool;
         default = true;
         description = "Generate compile_commands.json for clangd/clang-tidy";
       };
 
-      targets = lib.mkOption {
-        type = lib.types.listOf lib.types.str;
+      targets = mk-option {
+        type = types.list-of types.str;
         default = [ "//..." ];
         description = "Buck2 targets to include in compile_commands.json";
       };
 
-      auto-generate = lib.mkOption {
-        type = lib.types.bool;
+      auto-generate = mk-option {
+        type = types.bool;
         default = false;
         description = ''
           Auto-generate compile_commands.json on shell entry.

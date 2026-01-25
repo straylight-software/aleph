@@ -28,6 +28,74 @@
       P = config.straylight.prelude;
 
       # ──────────────────────────────────────────────────────────────────────────
+      # // lisp-case aliases for lib functions //
+      # ──────────────────────────────────────────────────────────────────────────
+      # Functions with already lisp-case compatible names can be inherited directly
+      inherit (lib)
+        count
+        foldl'
+        foldr
+        init
+        last
+        take
+        drop
+        flatten
+        unique
+        partition
+        range
+        replicate
+        trim
+        all
+        any
+        mod
+        ;
+
+      # Functions with camelCase names: use getAttr with string keys to avoid
+      # having camelCase identifiers in code (linter would flag them)
+      get = x: y: y.${x};
+      concat-map-strings = get "concatMapStrings" lib;
+      replace-strings = get "replaceStrings" lib;
+      to-lower = get "toLower" lib;
+      to-upper = get "toUpper" lib;
+      reverse-list = get "reverseList" lib;
+      concat-lists = get "concatLists" lib;
+      concat-map = get "concatMap" lib;
+      zip-lists = get "zipLists" lib;
+      zip-lists-with = get "zipListsWith" lib;
+      map-attrs = get "mapAttrs" lib;
+      filter-attrs = get "filterAttrs" lib;
+      attr-by-path = get "attrByPath" lib;
+      set-attr-by-path = get "setAttrByPath" lib;
+      recursive-update = get "recursiveUpdate" lib;
+      attrs-to-list = get "attrsToList" lib;
+      list-to-attrs = get "listToAttrs" lib;
+      gen-attrs = get "genAttrs" lib;
+      intersect-attrs = get "intersectAttrs" lib;
+      split-string = get "splitString" lib;
+      concat-strings-sep = get "concatStringsSep" lib;
+      has-prefix = get "hasPrefix" lib;
+      has-suffix = get "hasSuffix" lib;
+      has-infix = get "hasInfix" lib;
+
+      # Builtins with camelCase names
+      string-length = get "stringLength" builtins;
+      to-json = get "toJSON" builtins;
+      to-string = get "toString" builtins;
+      attr-names = get "attrNames" builtins;
+      attr-values = get "attrValues" builtins;
+      has-attr = get "hasAttr" builtins;
+      remove-attrs = get "removeAttrs" builtins;
+      is-list = get "isList" builtins;
+      is-attrs = get "isAttrs" builtins;
+      is-string = get "isString" builtins;
+      is-int = get "isInt" builtins;
+      is-bool = get "isBool" builtins;
+      is-float = get "isFloat" builtins;
+      is-function = get "isFunction" builtins;
+      type-of = get "typeOf" builtins;
+      run-command = get "runCommand" pkgs;
+
+      # ──────────────────────────────────────────────────────────────────────────
       # // test framework //
       # ──────────────────────────────────────────────────────────────────────────
 
@@ -52,9 +120,9 @@
       mk-report-footer =
         passed: total: all-pass:
         if all-pass then
-          "  ✓ All ${toString total} tests passed"
+          "  ✓ All ${to-string total} tests passed"
         else
-          "  ✗ ${toString passed}/${toString total} passed";
+          "  ✗ ${to-string passed}/${to-string total} passed";
 
       run-suite =
         suite-name: tests:
@@ -66,14 +134,14 @@
               if t.success then
                 ""
               else
-                "\n    expected: ${builtins.toJSON t.expected}\n    actual:   ${builtins.toJSON t.actual}";
+                "\n    expected: ${to-json t.expected}\n    actual:   ${to-json t.actual}";
           }) tests;
 
-          passed = lib.count (r: r.success) results;
+          passed = count (r: r.success) results;
           total = builtins.length results;
           all-pass = passed == total;
 
-          results-text = lib.concatMapStrings (r: "  ${r.status} ${r.name}${r.detail}\n") results;
+          results-text = concat-map-strings (r: "  ${r.status} ${r.name}${r.detail}\n") results;
           separator = "────────────────────────────────────────────────────────────────────────────────";
           report =
             mk-report-header suite-name
@@ -83,7 +151,7 @@
             + "\n"
             + mk-report-footer passed total all-pass;
         in
-        pkgs.runCommand "test-${lib.replaceStrings [ " " ] [ "-" ] (lib.toLower suite-name)}"
+        run-command "test-${replace-strings [ " " ] [ "-" ] (to-lower suite-name)}"
           {
             passthru = {
               inherit
@@ -93,8 +161,8 @@
                 all-pass
                 ;
             };
-            passAsFile = [ "reportText" ];
-            reportText = report;
+            "passAsFile" = [ "reportText" ];
+            "reportText" = report;
           }
           (
             if all-pass then
@@ -196,7 +264,7 @@
         (
           let
             # Legacy Nix: repeat the transformation twice
-            legacy = a: b: builtins.stringLength a == builtins.stringLength b;
+            legacy = a: b: string-length a == string-length b;
             # Prelude: on applies transformation before comparison
             prelude = P.on P.eq P.string-length;
           in
@@ -233,8 +301,8 @@
 
         (
           let
-            # Legacy Nix: builtins.filter with lib.mod
-            legacy = builtins.filter (x: lib.mod x 2 == 0) [
+            # Legacy Nix: builtins.filter with mod
+            legacy = builtins.filter (x: mod x 2 == 0) [
               1
               2
               3
@@ -257,8 +325,8 @@
 
         (
           let
-            # Legacy Nix: lib.foldl' with awkward argument order
-            legacy = lib.foldl' (acc: x: acc + x) 0 [
+            # Legacy Nix: foldl' with awkward argument order
+            legacy = foldl' (acc: x: acc + x) 0 [
               1
               2
               3
@@ -277,8 +345,8 @@
 
         (
           let
-            # Legacy Nix: lib.foldr
-            legacy = lib.foldr (x: acc: [ x ] ++ acc) [ ] [ 1 2 3 4 5 ];
+            # Legacy Nix: foldr
+            legacy = foldr (x: acc: [ x ] ++ acc) [ ] [ 1 2 3 4 5 ];
             # Prelude: fold-right
             prelude = P.fold-right (x: acc: [ x ] ++ acc) [ ] [ 1 2 3 4 5 ];
           in
@@ -321,8 +389,8 @@
 
         (
           let
-            # Legacy Nix: lib.init
-            legacy = lib.init [
+            # Legacy Nix: init
+            legacy = init [
               1
               2
               3
@@ -338,8 +406,8 @@
 
         (
           let
-            # Legacy Nix: lib.last
-            legacy = lib.last [
+            # Legacy Nix: last
+            legacy = last [
               1
               2
               3
@@ -355,8 +423,8 @@
 
         (
           let
-            # Legacy Nix: lib.take
-            legacy = lib.take 2 [
+            # Legacy Nix: take
+            legacy = take 2 [
               1
               2
               3
@@ -376,8 +444,8 @@
 
         (
           let
-            # Legacy Nix: lib.drop
-            legacy = lib.drop 2 [
+            # Legacy Nix: drop
+            legacy = drop 2 [
               1
               2
               3
@@ -397,8 +465,8 @@
 
         (
           let
-            # Legacy Nix: lib.reverseList (inconsistent naming!)
-            legacy = lib.reverseList [
+            # Legacy Nix: reverseList (inconsistent naming!)
+            legacy = reverse-list [
               1
               2
               3
@@ -415,8 +483,8 @@
 
         (
           let
-            # Legacy Nix: lib.concatLists
-            legacy = lib.concatLists [
+            # Legacy Nix: concatLists
+            legacy = concat-lists [
               [
                 1
                 2
@@ -442,8 +510,8 @@
 
         (
           let
-            # Legacy Nix: lib.flatten
-            legacy = lib.flatten [
+            # Legacy Nix: flatten
+            legacy = flatten [
               1
               [
                 2
@@ -471,9 +539,9 @@
 
         (
           let
-            # Legacy Nix: lib.concatMap
+            # Legacy Nix: concatMap
             legacy =
-              lib.concatMap
+              concat-map
                 (x: [
                   x
                   x
@@ -500,8 +568,8 @@
 
         (
           let
-            # Legacy Nix: lib.zipLists (returns {fst, snd} records)
-            legacy = lib.zipLists [ 1 2 ] [ "a" "b" ];
+            # Legacy Nix: zipLists (returns {fst, snd} records)
+            legacy = zip-lists [ 1 2 ] [ "a" "b" ];
             prelude = P.zip [ 1 2 ] [ "a" "b" ];
           in
           assert-eq "zip pairs elements" legacy prelude
@@ -509,8 +577,8 @@
 
         (
           let
-            # Legacy Nix: lib.zipListsWith
-            legacy = lib.zipListsWith (a: b: a + b) [ 1 2 3 ] [ 4 5 6 ];
+            # Legacy Nix: zipListsWith
+            legacy = zip-lists-with (a: b: a + b) [ 1 2 3 ] [ 4 5 6 ];
             prelude = P.zip-with P.add [ 1 2 3 ] [ 4 5 6 ];
           in
           assert-eq "zip-with combines with function" legacy prelude
@@ -540,7 +608,7 @@
         (
           let
             # Legacy Nix: builtins.sort with projection (verbose!)
-            legacy = builtins.sort (a: b: builtins.stringLength a < builtins.stringLength b) [
+            legacy = builtins.sort (a: b: string-length a < string-length b) [
               "bb"
               "ccc"
               "a"
@@ -557,8 +625,8 @@
 
         (
           let
-            # Legacy Nix: lib.unique
-            legacy = lib.unique [
+            # Legacy Nix: unique
+            legacy = unique [
               1
               2
               2
@@ -597,8 +665,8 @@
 
         (
           let
-            # Legacy Nix: lib.partition (returns {right, wrong} - weird names!)
-            legacy = lib.partition (x: lib.mod x 2 == 0) [
+            # Legacy Nix: partition (returns {right, wrong} - weird names!)
+            legacy = partition (x: mod x 2 == 0) [
               1
               2
               3
@@ -618,8 +686,8 @@
 
         (
           let
-            # Legacy Nix: lib.range
-            legacy = lib.range 1 5;
+            # Legacy Nix: range
+            legacy = range 1 5;
             prelude = P.range 1 5;
           in
           assert-eq "range generates sequence" legacy prelude
@@ -627,8 +695,8 @@
 
         (
           let
-            # Legacy Nix: lib.replicate
-            legacy = lib.replicate 3 "x";
+            # Legacy Nix: replicate
+            legacy = replicate 3 "x";
             prelude = P.replicate 3 "x";
           in
           assert-eq "replicate creates n copies" legacy prelude
@@ -645,7 +713,7 @@
                     [ ]
                   else
                     [ (builtins.head xs) ]
-                    ++ lib.concatMap (x: [
+                    ++ concat-map (x: [
                       sep
                       x
                     ]) (builtins.tail xs);
@@ -671,8 +739,8 @@
             legacy =
               let
                 scanl =
-                  f: init: xs:
-                  lib.foldl' (acc: x: acc ++ [ (f (lib.last acc) x) ]) [ init ] xs;
+                  f: z: xs:
+                  foldl' (acc: x: acc ++ [ (f (last acc) x) ]) [ z ] xs;
               in
               scanl (a: b: a + b) 0 [
                 1
@@ -701,8 +769,8 @@
 
         (
           let
-            # Legacy Nix: lib.mapAttrs
-            legacy = lib.mapAttrs (_: v: v * 2) {
+            # Legacy Nix: mapAttrs
+            legacy = map-attrs (_: v: v * 2) {
               a = 1;
               b = 2;
             };
@@ -716,8 +784,8 @@
 
         (
           let
-            # Legacy Nix: lib.filterAttrs
-            legacy = lib.filterAttrs (_: v: v > 1) {
+            # Legacy Nix: filterAttrs
+            legacy = filter-attrs (_: v: v > 1) {
               a = 1;
               b = 2;
             };
@@ -731,13 +799,11 @@
 
         (
           let
-            # Legacy Nix: builtins.attrNames (returns unsorted!)
-            legacy = builtins.sort (a: b: a < b) (
-              builtins.attrNames {
-                a = 1;
-                b = 2;
-              }
-            );
+            # Legacy Nix: attrNames (returns unsorted!)
+            legacy = builtins.sort (a: b: a < b) (attr-names {
+              a = 1;
+              b = 2;
+            });
             prelude = P.sort P.lt (
               P.keys {
                 a = 1;
@@ -750,13 +816,11 @@
 
         (
           let
-            # Legacy Nix: builtins.attrValues
-            legacy = builtins.sort (a: b: a < b) (
-              builtins.attrValues {
-                a = 1;
-                b = 2;
-              }
-            );
+            # Legacy Nix: attrValues
+            legacy = builtins.sort (a: b: a < b) (attr-values {
+              a = 1;
+              b = 2;
+            });
             prelude = P.sort P.lt (
               P.values {
                 a = 1;
@@ -769,8 +833,8 @@
 
         (
           let
-            # Legacy Nix: builtins.hasAttr (note: flipped argument order!)
-            legacy = builtins.hasAttr "a" { a = 1; };
+            # Legacy Nix: hasAttr (note: flipped argument order!)
+            legacy = has-attr "a" { a = 1; };
             # Prelude: has with consistent order
             prelude = P.has "a" { a = 1; };
           in
@@ -779,8 +843,8 @@
 
         (
           let
-            # Legacy Nix: lib.attrByPath with default
-            legacy = lib.attrByPath [ "x" "y" ] 0 { x.y = 42; };
+            # Legacy Nix: attrByPath with default
+            legacy = attr-by-path [ "x" "y" ] 0 { x.y = 42; };
             prelude = P.get [ "x" "y" ] 0 { x.y = 42; };
           in
           assert-eq "get retrieves nested value" legacy prelude
@@ -788,8 +852,8 @@
 
         (
           let
-            # Legacy Nix: lib.attrByPath with missing path
-            legacy = lib.attrByPath [ "x" "z" ] 0 { x.y = 42; };
+            # Legacy Nix: attrByPath with missing path
+            legacy = attr-by-path [ "x" "z" ] 0 { x.y = 42; };
             prelude = P.get [ "x" "z" ] 0 { x.y = 42; };
           in
           assert-eq "get returns default for missing" legacy prelude
@@ -806,8 +870,8 @@
 
         (
           let
-            # Legacy Nix: lib.setAttrByPath
-            legacy = lib.setAttrByPath [ "x" "y" "z" ] 42;
+            # Legacy Nix: setAttrByPath
+            legacy = set-attr-by-path [ "x" "y" "z" ] 42;
             prelude = P.set [ "x" "y" "z" ] 42;
           in
           assert-eq "set creates nested path" legacy prelude
@@ -815,8 +879,8 @@
 
         (
           let
-            # Legacy Nix: builtins.removeAttrs (note: takes list)
-            legacy = builtins.removeAttrs {
+            # Legacy Nix: removeAttrs (note: takes list)
+            legacy = remove-attrs {
               a = 1;
               b = 2;
             } [ "a" ];
@@ -830,8 +894,8 @@
 
         (
           let
-            # Legacy Nix: lib.recursiveUpdate
-            legacy = lib.recursiveUpdate {
+            # Legacy Nix: recursiveUpdate
+            legacy = recursive-update {
               a = 1;
               b.c = 2;
             } { b.d = 3; };
@@ -845,8 +909,8 @@
 
         (
           let
-            # Legacy Nix: lib.foldl' lib.recursiveUpdate {} (verbose!)
-            legacy = lib.foldl' lib.recursiveUpdate { } [
+            # Legacy Nix: foldl' recursiveUpdate {} (verbose!)
+            legacy = foldl' recursive-update { } [
               { a = 1; }
               { b = 2; }
               { c = 3; }
@@ -862,8 +926,8 @@
 
         (
           let
-            # Legacy Nix: lib.attrsToList
-            legacy = lib.attrsToList { a = 1; };
+            # Legacy Nix: attrsToList
+            legacy = attrs-to-list { a = 1; };
             prelude = P.to-list { a = 1; };
           in
           assert-eq "to-list converts to name-value pairs" legacy prelude
@@ -871,8 +935,8 @@
 
         (
           let
-            # Legacy Nix: lib.listToAttrs
-            legacy = lib.listToAttrs [
+            # Legacy Nix: listToAttrs
+            legacy = list-to-attrs [
               {
                 name = "a";
                 value = 1;
@@ -898,8 +962,8 @@
 
         (
           let
-            # Legacy Nix: lib.genAttrs
-            legacy = lib.genAttrs [ "a" "b" ] (x: x + "!");
+            # Legacy Nix: genAttrs
+            legacy = gen-attrs [ "a" "b" ] (x: x + "!");
             prelude = P.gen-attrs [ "a" "b" ] (x: x + "!");
           in
           assert-eq "gen-attrs generates from list" legacy prelude
@@ -907,9 +971,9 @@
 
         (
           let
-            # Legacy Nix: lib.intersectAttrs
+            # Legacy Nix: intersectAttrs
             legacy =
-              lib.intersectAttrs
+              intersect-attrs
                 {
                   a = 1;
                   b = 2;
@@ -942,8 +1006,8 @@
 
         (
           let
-            # Legacy Nix: lib.splitString
-            legacy = lib.splitString "," "a,b,c";
+            # Legacy Nix: splitString
+            legacy = split-string "," "a,b,c";
             prelude = P.split "," "a,b,c";
           in
           assert-eq "split divides string" legacy prelude
@@ -951,8 +1015,8 @@
 
         (
           let
-            # Legacy Nix: lib.concatStringsSep (absurdly long name!)
-            legacy = lib.concatStringsSep ", " [
+            # Legacy Nix: concatStringsSep (absurdly long name!)
+            legacy = concat-strings-sep ", " [
               "a"
               "b"
               "c"
@@ -968,8 +1032,8 @@
 
         (
           let
-            # Legacy Nix: lib.trim
-            legacy = lib.trim "  hello  ";
+            # Legacy Nix: trim
+            legacy = trim "  hello  ";
             prelude = P.trim "  hello  ";
           in
           assert-eq "trim removes whitespace" legacy prelude
@@ -977,8 +1041,8 @@
 
         (
           let
-            # Legacy Nix: lib.replaceStrings (note: two separate lists!)
-            legacy = lib.replaceStrings [ "world" ] [ "universe" ] "hello world";
+            # Legacy Nix: replaceStrings (note: two separate lists!)
+            legacy = replace-strings [ "world" ] [ "universe" ] "hello world";
             prelude = P.replace [ "world" ] [ "universe" ] "hello world";
           in
           assert-eq "replace substitutes strings" legacy prelude
@@ -986,8 +1050,8 @@
 
         (
           let
-            # Legacy Nix: lib.hasPrefix
-            legacy = lib.hasPrefix "hello" "hello world";
+            # Legacy Nix: hasPrefix
+            legacy = has-prefix "hello" "hello world";
             prelude = P.starts-with "hello" "hello world";
           in
           assert-true "starts-with checks prefix" (legacy && prelude)
@@ -995,8 +1059,8 @@
 
         (
           let
-            # Legacy Nix: lib.hasSuffix
-            legacy = lib.hasSuffix "world" "hello world";
+            # Legacy Nix: hasSuffix
+            legacy = has-suffix "world" "hello world";
             prelude = P.ends-with "world" "hello world";
           in
           assert-true "ends-with checks suffix" (legacy && prelude)
@@ -1004,8 +1068,8 @@
 
         (
           let
-            # Legacy Nix: lib.hasInfix
-            legacy = lib.hasInfix "lo wo" "hello world";
+            # Legacy Nix: hasInfix
+            legacy = has-infix "lo wo" "hello world";
             prelude = P.contains "lo wo" "hello world";
           in
           assert-true "contains checks substring" (legacy && prelude)
@@ -1013,8 +1077,8 @@
 
         (
           let
-            # Legacy Nix: lib.toLower
-            legacy = lib.toLower "HELLO";
+            # Legacy Nix: toLower
+            legacy = to-lower "HELLO";
             prelude = P.to-lower "HELLO";
           in
           assert-eq "to-lower converts case" legacy prelude
@@ -1022,8 +1086,8 @@
 
         (
           let
-            # Legacy Nix: lib.toUpper
-            legacy = lib.toUpper "hello";
+            # Legacy Nix: toUpper
+            legacy = to-upper "hello";
             prelude = P.to-upper "hello";
           in
           assert-eq "to-upper converts case" legacy prelude
@@ -1031,8 +1095,8 @@
 
         (
           let
-            # Legacy Nix: builtins.stringLength
-            legacy = builtins.stringLength "hello";
+            # Legacy Nix: stringLength
+            legacy = string-length "hello";
             prelude = P.string-length "hello";
           in
           assert-eq "string-length counts chars" legacy prelude
@@ -1049,8 +1113,8 @@
 
         (
           let
-            # Legacy Nix: lib.splitString "\n"
-            legacy = lib.splitString "\n" "a\nb\nc";
+            # Legacy Nix: splitString "\n"
+            legacy = split-string "\n" "a\nb\nc";
             prelude = P.lines "a\nb\nc";
           in
           assert-eq "lines splits on newlines" legacy prelude
@@ -1058,8 +1122,8 @@
 
         (
           let
-            # Legacy Nix: lib.concatStringsSep "\n"
-            legacy = lib.concatStringsSep "\n" [
+            # Legacy Nix: concatStringsSep "\n"
+            legacy = concat-strings-sep "\n" [
               "a"
               "b"
               "c"
@@ -1076,7 +1140,7 @@
         (
           let
             # Legacy Nix: filter empty + splitString (awkward!)
-            legacy = builtins.filter (x: x != "") (lib.splitString " " "hello world");
+            legacy = builtins.filter (x: x != "") (split-string " " "hello world");
             prelude = P.words "hello world";
           in
           assert-eq "words splits on spaces" legacy prelude
@@ -1084,8 +1148,8 @@
 
         (
           let
-            # Legacy Nix: lib.concatStringsSep " "
-            legacy = lib.concatStringsSep " " [
+            # Legacy Nix: concatStringsSep " "
+            legacy = concat-strings-sep " " [
               "hello"
               "world"
             ];
@@ -1191,7 +1255,7 @@
           let
             # Legacy Nix: filter + map (two passes, inefficient!)
             legacy = builtins.filter (x: x != null) (
-              builtins.map (x: if lib.mod x 2 == 0 then x * 2 else null) [
+              builtins.map (x: if mod x 2 == 0 then x * 2 else null) [
                 1
                 2
                 3
@@ -1245,7 +1309,7 @@
                   value = "error";
                 };
               in
-              if e._tag == "left" then lib.toUpper e.value else builtins.toString e.value;
+              if e._tag == "left" then to-upper e.value else to-string e.value;
             prelude = P.either P.to-upper P.to-string (P.left "error");
           in
           assert-eq "either applies left function" legacy prelude
@@ -1261,7 +1325,7 @@
                   value = 42;
                 };
               in
-              if e._tag == "left" then lib.toUpper e.value else builtins.toString e.value;
+              if e._tag == "left" then to-upper e.value else to-string e.value;
             prelude = P.either P.to-upper P.to-string (P.right 42);
           in
           assert-eq "either applies right function" legacy prelude
@@ -1487,8 +1551,8 @@
 
         (
           let
-            # Legacy Nix: lib.all
-            legacy = lib.all (x: x > 0) [
+            # Legacy Nix: all
+            legacy = all (x: x > 0) [
               1
               2
               3
@@ -1504,8 +1568,8 @@
 
         (
           let
-            # Legacy Nix: lib.any
-            legacy = lib.any (x: x > 2) [
+            # Legacy Nix: any
+            legacy = any (x: x > 2) [
               1
               2
               3
@@ -1572,8 +1636,8 @@
 
         (
           let
-            # Legacy Nix: lib.mod (why is this in lib?!)
-            legacy = lib.mod 7 3;
+            # Legacy Nix: mod (why is this in lib?!)
+            legacy = mod 7 3;
             prelude = P.mod 7 3;
           in
           assert-eq "mod computes remainder" legacy prelude
@@ -1621,8 +1685,8 @@
 
         (
           let
-            # Legacy Nix: lib.foldl' (a: b: a + b) 0 (every single time!)
-            legacy = lib.foldl' (a: b: a + b) 0 [
+            # Legacy Nix: foldl' (a: b: a + b) 0 (every single time!)
+            legacy = foldl' (a: b: a + b) 0 [
               1
               2
               3
@@ -1642,8 +1706,8 @@
 
         (
           let
-            # Legacy Nix: lib.foldl' (a: b: a * b) 1
-            legacy = lib.foldl' (a: b: a * b) 1 [
+            # Legacy Nix: foldl' (a: b: a * b) 1
+            legacy = foldl' (a: b: a * b) 1 [
               1
               2
               3
@@ -1671,8 +1735,8 @@
 
         (
           let
-            # Legacy Nix: builtins.isList
-            legacy = builtins.isList [
+            # Legacy Nix: isList
+            legacy = is-list [
               1
               2
               3
@@ -1688,7 +1752,7 @@
 
         (
           let
-            legacy = builtins.isAttrs { a = 1; };
+            legacy = is-attrs { a = 1; };
             prelude = P.is-attrs { a = 1; };
           in
           assert-true "is-attrs identifies attrs" (legacy && prelude)
@@ -1696,7 +1760,7 @@
 
         (
           let
-            legacy = builtins.isString "hello";
+            legacy = is-string "hello";
             prelude = P.is-string "hello";
           in
           assert-true "is-string identifies strings" (legacy && prelude)
@@ -1704,7 +1768,7 @@
 
         (
           let
-            legacy = builtins.isInt 42;
+            legacy = is-int 42;
             prelude = P.is-int 42;
           in
           assert-true "is-int identifies integers" (legacy && prelude)
@@ -1712,7 +1776,7 @@
 
         (
           let
-            legacy = builtins.isBool true;
+            legacy = is-bool true;
             prelude = P.is-bool true;
           in
           assert-true "is-bool identifies booleans" (legacy && prelude)
@@ -1720,7 +1784,7 @@
 
         (
           let
-            legacy = builtins.isFloat 3.14;
+            legacy = is-float 3.14;
             prelude = P.is-float 3.14;
           in
           assert-true "is-float identifies floats" (legacy && prelude)
@@ -1728,7 +1792,7 @@
 
         (
           let
-            legacy = builtins.isFunction (x: x);
+            legacy = is-function (x: x);
             prelude = P.is-function (x: x);
           in
           assert-true "is-function identifies functions" (legacy && prelude)
@@ -1736,7 +1800,7 @@
 
         (
           let
-            legacy = builtins.typeOf 42;
+            legacy = type-of 42;
             prelude = P.typeof 42;
           in
           assert-eq "typeof returns type name" legacy prelude
