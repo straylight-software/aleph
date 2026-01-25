@@ -6,52 +6,47 @@
 #
 {
   lib,
-  stdenv,
   pkgs,
   cmake,
 }:
 let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (pkgs.straylight) stdenv;
 
   # External API alias
   fetch-from-github = pkgs.fetchFromGitHub;
 
   mdspan-shim = ./mdspan-shim.hpp;
 in
-stdenv.mkDerivation (
-  final-attrs:
-  translate-attrs {
-    pname = "mdspan";
-    version = "0.6.0";
+stdenv.default {
+  pname = "mdspan";
+  version = "0.6.0";
 
-    src = fetch-from-github {
-      owner = "kokkos";
-      repo = "mdspan";
-      rev = "mdspan-${final-attrs.version}";
-      hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
-    };
+  src = fetch-from-github {
+    owner = "kokkos";
+    repo = "mdspan";
+    # Can't use final-attrs with stdenv.default functor
+    rev = "mdspan-0.6.0";
+    hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
+  };
 
-    native-build-inputs = [ cmake ];
+  native-build-inputs = [ cmake ];
 
-    cmake-flags = [
-      "-DMDSPAN_ENABLE_TESTS=OFF"
-      "-DMDSPAN_ENABLE_EXAMPLES=OFF"
-      "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
+  cmake-flags = [
+    "-DMDSPAN_ENABLE_TESTS=OFF"
+    "-DMDSPAN_ENABLE_EXAMPLES=OFF"
+    "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
+  ];
+
+  post-install = ''
+    install -m644 ${mdspan-shim} $out/include/mdspan
+  '';
+
+  meta = {
+    description = "Reference implementation of P0009 std::mdspan";
+    homepage = "https://github.com/kokkos/mdspan";
+    license = [
+      lib.licenses.asl20
+      lib.licenses.bsd3
     ];
-
-    post-install = ''
-      install -m644 ${mdspan-shim} $out/include/mdspan
-    '';
-
-    meta = {
-      description = "Reference implementation of P0009 std::mdspan";
-      homepage = "https://github.com/kokkos/mdspan";
-      license = [
-        lib.licenses.asl20
-        lib.licenses.bsd3
-      ];
-    };
-  }
-)
+  };
+}

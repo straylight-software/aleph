@@ -94,6 +94,21 @@ let
   #                              // assembly //
   # ──────────────────────────────────────────────────────────────────────────
 
+  # ──────────────────────────────────────────────────────────────────────────
+  #                           // typed wrappers //
+  # ──────────────────────────────────────────────────────────────────────────
+  # These wrap nixpkgs builders with translation. The boundary.
+
+  inherit (translations) translate-attrs;
+
+  # run-command: like pkgs.runCommand but accepts lisp-case attrs
+  run-command =
+    name: attrs: script:
+    final.runCommand name (translate-attrs attrs) script;
+
+  # write-shell-application: like pkgs.writeShellApplication but lisp-case
+  write-shell-application = args: final.writeShellApplication (translate-attrs args);
+
   prelude =
     functions
     // languages
@@ -107,9 +122,10 @@ let
         stdenv
         cross
         schemas
+        run-command
+        write-shell-application
         ;
       inherit versions license;
-      inherit (translations) translate-attrs;
     };
 
 in
@@ -127,10 +143,11 @@ in
       turing-registry
       stdenv
       cross
+      run-command
+      write-shell-application
       ;
     inherit (toolchain) llvm;
     inherit versions license;
-    inherit (translations) translate-attrs;
 
     # Toolchain paths for downstream consumers
     toolchain = toolchain.paths;

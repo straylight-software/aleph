@@ -21,18 +21,15 @@ let
     replace
     to-string
     to-upper
-    translate-attrs
     when-attr
     ;
 
+  inherit (pkgs.straylight) run-command stdenv;
+
   # ────────────────────────────────────────────────────────────────────────────
-  # Lisp-case aliases for pkgs.* functions (accessed via get' to avoid camelCase identifiers)
+  # Lisp-case aliases for pkgs.* functions
   # ────────────────────────────────────────────────────────────────────────────
-  run-command =
-    name: attrs: script:
-    (get' "runCommand" pkgs) name (translate-attrs attrs) script;
   write-text-dir = get' "writeTextDir" pkgs;
-  mk-derivation = attrs: (get' "mkDerivation" pkgs.stdenv) (translate-attrs attrs);
 
   # Haskell packages alias
   haskell-packages = get' "haskellPackages" pkgs;
@@ -63,7 +60,7 @@ let
   # Verify that mdspan headers are properly installed and can be used
   # to compile a C++23 program using std::mdspan
 
-  test-mdspan-installation = mk-derivation {
+  test-mdspan-installation = stdenv.default {
     name = "test-mdspan-installation";
 
     src = write-text-dir "test.cpp" (read-file ./test-sources/mdspan-test.cpp);

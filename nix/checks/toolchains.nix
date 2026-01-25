@@ -19,11 +19,8 @@
 }:
 let
   inherit (pkgs) lib;
-  translations = import ../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (pkgs.straylight) run-command;
 
-  # Prelude aliases
-  run-command = pkgs.runCommand;
   to-string = builtins.toString;
 
   # Render Dhall template with environment variables
@@ -36,7 +33,7 @@ let
     in
     run-command name
       (
-        translate-attrs {
+        {
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
@@ -57,12 +54,12 @@ let
       test-script,
     }:
     run-command "test-toolchain-${name}"
-      (translate-attrs {
+      {
         inherit native-build-inputs build-inputs;
         passthru = {
           inherit description;
         };
-      })
+      }
       ''
         echo "╔════════════════════════════════════════════════════════════════╗"
         echo "║  Toolchain Smoke Test: ${name}"

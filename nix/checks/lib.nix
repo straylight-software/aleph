@@ -11,10 +11,9 @@
 }:
 let
   straylight-lib = import ../lib/default.nix { inherit lib; };
-  translations = import ../prelude/translations.nix { inherit lib; };
-  prelude = import ../prelude/functions.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-  inherit (prelude) to-string;
+  prelude-fns = import ../prelude/functions.nix { inherit lib; };
+  inherit (pkgs.straylight) run-command;
+  inherit (prelude-fns) to-string;
 
   # Render Dhall template with environment variables
   render-dhall =
@@ -24,9 +23,9 @@ let
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (to-string v)
       ) vars;
     in
-    pkgs.runCommand name
+    run-command name
       (
-        translate-attrs {
+        {
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
@@ -61,7 +60,7 @@ let
         ];
       };
     in
-    pkgs.runCommand "test-lib-nv-utils" { } ''
+    run-command "test-lib-nv-utils" { } ''
       bash ${script}
     '';
 
@@ -71,7 +70,7 @@ let
   # Test stdenv utility functions for straylight-cflags and straylightify wrapper
 
   straylightified-drv = straylight-lib.stdenv.straylightify (
-    pkgs.runCommand "test-straylightify-input" { } ''
+    run-command "test-straylightify-input" { } ''
       mkdir -p $out
       echo "test" > $out/test
     ''
@@ -88,7 +87,7 @@ let
         test-drv = straylightified-drv;
       };
     in
-    pkgs.runCommand "test-lib-stdenv-utils" { } ''
+    run-command "test-lib-stdenv-utils" { } ''
       bash ${script}
     '';
 

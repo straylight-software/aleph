@@ -35,8 +35,7 @@ let
   name-value-pair = lib.nameValuePair;
   to-upper = lib.toUpper;
 
-  translations = import ../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (pkgs.straylight) run-command;
 
   list-filter = builtins.filter;
   list-length = builtins.length;
@@ -572,9 +571,9 @@ let
         k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (builtins.toString v)
       ) vars;
     in
-    pkgs.runCommand name
+    run-command name
       (
-        translate-attrs {
+        {
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
@@ -612,7 +611,7 @@ in
         touch-out = if results.summary.pass then "touch $out" else "exit 1";
       };
     in
-    pkgs.runCommand "prelude-properties" { } ''
+    run-command "prelude-properties" { } ''
       bash ${script}
     '';
 }

@@ -21,8 +21,7 @@ let
   to-upper = lib.toUpper;
   when-attr = lib.optionalAttrs;
 
-  translations = import ../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (pkgs.straylight) run-command stdenv;
 
   # Get script source and GHC from the overlay
   inherit (pkgs.straylight.script) src ghc;
@@ -42,9 +41,9 @@ let
         }
       ) vars;
     in
-    pkgs.runCommand name
+    run-command name
       (
-        translate-attrs {
+        {
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
@@ -59,7 +58,7 @@ let
   # Compile all Aleph.* modules using GHC's --make mode.
   # This automatically handles dependency ordering and verifies everything compiles.
 
-  test-aleph-modules = pkgs.stdenv.mkDerivation (translate-attrs {
+  test-aleph-modules = stdenv.default {
     name = "test-aleph-modules";
     inherit src;
     dont-unpack = true;
@@ -81,7 +80,7 @@ let
     meta = {
       description = "Test that all Aleph.* Haskell modules compile successfully";
     };
-  });
+  };
 
   # ==============================================================================
   # TEST: aleph-compiled-scripts
@@ -123,7 +122,7 @@ let
             script-checks = script-check-lines;
           };
     in
-    pkgs.runCommand "test-aleph-compiled-scripts" { } ''
+    run-command "test-aleph-compiled-scripts" { } ''
       bash ${script}
     '';
 
