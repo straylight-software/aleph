@@ -6,6 +6,20 @@
 #
 { inputs, lib, ... }:
 let
+  # ════════════════════════════════════════════════════════════════════════════
+  # LISP-CASE ALIASES
+  #
+  # Local aliases for lib.* and builtins.* functions to satisfy WSN-E003.
+  # External API names (nixpkgs attributes, flake outputs) remain unchanged.
+  # ════════════════════════════════════════════════════════════════════════════
+  split-string = lib.splitString;
+  remove-suffix = lib.removeSuffix;
+  optional-attrs = lib.optionalAttrs;
+  concat-map-strings-sep = lib.concatMapStringsSep;
+  list-to-attrs = lib.listToAttrs;
+  path-exists = builtins.pathExists;
+  base-name-of = builtins.baseNameOf;
+
   # Import module indices by kind
   flake-modules = import ./modules/flake/_index.nix { inherit inputs lib; };
   nixos-modules = import ./modules/nixos/_index.nix;
@@ -190,13 +204,13 @@ in
         path: args:
         let
           path-str = toString path;
-          ext = lib.last (lib.splitString "." path-str);
+          ext = lib.last (split-string "." path-str);
           aleph-modules = ../src/tools/scripts;
 
           # Check for pre-built WASM file (avoids IFD)
-          base-name = lib.removeSuffix ".hs" (baseNameOf path-str);
+          base-name = remove-suffix ".hs" (base-name-of path-str);
           prebuilt-wasm = ./packages + "/${base-name}.wasm";
-          has-prebuilt-wasm = builtins.pathExists prebuilt-wasm;
+          has-prebuilt-wasm = path-exists prebuilt-wasm;
 
           # Generated Main.hs that wraps the user's package module
           wrapper-main = ./build/templates/wasm-main.hs;
@@ -205,7 +219,7 @@ in
           build-hs-wasm =
             hs-path:
             let
-              name = lib.removeSuffix ".hs" (baseNameOf (toString hs-path));
+              name = remove-suffix ".hs" (base-name-of (toString hs-path));
             in
             pkgs.runCommand "${name}.wasm"
               {
@@ -316,17 +330,17 @@ in
           '';
 
       # All WASM files bundled together (for easy copying to repo)
-      wasm-packages-bundle = lib.optionalAttrs (ghc-wasm != null) {
+      wasm-packages-bundle = optional-attrs (ghc-wasm != null) {
         wasm-packages = pkgs.runCommand "wasm-packages" { } ''
           mkdir -p $out
-          ${lib.concatMapStringsSep "\n" (name: ''
+          ${concat-map-strings-sep "\n" (name: ''
             cp ${build-hs-wasm-standalone name} $out/${name}.wasm
           '') hs-package-files}
         '';
       };
 
-      typed-packages = lib.optionalAttrs (builtins ? wasm) (
-        lib.listToAttrs (
+      typed-packages = optional-attrs (builtins ? wasm) (
+        list-to-attrs (
           map (name: {
             inherit name;
             value = call-package (./packages + "/${name}.hs") { };
@@ -365,12 +379,12 @@ in
         # Buck2 built packages - these can be used in NixOS, containers, etc.
         # fmt-test = config.buck2.build { target = "//examples/cxx:fmt_test"; };
       }
-      // lib.optionalAttrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
-      // lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") (
-        lib.optionalAttrs (pkgs ? llvm-git) { inherit (pkgs) llvm-git; }
-        // lib.optionalAttrs (pkgs ? nvidia-sdk) { inherit (pkgs) nvidia-sdk; }
+      // optional-attrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
+      // optional-attrs (system == "x86_64-linux" || system == "aarch64-linux") (
+        optional-attrs (pkgs ? llvm-git) { inherit (pkgs) llvm-git; }
+        // optional-attrs (pkgs ? nvidia-sdk) { inherit (pkgs) nvidia-sdk; }
       )
-      // lib.optionalAttrs (nativelink != null) {
+      // optional-attrs (nativelink != null) {
         inherit nativelink;
       }
       // wasm-packages-bundle

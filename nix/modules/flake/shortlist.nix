@@ -43,7 +43,15 @@ _:
   ...
 }:
 let
-  inherit (flake-parts-lib) mkPerSystemOption;
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Lisp-case aliases for lib.* functions
+  # ──────────────────────────────────────────────────────────────────────────────
+  mk-option = lib.mkOption;
+  mk-enable-option = lib.mkEnableOption;
+  mk-if = lib.mkIf;
+  optional-string = lib.optionalString;
+  mk-per-system-option = flake-parts-lib.mkPerSystemOption;
+
   cfg = config.aleph-naught.shortlist;
 in
 {
@@ -52,26 +60,29 @@ in
   # ════════════════════════════════════════════════════════════════════════════
   # Per-system options for straylight.shortlist
   # ════════════════════════════════════════════════════════════════════════════
-  options.perSystem = mkPerSystemOption (
+  options.perSystem = mk-per-system-option (
     { lib, ... }:
+    let
+      mk-option' = lib.mkOption;
+    in
     {
       options.straylight.shortlist = {
-        libraries = lib.mkOption {
+        libraries = mk-option' {
           type = lib.types.attrsOf lib.types.package;
           default = { };
           description = "Shortlist library packages";
         };
-        shellHook = lib.mkOption {
+        shellHook = mk-option' {
           type = lib.types.lines;
           default = "";
           description = "Shell hook for shortlist setup";
         };
-        buckconfig = lib.mkOption {
+        buckconfig = mk-option' {
           type = lib.types.lines;
           default = "";
           description = "Buck2 config section for shortlist paths";
         };
-        shortlist-file = lib.mkOption {
+        shortlist-file = mk-option' {
           type = lib.types.package;
           description = "Derivation containing the shortlist buckconfig section";
         };
@@ -80,31 +91,31 @@ in
   );
 
   options.aleph-naught.shortlist = {
-    enable = lib.mkEnableOption "Hermetic C++ shortlist libraries";
+    enable = mk-enable-option "Hermetic C++ shortlist libraries";
 
     # Individual library toggles
-    zlib-ng = lib.mkEnableOption "zlib-ng compression library" // {
+    zlib-ng = mk-enable-option "zlib-ng compression library" // {
       default = true;
     };
-    fmt = lib.mkEnableOption "fmt formatting library" // {
+    fmt = mk-enable-option "fmt formatting library" // {
       default = true;
     };
-    catch2 = lib.mkEnableOption "Catch2 testing framework" // {
+    catch2 = mk-enable-option "Catch2 testing framework" // {
       default = true;
     };
-    spdlog = lib.mkEnableOption "spdlog logging library" // {
+    spdlog = mk-enable-option "spdlog logging library" // {
       default = true;
     };
-    mdspan = lib.mkEnableOption "mdspan header-only library" // {
+    mdspan = mk-enable-option "mdspan header-only library" // {
       default = true;
     };
-    rapidjson = lib.mkEnableOption "RapidJSON header-only library" // {
+    rapidjson = mk-enable-option "RapidJSON header-only library" // {
       default = true;
     };
-    nlohmann-json = lib.mkEnableOption "nlohmann-json header-only library" // {
+    nlohmann-json = mk-enable-option "nlohmann-json header-only library" // {
       default = true;
     };
-    libsodium = lib.mkEnableOption "libsodium cryptography library" // {
+    libsodium = mk-enable-option "libsodium cryptography library" // {
       default = true;
     };
   };
@@ -112,7 +123,7 @@ in
   # ════════════════════════════════════════════════════════════════════════════
   # Implementation
   # ════════════════════════════════════════════════════════════════════════════
-  config = lib.mkIf cfg.enable {
+  config = mk-if cfg.enable {
     perSystem =
       {
         pkgs,
@@ -120,6 +131,8 @@ in
         ...
       }:
       let
+        optional-string' = lib.optionalString;
+
         # Use nixpkgs packages - they're already built
         # For true hermetic builds with LLVM 22, we'd override stdenv
         # Note: Many packages split headers into .dev output
@@ -145,18 +158,18 @@ in
           [shortlist]
           # Hermetic C++ libraries
           # Format: lib = /nix/store/..., lib_dev = /nix/store/...-dev (for headers)
-          ${lib.optionalString cfg.zlib-ng "zlib_ng = ${libraries.zlib-ng}"}
-          ${lib.optionalString cfg.fmt "fmt = ${libraries.fmt}"}
-          ${lib.optionalString cfg.fmt "fmt_dev = ${libraries.fmt-dev}"}
-          ${lib.optionalString cfg.catch2 "catch2 = ${libraries.catch2}"}
-          ${lib.optionalString cfg.catch2 "catch2_dev = ${libraries.catch2-dev}"}
-          ${lib.optionalString cfg.spdlog "spdlog = ${libraries.spdlog}"}
-          ${lib.optionalString cfg.spdlog "spdlog_dev = ${libraries.spdlog-dev}"}
-          ${lib.optionalString cfg.mdspan "mdspan = ${libraries.mdspan}"}
-          ${lib.optionalString cfg.rapidjson "rapidjson = ${libraries.rapidjson}"}
-          ${lib.optionalString cfg.nlohmann-json "nlohmann_json = ${libraries.nlohmann-json}"}
-          ${lib.optionalString cfg.libsodium "libsodium = ${libraries.libsodium}"}
-          ${lib.optionalString cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}"}
+          ${optional-string' cfg.zlib-ng "zlib_ng = ${libraries.zlib-ng}"}
+          ${optional-string' cfg.fmt "fmt = ${libraries.fmt}"}
+          ${optional-string' cfg.fmt "fmt_dev = ${libraries.fmt-dev}"}
+          ${optional-string' cfg.catch2 "catch2 = ${libraries.catch2}"}
+          ${optional-string' cfg.catch2 "catch2_dev = ${libraries.catch2-dev}"}
+          ${optional-string' cfg.spdlog "spdlog = ${libraries.spdlog}"}
+          ${optional-string' cfg.spdlog "spdlog_dev = ${libraries.spdlog-dev}"}
+          ${optional-string' cfg.mdspan "mdspan = ${libraries.mdspan}"}
+          ${optional-string' cfg.rapidjson "rapidjson = ${libraries.rapidjson}"}
+          ${optional-string' cfg.nlohmann-json "nlohmann_json = ${libraries.nlohmann-json}"}
+          ${optional-string' cfg.libsodium "libsodium = ${libraries.libsodium}"}
+          ${optional-string' cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}"}
         '';
 
         # Shortlist section as a file in the store

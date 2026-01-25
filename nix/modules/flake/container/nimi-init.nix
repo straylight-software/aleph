@@ -23,6 +23,19 @@ let
   inherit (pkgs) nimi;
 
   # ────────────────────────────────────────────────────────────────────────────
+  # // lisp-case aliases //
+  # ────────────────────────────────────────────────────────────────────────────
+  read-file = builtins.readFile;
+  replace-strings = builtins.replaceStrings;
+
+  get-exe = lib.getExe;
+  map-attrs' = lib.mapAttrs';
+  name-value-pair = lib.nameValuePair;
+  optional = lib.optional;
+  optional-string = lib.optionalString;
+  to-upper = lib.toUpper;
+
+  # ────────────────────────────────────────────────────────────────────────────
   # // vm init script builder //
   # ────────────────────────────────────────────────────────────────────────────
   #
@@ -33,15 +46,15 @@ let
   #   4. Execs into final process (shell or build runner)
 
   # Script fragments loaded from external files to comply with WSN-W003
-  network-setup-script = builtins.readFile ../scripts/vm-init-network.bash;
-  gpu-setup-script = builtins.readFile ../scripts/vm-init-gpu.bash;
+  network-setup-script = read-file ../scripts/vm-init-network.bash;
+  gpu-setup-script = read-file ../scripts/vm-init-gpu.bash;
 
   # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
   render-dhall =
     name: src: vars:
     let
-      env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      env-vars = map-attrs' (
+        k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
     pkgs.runCommand name
@@ -66,8 +79,8 @@ let
       script = render-dhall "vm-init-${hostname}" ../scripts/vm-init.dhall {
         inherit hostname;
         execInto = exec-into;
-        networkSetup = lib.optionalString enable-network network-setup-script;
-        gpuSetup = lib.optionalString wait-for-gpu gpu-setup-script;
+        networkSetup = optional-string enable-network network-setup-script;
+        gpuSetup = optional-string wait-for-gpu gpu-setup-script;
       };
     in
     pkgs.writeShellApplication {
@@ -81,7 +94,7 @@ let
           ncurses
           busybox # for cttyhack
         ]
-        ++ lib.optional wait-for-gpu kmod;
+        ++ optional wait-for-gpu kmod;
       text = ''
         source ${script}
       '';
@@ -93,7 +106,7 @@ let
 
   isospin-run-nimi = nimi.mkNimiBin {
     settings.binName = "isospin-run-init";
-    settings.startup.runOnStartup = lib.getExe (mk-vm-init {
+    settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "isospin";
       exec-into = ''exec setsid cttyhack /bin/sh'';
     });
@@ -101,7 +114,7 @@ let
 
   isospin-build-nimi = nimi.mkNimiBin {
     settings.binName = "isospin-build-init";
-    settings.startup.runOnStartup = lib.getExe (mk-vm-init {
+    settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "builder";
       exec-into = ''
         if [ -f /build-cmd ]; then
@@ -119,7 +132,7 @@ let
 
   cloud-hypervisor-run-nimi = nimi.mkNimiBin {
     settings.binName = "cloud-hypervisor-run-init";
-    settings.startup.runOnStartup = lib.getExe (mk-vm-init {
+    settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "cloud-vm";
       exec-into = ''exec setsid cttyhack /bin/sh'';
     });
@@ -127,7 +140,7 @@ let
 
   cloud-hypervisor-gpu-nimi = nimi.mkNimiBin {
     settings.binName = "cloud-hypervisor-gpu-init";
-    settings.startup.runOnStartup = lib.getExe (mk-vm-init {
+    settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "ch-gpu";
       wait-for-gpu = true;
       exec-into = ''exec setsid cttyhack /bin/sh'';

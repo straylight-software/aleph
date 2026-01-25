@@ -16,6 +16,14 @@ let
     hs-packages-config
     ;
 
+  # Lisp-case aliases for lib functions
+  concat-map-strings-sep = lib.concatMapStringsSep;
+  concat-strings-sep = lib.concatStringsSep;
+  map-attrs' = lib.mapAttrs';
+  name-value-pair = lib.nameValuePair;
+  replace-strings = builtins.replaceStrings;
+  to-upper = lib.toUpper;
+
   scripts-dir = ./scripts;
 
   # Render Dhall template with environment variables
@@ -24,8 +32,8 @@ let
     let
       # Convert vars attrset to env var exports
       # Dhall expects UPPER_SNAKE_CASE env vars
-      env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      env-vars = map-attrs' (
+        k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
     pkgs.runCommand name
@@ -64,8 +72,8 @@ let
   flags-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? c-flags then
       render-dhall "buckconfig-flags.ini" (scripts-dir + "/buckconfig-flags.dhall") {
-        c_flags = lib.concatStringsSep " " buck2-toolchain.c-flags;
-        cxx_flags = lib.concatStringsSep " " buck2-toolchain.cxx-flags;
+        c_flags = concat-strings-sep " " buck2-toolchain.c-flags;
+        cxx_flags = concat-strings-sep " " buck2-toolchain.cxx-flags;
       }
     else
       null;
@@ -160,7 +168,7 @@ let
     config-parts ++ lib.optional (haskell-packages-file != null) haskell-packages-file;
 
   buckconfig-local = pkgs.runCommand "buckconfig.local" { } ''
-    cat ${lib.concatMapStringsSep " " toString all-config-parts} > $out
+    cat ${concat-map-strings-sep " " toString all-config-parts} > $out
   '';
 in
 {

@@ -23,7 +23,24 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib, pkgs }:
 let
-  inherit (lib) concatStringsSep;
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lisp-case aliases for lib.* and builtins.* functions
+  # ─────────────────────────────────────────────────────────────────────────
+  concat-strings-sep = lib.concatStringsSep;
+  concat-map = lib.concatMap;
+  map-attrs = lib.mapAttrs;
+  filter-attrs = lib.filterAttrs;
+  map-attrs' = lib.mapAttrs';
+  name-value-pair = lib.nameValuePair;
+  to-upper = lib.toUpper;
+
+  list-filter = builtins.filter;
+  list-length = builtins.length;
+  try-eval = builtins.tryEval;
+  deep-seq = builtins.deepSeq;
+  type-of = builtins.typeOf;
+  attr-names = builtins.attrNames;
+  replace-strings = builtins.replaceStrings;
 
   # ─────────────────────────────────────────────────────────────────────────
   # Generators
@@ -239,13 +256,13 @@ let
         input = x;
         passed = prop x;
       }) samples;
-      failures = map (r: r.input) (builtins.filter (r: !r.passed) results);
+      failures = map (r: r.input) (list-filter (r: !r.passed) results);
     in
     {
       pass = failures == [ ];
       inherit failures;
-      total = builtins.length samples;
-      passed = builtins.length samples - builtins.length failures;
+      total = list-length samples;
+      passed = list-length samples - list-length failures;
     };
 
   /**
@@ -260,7 +277,7 @@ let
   for-all2 =
     xs: ys: prop:
     let
-      pairs = lib.concatMap (
+      pairs = concat-map (
         x:
         map (y: {
           fst = x;
@@ -271,13 +288,13 @@ let
         input = p;
         passed = prop p.fst p.snd;
       }) pairs;
-      failures = map (r: r.input) (builtins.filter (r: !r.passed) results);
+      failures = map (r: r.input) (list-filter (r: !r.passed) results);
     in
     {
       pass = failures == [ ];
       inherit failures;
-      total = builtins.length pairs;
-      passed = builtins.length pairs - builtins.length failures;
+      total = list-length pairs;
+      passed = list-length pairs - list-length failures;
     };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -289,14 +306,14 @@ let
 
     Uses builtins.tryEval to catch evaluation errors.
   */
-  terminates = f: x: (builtins.tryEval (builtins.deepSeq (f x) true)).success;
+  terminates = f: x: (try-eval (deep-seq (f x) true)).success;
 
   /**
     Check that a function returns a specific type.
   */
   returns-type =
     type: f: x:
-    builtins.typeOf (f x) == type;
+    type-of (f x) == type;
 
   /**
     Check that a function is idempotent: f(f(x)) == f(x)
@@ -321,9 +338,9 @@ let
     associative =
       f: samples:
       let
-        triples = lib.concatMap (
+        triples = concat-map (
           a:
-          lib.concatMap (
+          concat-map (
             b:
             map (c: {
               inherit a b c;
@@ -344,9 +361,9 @@ let
     distributive =
       f: g: samples:
       let
-        triples = lib.concatMap (
+        triples = concat-map (
           a:
-          lib.concatMap (
+          concat-map (
             b:
             map (c: {
               inherit a b c;
@@ -476,23 +493,23 @@ let
     prelude:
     let
       props = prelude-properties prelude;
-      results = lib.mapAttrs (
+      results = map-attrs (
         name: result:
         result
         // {
           inherit name;
         }
       ) props;
-      failures = lib.filterAttrs (_: r: !r.pass) results;
-      passed = lib.filterAttrs (_: r: r.pass) results;
+      failures = filter-attrs (_: r: !r.pass) results;
+      passed = filter-attrs (_: r: r.pass) results;
     in
     {
       all = results;
       inherit failures passed;
       summary = {
-        total = builtins.length (builtins.attrNames results);
-        passed = builtins.length (builtins.attrNames passed);
-        failed = builtins.length (builtins.attrNames failures);
+        total = list-length (attr-names results);
+        passed = list-length (attr-names passed);
+        failed = list-length (attr-names failures);
         pass = failures == { };
       };
     };
@@ -514,7 +531,7 @@ let
           ''
 
             PASSED (${toString results.summary.passed}):
-            ${concatStringsSep "\n" (map (name: "  [+] ${name}") (builtins.attrNames results.passed))}
+            ${concat-strings-sep "\n" (map (name: "  [+] ${name}") (attr-names results.passed))}
           ''
         else
           "";
@@ -524,10 +541,10 @@ let
           ''
 
             FAILED (${toString results.summary.failed}):
-            ${concatStringsSep "\n" (
+            ${concat-strings-sep "\n" (
               map (
-                name: "  [-] ${name}: ${toString (builtins.length results.failures.${name}.failures)} failures"
-              ) (builtins.attrNames results.failures)
+                name: "  [-] ${name}: ${builtins.toString (list-length results.failures.${name}.failures)} failures"
+              ) (attr-names results.failures)
             )}
           ''
         else
@@ -547,8 +564,8 @@ let
   render-dhall =
     name: src: vars:
     let
-      env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      env-vars = map-attrs' (
+        k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (builtins.toString v)
       ) vars;
     in
     pkgs.runCommand name
