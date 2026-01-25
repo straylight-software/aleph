@@ -40,6 +40,7 @@ let
       wasi-sdk = ghc-wasm-pkgs.wasi-sdk;
     }
     # Alternative GHC versions (optional)
+    # NOTE: Package names are from ghc-wasm-meta (external API), accessed via string
     // optional-pkg "wasm32-wasi-ghc-9_14"
     // optional-pkg "wasm32-wasi-ghc-9_10"
     // optional-pkg "wasm32-wasi-ghc-9_8"
@@ -51,20 +52,20 @@ let
     // optional-pkg "all_9_14"
     # Rename to our naming convention
     // (
-      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_14 then
-        { ghc-wasm-9_14 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_14; }
+      if ghc-wasm-pkgs ? "wasm32-wasi-ghc-9_14" then
+        { ghc-wasm-9-14 = ghc-wasm-pkgs."wasm32-wasi-ghc-9_14"; }
       else
         { }
     )
     // (
-      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_10 then
-        { ghc-wasm-9_10 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_10; }
+      if ghc-wasm-pkgs ? "wasm32-wasi-ghc-9_10" then
+        { ghc-wasm-9-10 = ghc-wasm-pkgs."wasm32-wasi-ghc-9_10"; }
       else
         { }
     )
     // (
-      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_8 then
-        { ghc-wasm-9_8 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_8; }
+      if ghc-wasm-pkgs ? "wasm32-wasi-ghc-9_8" then
+        { ghc-wasm-9-8 = ghc-wasm-pkgs."wasm32-wasi-ghc-9_8"; }
       else
         { }
     )
@@ -82,8 +83,8 @@ let
     )
     // (if ghc-wasm-pkgs ? binaryen then { wasm-binaryen = ghc-wasm-pkgs.binaryen; } else { })
     // (if ghc-wasm-pkgs ? wasmtime then { wasm-wasmtime = ghc-wasm-pkgs.wasmtime; } else { })
-    // (if ghc-wasm-pkgs ? all_9_12 then { ghc-wasm-all = ghc-wasm-pkgs.all_9_12; } else { })
-    // (if ghc-wasm-pkgs ? all_9_14 then { ghc-wasm-all-9_14 = ghc-wasm-pkgs.all_9_14; } else { });
+    // (if ghc-wasm-pkgs ? "all_9_12" then { ghc-wasm-all = ghc-wasm-pkgs."all_9_12"; } else { })
+    // (if ghc-wasm-pkgs ? "all_9_14" then { ghc-wasm-all-9-14 = ghc-wasm-pkgs."all_9_14"; } else { });
 in
 {
   flake.overlays.ghc-wasm =

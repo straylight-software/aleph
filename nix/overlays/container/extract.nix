@@ -7,6 +7,11 @@
   lib,
   straylight-lib,
 }:
+let
+  # Import prelude for translate-attrs
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+in
 {
   # Extract and patch binary packages
   #
@@ -32,50 +37,55 @@
       run-path = straylight-lib.elf.mk-rpath runtime-inputs;
       interpreter-path = "$(cat ${final.stdenv.cc}/nix-support/dynamic-linker)";
     in
-    final.stdenv.mkDerivation {
-      inherit
-        pname
-        version
-        src
-        meta
-        ;
+    final.stdenv.mkDerivation (
+      translate-attrs {
+        inherit
+          pname
+          version
+          src
+          meta
+          ;
 
-      nativeBuildInputs = [
-        final.patchelf
-        final.file
-        final.gnutar
-        final.gzip
-        final.xz
-        final.unzip
-      ];
+        native-build-inputs = [
+          final.patchelf
+          final.file
+          final.gnutar
+          final.gzip
+          final.xz
+          final.unzip
+        ];
 
-      dontConfigure = true;
-      dontBuild = true;
-      dontUnpack = true;
+        dont-configure = true;
+        dont-build = true;
+        dont-unpack = true;
 
-      installPhase = ''
-        runHook preInstall
-        mkdir -p $out
-        ${install}
-        ${post-install}
-        runHook postInstall
-      '';
+        install-phase = ''
+          runHook preInstall
+          mkdir -p $out
+          ${install}
+          ${post-install}
+          runHook postInstall
+        '';
 
-      fixupPhase = ''
-        runHook preFixup
-        find $out -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
-          [ -L "$f" ] && continue
-          file "$f" | grep -q ELF || continue
-          if file "$f" | grep -q "executable"; then
-            patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
-          fi
-          existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
-          combined="${run-path}:$out/lib:$out/lib64''${existing:+:$existing}"
-          patchelf --set-rpath "$combined" "$f" 2>/dev/null || true
-        done
-        runHook postFixup
-      '';
-    };
+        # NOTE: fixupPhase is not in translate-attrs, quote it
+      }
+      // {
+        "fixupPhase" = ''
+          runHook preFixup
+          find $out -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
+            [ -L "$f" ] && continue
+            file "$f" | grep -q ELF || continue
+            if file "$f" | grep -q "executable"; then
+              patchelf --set-interpreter "${interpreter-path}" "$f" 2>/dev/null || true
+            fi
+            existing=$(patchelf --print-rpath "$f" 2>/dev/null || echo "")
+            combined="${run-path}:$out/lib:$out/lib64''${existing:+:$existing}"
+            patchelf --set-rpath "$combined" "$f" 2>/dev/null || true
+          done
+          runHook postFixup
+        '';
+      }
+    );
 
   # Create a stub library that provides symbol definitions
   #
@@ -87,16 +97,16 @@
     let
       stub-src = builtins.toFile "stub.c" (lib.concatMapStringsSep "\n" (s: "void ${s}() {}") symbols);
     in
-    final.stdenv.mkDerivation {
+    final.stdenv.mkDerivation (translate-attrs {
       pname = "${name}-stub";
       version = "1.0";
-      dontUnpack = true;
+      dont-unpack = true;
 
-      buildPhase = ''
+      build-phase = ''
         $CC -shared -o ${name} ${stub-src}
       '';
 
-      installPhase = ''
+      install-phase = ''
         mkdir -p $out/lib
         cp ${name} $out/lib/
       '';
@@ -104,5 +114,5 @@
       meta = {
         description = "Stub library providing symbol definitions for linking";
       };
-    };
+    });
 }
