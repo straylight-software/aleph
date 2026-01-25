@@ -21,7 +21,7 @@ rule:
         has:
           kind: identifier
           regex: ^(substituteAll|replaceVars|substitute)$
-message: "WSN-E010: Text templating must use Dhall"
+message: "WSN-E007: Text templating must use Dhall"
 note: |
   ## What's wrong?
   `substituteAll`, `replaceVars`, and `substitute` are forbidden.
