@@ -1167,7 +1167,7 @@ withGpuBinds = do
     pure $ devBinds ++ driverBinds ++ glBinds ++ ["--ro-bind", "/nix/store", "/nix/store"]
 
 -- ============================================================================
--- Weyl-specific: Nix
+-- Nix
 -- ============================================================================
 
 -- | Check if running in nix-shell

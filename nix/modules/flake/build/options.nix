@@ -196,6 +196,49 @@ in
     };
 
     # ──────────────────────────────────────────────────────────────────────────
+    # Remote Execution Configuration
+    # ──────────────────────────────────────────────────────────────────────────
+    remote = {
+      enable = lib.mkEnableOption "Fly.io remote execution (instead of local NativeLink)";
+
+      scheduler = lib.mkOption {
+        type = lib.types.str;
+        default = "aleph-scheduler.fly.dev";
+        description = "Fly.io scheduler hostname";
+      };
+
+      cas = lib.mkOption {
+        type = lib.types.str;
+        default = "aleph-cas.fly.dev";
+        description = "Fly.io CAS hostname";
+      };
+
+      scheduler-port = lib.mkOption {
+        type = lib.types.port;
+        default = 50051;
+        description = "Scheduler gRPC port";
+      };
+
+      cas-port = lib.mkOption {
+        type = lib.types.port;
+        default = 50052;
+        description = "CAS gRPC port";
+      };
+
+      tls = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = "Use TLS for Fly.io connections";
+      };
+
+      instance-name = lib.mkOption {
+        type = lib.types.str;
+        default = "main";
+        description = "RE instance name";
+      };
+    };
+
+    # ──────────────────────────────────────────────────────────────────────────
     # Output Configuration
     # ──────────────────────────────────────────────────────────────────────────
     generate-buckconfig = lib.mkOption {
