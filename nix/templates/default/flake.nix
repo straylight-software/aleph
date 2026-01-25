@@ -23,7 +23,7 @@
         nixpkgs.allow-unfree = true;
       };
 
-      perSystem =
+      "perSystem" =
         { config, pkgs, ... }:
         let
           # The Weyl Prelude is available via config.straylight.prelude

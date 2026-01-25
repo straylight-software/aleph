@@ -28,7 +28,7 @@
 
       aleph-naught.nixpkgs.allow-unfree = true;
 
-      perSystem =
+      "perSystem" =
         { prelude, pkgs, ... }:
         let
           # Convert Nickel to JSON, then parse as Nix
@@ -36,7 +36,7 @@
           config-json =
             pkgs.runCommand "config.json"
               {
-                nativeBuildInputs = [ pkgs.nickel ];
+                "nativeBuildInputs" = [ pkgs.nickel ];
               }
               ''
                 nickel export ${./config.ncl} > $out
@@ -73,7 +73,7 @@
         };
 
       # Export NixOS modules for each machine
-      flake.nixosModules = {
+      flake."nixosModules" = {
         agenix-secrets = {
           imports = [ agenix.nixosModules.default ];
           # Secrets configuration would go here

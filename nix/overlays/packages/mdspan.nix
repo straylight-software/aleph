@@ -7,41 +7,51 @@
 {
   lib,
   stdenv,
-  fetchFromGitHub,
+  pkgs,
   cmake,
 }:
 let
+  # Import prelude for translate-attrs
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
+  # External API alias
+  fetch-from-github = pkgs.fetchFromGitHub;
+
   mdspan-shim = ./mdspan-shim.hpp;
 in
-stdenv.mkDerivation (finalAttrs: {
-  pname = "mdspan";
-  version = "0.6.0";
+stdenv.mkDerivation (
+  final-attrs:
+  translate-attrs {
+    pname = "mdspan";
+    version = "0.6.0";
 
-  src = fetchFromGitHub {
-    owner = "kokkos";
-    repo = "mdspan";
-    rev = "mdspan-${finalAttrs.version}";
-    hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
-  };
+    src = fetch-from-github {
+      owner = "kokkos";
+      repo = "mdspan";
+      rev = "mdspan-${final-attrs.version}";
+      hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
+    };
 
-  nativeBuildInputs = [ cmake ];
+    native-build-inputs = [ cmake ];
 
-  cmakeFlags = [
-    "-DMDSPAN_ENABLE_TESTS=OFF"
-    "-DMDSPAN_ENABLE_EXAMPLES=OFF"
-    "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
-  ];
-
-  postInstall = ''
-    install -m644 ${mdspan-shim} $out/include/mdspan
-  '';
-
-  meta = {
-    description = "Reference implementation of P0009 std::mdspan";
-    homepage = "https://github.com/kokkos/mdspan";
-    license = [
-      lib.licenses.asl20
-      lib.licenses.bsd3
+    cmake-flags = [
+      "-DMDSPAN_ENABLE_TESTS=OFF"
+      "-DMDSPAN_ENABLE_EXAMPLES=OFF"
+      "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
     ];
-  };
-})
+
+    post-install = ''
+      install -m644 ${mdspan-shim} $out/include/mdspan
+    '';
+
+    meta = {
+      description = "Reference implementation of P0009 std::mdspan";
+      homepage = "https://github.com/kokkos/mdspan";
+      license = [
+        lib.licenses.asl20
+        lib.licenses.bsd3
+      ];
+    };
+  }
+)

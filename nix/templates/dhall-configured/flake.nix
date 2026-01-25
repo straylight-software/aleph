@@ -28,7 +28,7 @@
 
       aleph-naught.nixpkgs.allow-unfree = true;
 
-      perSystem =
+      "perSystem" =
         { prelude, pkgs, ... }:
         let
           # Load and type-check configuration from Dhall
@@ -60,7 +60,7 @@
         };
 
       # Export NixOS modules for each machine
-      flake.nixosModules = {
+      flake."nixosModules" = {
         agenix-secrets = {
           imports = [ agenix.nixosModules.default ];
           # Secrets configuration would go here

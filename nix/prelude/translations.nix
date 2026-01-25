@@ -76,6 +76,10 @@ let
     "paths-to-link" = "pathsToLink";
     "extra-outputs-to-install" = "extraOutputsToInstall";
     "ignore-collision" = "ignoreCollisionExtraction";
+
+    # writeShellApplication
+    "runtime-inputs" = "runtimeInputs";
+    "derivation-args" = "derivationArgs";
   };
 
   # ──────────────────────────────────────────────────────────────────────────

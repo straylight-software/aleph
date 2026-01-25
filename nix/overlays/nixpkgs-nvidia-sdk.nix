@@ -7,6 +7,10 @@ _final: prev:
 let
   inherit (prev) lib;
 
+  # Import prelude for translate-attrs
+  translations = import ../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
   cuda-packages = prev.cudaPackages_13;
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -14,66 +18,72 @@ let
   # ════════════════════════════════════════════════════════════════════════════
 
   # mdspan - C++23 std::mdspan reference implementation (Kokkos)
-  mdspan = prev.stdenv.mkDerivation (finalAttrs: {
-    pname = "mdspan";
-    version = "0.6.0";
+  mdspan = prev.stdenv.mkDerivation (
+    final-attrs:
+    translate-attrs {
+      pname = "mdspan";
+      version = "0.6.0";
 
-    src = prev.fetchFromGitHub {
-      owner = "kokkos";
-      repo = "mdspan";
-      rev = "mdspan-${finalAttrs.version}";
-      hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
-    };
+      src = prev."fetchFromGitHub" {
+        owner = "kokkos";
+        repo = "mdspan";
+        rev = "mdspan-${final-attrs.version}";
+        hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
+      };
 
-    "nativeBuildInputs" = [ prev.cmake ];
+      native-build-inputs = [ prev.cmake ];
 
-    "cmakeFlags" = [
-      "-DMDSPAN_ENABLE_TESTS=OFF"
-      "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
-      "-DMDSPAN_ENABLE_EXAMPLES=OFF"
-    ];
+      cmake-flags = [
+        "-DMDSPAN_ENABLE_TESTS=OFF"
+        "-DMDSPAN_ENABLE_BENCHMARKS=OFF"
+        "-DMDSPAN_ENABLE_EXAMPLES=OFF"
+      ];
 
-    # Add C++23 <mdspan> shim that includes the experimental implementation
-    "postInstall" = ''
-      install -m644 ${./packages/mdspan-shim.hpp} $out/include/mdspan
-    '';
+      # Add C++23 <mdspan> shim that includes the experimental implementation
+      post-install = ''
+        install -m644 ${./packages/mdspan-shim.hpp} $out/include/mdspan
+      '';
 
-    meta = {
-      description = "C++23 std::mdspan reference implementation";
-      homepage = "https://github.com/kokkos/mdspan";
-      license = lib.licenses.asl20;
-    };
-  });
+      meta = {
+        description = "C++23 std::mdspan reference implementation";
+        homepage = "https://github.com/kokkos/mdspan";
+        license = lib.licenses.asl20;
+      };
+    }
+  );
 
   # CUTLASS - latest version, header-only
-  cutlass = prev.stdenv.mkDerivation (finalAttrs: {
-    pname = "cutlass";
-    version = "4.3.3";
+  cutlass = prev.stdenv.mkDerivation (
+    final-attrs:
+    translate-attrs {
+      pname = "cutlass";
+      version = "4.3.3";
 
-    src = prev.fetchFromGitHub {
-      owner = "NVIDIA";
-      repo = "cutlass";
-      rev = "v${finalAttrs.version}";
-      hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
-    };
+      src = prev."fetchFromGitHub" {
+        owner = "NVIDIA";
+        repo = "cutlass";
+        rev = "v${final-attrs.version}";
+        hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
+      };
 
-    "dontBuild" = true;
-    "dontConfigure" = true;
+      dont-build = true;
+      dont-configure = true;
 
-    "installPhase" = ''
-      runHook preInstall
-      mkdir -p $out/include
-      cp -r include/cutlass $out/include/
-      cp -r include/cute $out/include/
-      runHook postInstall
-    '';
+      install-phase = ''
+        runHook preInstall
+        mkdir -p $out/include
+        cp -r include/cutlass $out/include/
+        cp -r include/cute $out/include/
+        runHook postInstall
+      '';
 
-    meta = {
-      description = "CUDA Templates for Linear Algebra Subroutines";
-      homepage = "https://github.com/NVIDIA/cutlass";
-      license = lib.licenses.bsd3;
-    };
-  });
+      meta = {
+        description = "CUDA Templates for Linear Algebra Subroutines";
+        homepage = "https://github.com/NVIDIA/cutlass";
+        license = lib.licenses.bsd3;
+      };
+    }
+  );
 
   # ════════════════════════════════════════════════════════════════════════════
   # NVIDIA SDK
@@ -110,6 +120,7 @@ let
       cutlass
     ];
 
+    # NOTE: postBuild is not in translate-attrs, quote it
     "postBuild" = builtins.readFile ./scripts/nvidia-sdk-postbuild.sh;
 
     passthru = {

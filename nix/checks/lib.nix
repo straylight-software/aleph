@@ -11,19 +11,23 @@
 }:
 let
   straylight-lib = import ../lib/default.nix { inherit lib; };
+  translations = import ../prelude/translations.nix { inherit lib; };
+  prelude = import ../prelude/functions.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+  inherit (prelude) to-string;
 
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
       env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (to-string v)
       ) vars;
     in
     pkgs.runCommand name
       (
-        {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        translate-attrs {
+          native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
@@ -38,7 +42,7 @@ let
 
   test-lib-nv-utils =
     let
-      script = renderDhall "test-lib-nv-utils.bash" ./scripts/test-lib-nv-utils.dhall {
+      script = render-dhall "test-lib-nv-utils.bash" ./scripts/test-lib-nv-utils.dhall {
         cap70 = straylight-lib.nv.capability-to-arch "7.0";
         cap75 = straylight-lib.nv.capability-to-arch "7.5";
         cap80 = straylight-lib.nv.capability-to-arch "8.0";
@@ -51,7 +55,7 @@ let
         fp8cap120 = builtins.toJSON (straylight-lib.nv.supports-fp8 "12.0");
         nvfp4cap90 = builtins.toJSON (straylight-lib.nv.supports-nvfp4 "9.0");
         nvfp4cap120 = builtins.toJSON (straylight-lib.nv.supports-nvfp4 "12.0");
-        nvcc_flags = straylight-lib.nv.nvcc-flags [
+        nvcc-flags = straylight-lib.nv.nvcc-flags [
           "8.0"
           "9.0"
         ];
@@ -66,7 +70,7 @@ let
   # ══════════════════════════════════════════════════════════════════════════
   # Test stdenv utility functions for straylight-cflags and straylightify wrapper
 
-  test-drv = straylight-lib.stdenv.straylightify (
+  straylightified-drv = straylight-lib.stdenv.straylightify (
     pkgs.runCommand "test-straylightify-input" { } ''
       mkdir -p $out
       echo "test" > $out/test
@@ -75,13 +79,13 @@ let
 
   test-lib-stdenv-utils =
     let
-      script = renderDhall "test-lib-stdenv-utils.bash" ./scripts/test-lib-stdenv-utils.dhall {
-        straylight_cflags = straylight-lib.stdenv.straylight-cflags;
-        dont_strip = builtins.toJSON straylight-lib.stdenv.straylight-attrs.dontStrip;
-        hardening_disable_all = builtins.toJSON (
-          builtins.elem "all" straylight-lib.stdenv.straylight-attrs.hardeningDisable
+      script = render-dhall "test-lib-stdenv-utils.bash" ./scripts/test-lib-stdenv-utils.dhall {
+        straylight-cflags = straylight-lib.stdenv.straylight-cflags;
+        dont-strip = builtins.toJSON straylight-lib.stdenv.straylight-attrs."dontStrip";
+        hardening-disable-all = builtins.toJSON (
+          builtins.elem "all" straylight-lib.stdenv.straylight-attrs."hardeningDisable"
         );
-        test_drv = test-drv;
+        test-drv = straylightified-drv;
       };
     in
     pkgs.runCommand "test-lib-stdenv-utils" { } ''

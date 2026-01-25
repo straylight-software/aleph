@@ -38,16 +38,16 @@ in
       inherit (cfg) open;
       inherit (cfg) package;
       modesetting.enable = true;
-      powerManagement.enable = false;
-      nvidiaSettings = false;
+      "powerManagement".enable = false;
+      "nvidiaSettings" = false;
     };
 
     hardware.graphics.enable = true;
 
-    services.xserver.videoDrivers = [ "nvidia" ];
+    services.xserver."videoDrivers" = [ "nvidia" ];
 
-    environment.systemPackages = with pkgs; [
-      nvtopPackages.nvidia
+    environment."systemPackages" = with pkgs; [
+      "nvtopPackages".nvidia
       pciutils
     ];
   };

@@ -18,20 +18,26 @@
   prelude,
 }:
 let
-  inherit (pkgs) runCommand lib;
+  inherit (pkgs) lib;
+  translations = import ../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
+  # Prelude aliases
+  run-command = pkgs.runCommand;
+  to-string = builtins.toString;
 
   # Render Dhall template with environment variables
   render-dhall =
     name: src: vars:
     let
       env-vars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (to-string v)
       ) vars;
     in
-    pkgs.runCommand name
+    run-command name
       (
-        {
-          "nativeBuildInputs" = [ pkgs.haskellPackages.dhall ];
+        translate-attrs {
+          native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
@@ -50,14 +56,13 @@ let
       build-inputs ? [ ],
       test-script,
     }:
-    runCommand "test-toolchain-${name}"
-      {
-        "nativeBuildInputs" = native-build-inputs;
-        "buildInputs" = build-inputs;
+    run-command "test-toolchain-${name}"
+      (translate-attrs {
+        inherit native-build-inputs build-inputs;
         passthru = {
           inherit description;
         };
-      }
+      })
       ''
         echo "╔════════════════════════════════════════════════════════════════╗"
         echo "║  Toolchain Smoke Test: ${name}"
@@ -90,7 +95,7 @@ in
     test-script = ''
       bash ${
         render-dhall "test-ghc-hello.bash" ./scripts/test-ghc-hello.dhall {
-          "ghc_hello" = ./test-sources/ghc-hello.hs;
+          ghc-hello = ./test-sources/ghc-hello.hs;
         }
       }
     '';
@@ -110,7 +115,7 @@ in
     test-script = ''
       bash ${
         render-dhall "test-ghc-packages.bash" ./scripts/test-ghc-packages.dhall {
-          "ghc_text" = ./test-sources/ghc-text.hs;
+          ghc-text = ./test-sources/ghc-text.hs;
         }
       }
     '';
@@ -138,7 +143,7 @@ in
     test-script = ''
       bash ${
         render-dhall "test-rust-hello.bash" ./scripts/test-rust-hello.dhall {
-          "rust_hello" = ./test-sources/rust-hello.rs;
+          rust-hello = ./test-sources/rust-hello.rs;
         }
       }
     '';
@@ -166,7 +171,7 @@ in
     test-script = ''
       bash ${
         render-dhall "test-cpp-hello.bash" ./scripts/test-cpp-hello.dhall {
-          "cpp_hello" = ./test-sources/cpp-hello.cpp;
+          cpp-hello = ./test-sources/cpp-hello.cpp;
         }
       }
     '';

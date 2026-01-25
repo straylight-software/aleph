@@ -1,13 +1,19 @@
 {
+  pkgs,
   tree-sitter-grammars,
   tree-sitter,
   ast-grep,
   writers,
-  writeShellApplication,
   lib,
 }:
 let
-  write-shell-application = writeShellApplication;
+  # Translation layer for nixpkgs API
+  translations = import ../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
+  # External API alias
+  write-shell-application = args: pkgs.writeShellApplication (translate-attrs args);
+
   linter-src = ../../linter;
 
   sgconfig = {
@@ -22,12 +28,12 @@ let
 in
 write-shell-application {
   name = "wsn-lint";
-  "runtimeInputs" = [
+  runtime-inputs = [
     ast-grep
     tree-sitter
     tree-sitter-grammars.tree-sitter-nix
   ];
-  "derivationArgs"."postCheck" = ''
+  derivation-args.post-check = ''
     echo "Checking config ${sgconfig-yml}"
 
     ${lib.getExe ast-grep} \

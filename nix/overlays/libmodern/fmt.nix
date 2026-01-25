@@ -8,11 +8,16 @@
   lib,
   mk-static-cpp,
 }:
-mk-static-cpp {
+let
+  # Import prelude for translate-attrs
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+in
+mk-static-cpp (translate-attrs {
   pname = "fmt";
   version = "11.2.0";
 
-  src = final.fetchFromGitHub {
+  src = final."fetchFromGitHub" {
     owner = "fmtlib";
     repo = "fmt";
     rev = "11.2.0";
@@ -22,11 +27,11 @@ mk-static-cpp {
   # Disable _BitInt which isn't supported on all platforms
   env.CXXFLAGS = "-DFMT_USE_BITINT=0";
 
-  doCheck = false;
+  do-check = false;
 
   meta = {
     description = "Small, safe and fast formatting library";
     homepage = "https://fmt.dev/";
     license = lib.licenses.mit;
   };
-}
+})

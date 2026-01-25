@@ -20,7 +20,7 @@
 
       aleph-naught.nixpkgs.allow-unfree = true;
 
-      perSystem =
+      "perSystem" =
         { pkgs, ... }:
         {
           packages.default = pkgs.hello;

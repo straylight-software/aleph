@@ -13,7 +13,7 @@
     let
       # Memoized nixpkgs instances - one import per system, not per module.
       # See: https://zimbatm.com/notes/1000-instances-of-nixpkgs
-      nixpkgsInstances = inputs.nixpkgs.lib.genAttrs (import inputs.systems) (
+      nixpkgs-instances = inputs.nixpkgs.lib.genAttrs (import inputs.systems) (
         system:
         import inputs.nixpkgs {
           inherit system;
@@ -21,9 +21,9 @@
             aleph-naught.overlays.default
           ];
           config = {
-            cudaSupport = true;
-            cudaCapabilities = [ "12.0" ]; # Blackwell
-            allowUnfree = true;
+            "cudaSupport" = true;
+            "cudaCapabilities" = [ "12.0" ]; # Blackwell
+            "allowUnfree" = true;
           };
         }
       );
@@ -41,13 +41,13 @@
       };
 
       # Expose memoized instances for downstream
-      flake.nixpkgs = nixpkgsInstances;
+      flake.nixpkgs = nixpkgs-instances;
 
-      perSystem =
+      "perSystem" =
         { config, system, ... }:
         let
           # Use memoized nixpkgs instance
-          pkgs = nixpkgsInstances.${system};
+          pkgs = nixpkgs-instances.${system};
 
           # The Weyl Prelude is available via config.straylight.prelude
           inherit (config.straylight) prelude;
@@ -55,7 +55,7 @@
         {
           # Override _module.args.pkgs with our memoized instance
           _module.args.pkgs = pkgs;
-          legacyPackages = pkgs;
+          "legacyPackages" = pkgs;
 
           packages.default = pkgs.hello;
 

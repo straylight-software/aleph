@@ -18,29 +18,33 @@
   libffi,
   llvm-project-src,
 }:
-
-stdenv.mkDerivation {
+let
+  # Import prelude for translate-attrs
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+in
+stdenv.mkDerivation (translate-attrs {
   pname = "llvm-git";
   version = "22.0.0-git";
 
   src = llvm-project-src;
 
-  sourceRoot = "source/llvm";
+  source-root = "source/llvm";
 
-  nativeBuildInputs = [
+  native-build-inputs = [
     cmake
     ninja
     python3
   ];
 
-  buildInputs = [
+  build-inputs = [
     libxml2
     zlib
     ncurses
     libffi
   ];
 
-  cmakeFlags = [
+  cmake-flags = [
     "-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra"
     "-DCMAKE_BUILD_TYPE=Release"
     "-DLLVM_TARGETS_TO_BUILD=X86;NVPTX;AArch64"
@@ -54,7 +58,7 @@ stdenv.mkDerivation {
   ];
 
   # LLVM is huge, enable parallel building
-  enableParallelBuilding = true;
+  enable-parallel-building = true;
 
   meta = {
     description = "LLVM/Clang from git with CUDA 13 and SM120 Blackwell support";
@@ -62,4 +66,4 @@ stdenv.mkDerivation {
     license = lib.licenses.ncsa;
     platforms = lib.platforms.linux;
   };
-}
+})

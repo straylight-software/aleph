@@ -3,6 +3,12 @@
 # Firecracker disk image builder
 #
 { final, lib }:
+let
+  translations = import ../../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
+  to-string = builtins.toString;
+in
 {
   # Build a Firecracker disk image from a rootfs
   #
@@ -25,16 +31,16 @@
     let
       init-script-file = if init-script != null then final.writeText "init-script" init-script else null;
     in
-    final.stdenvNoCC.mkDerivation {
+    final.stdenvNoCC.mkDerivation (translate-attrs {
       inherit name;
 
-      nativeBuildInputs = [
+      native-build-inputs = [
         final.fakeroot
         final.genext2fs
         final.e2fsprogs
       ];
 
-      buildCommand = ''
+      "buildCommand" = ''
         mkdir -p $out
 
         # Copy rootfs to writable location
@@ -56,12 +62,12 @@
         ${extra-commands}
 
         # Build ext4 image
-        fakeroot genext2fs -B 4096 -b ${toString size-blocks} -d rootfs $out/disk.ext4
+        fakeroot genext2fs -B 4096 -b ${to-string size-blocks} -d rootfs $out/disk.ext4
         tune2fs -O extents,uninit_bg,dir_index,has_journal $out/disk.ext4 2>/dev/null || true
       '';
 
       meta = {
         description = "Firecracker ext4 disk image built from container rootfs";
       };
-    };
+    });
 }

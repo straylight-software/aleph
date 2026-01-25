@@ -29,10 +29,14 @@ let
   concat-strings-sep = lib.concatStringsSep;
   concat-map = lib.concatMap;
   map-attrs = lib.mapAttrs;
+  to-string = builtins.toString;
   filter-attrs = lib.filterAttrs;
   map-attrs' = lib.mapAttrs';
   name-value-pair = lib.nameValuePair;
   to-upper = lib.toUpper;
+
+  translations = import ../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
 
   list-filter = builtins.filter;
   list-length = builtins.length;
@@ -530,7 +534,7 @@ let
         if results.summary.passed > 0 then
           ''
 
-            PASSED (${toString results.summary.passed}):
+            PASSED (${to-string results.summary.passed}):
             ${concat-strings-sep "\n" (map (name: "  [+] ${name}") (attr-names results.passed))}
           ''
         else
@@ -540,11 +544,11 @@ let
         if results.summary.failed > 0 then
           ''
 
-            FAILED (${toString results.summary.failed}):
+            FAILED (${to-string results.summary.failed}):
             ${concat-strings-sep "\n" (
-              map (
-                name: "  [-] ${name}: ${builtins.toString (list-length results.failures.${name}.failures)} failures"
-              ) (attr-names results.failures)
+              map (name: "  [-] ${name}: ${to-string (list-length results.failures.${name}.failures)} failures") (
+                attr-names results.failures
+              )
             )}
           ''
         else
@@ -553,7 +557,7 @@ let
       summary = ''
 
         ────────────────────────────────────────────────────────────────────────────────
-        Total: ${toString results.summary.total} | Passed: ${toString results.summary.passed} | Failed: ${toString results.summary.failed}
+        Total: ${to-string results.summary.total} | Passed: ${to-string results.summary.passed} | Failed: ${to-string results.summary.failed}
         ${if results.summary.pass then "ALL TESTS PASSED" else "SOME TESTS FAILED"}
         ────────────────────────────────────────────────────────────────────────────────
       '';
@@ -570,8 +574,8 @@ let
     in
     pkgs.runCommand name
       (
-        {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        translate-attrs {
+          native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
