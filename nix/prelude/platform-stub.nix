@@ -68,7 +68,7 @@ rec {
       alternatives ? [ ],
     }:
     let
-      alternativeLines =
+      alternative-lines =
         if alternatives == [ ] then
           ""
         else
@@ -87,7 +87,7 @@ rec {
         echo "  Description: ${description}" >&2
         echo "  Requires:    ${requires}" >&2
         echo "  Current:     ${pkgs.stdenv.hostPlatform.system}" >&2
-        ${alternativeLines}
+        ${alternative-lines}
         echo "" >&2
         echo "This is a stub. The real '${name}' cannot run here." >&2
         exit 1
@@ -197,8 +197,8 @@ rec {
     ```
   */
   mk-or-stub =
-    condition: package: stubArgs:
-    if condition then package else mk-platform-stub stubArgs;
+    condition: package: stub-args:
+    if condition then package else mk-platform-stub stub-args;
 
   /**
     Use a real package if it exists in pkgs, otherwise create a stub.
@@ -219,7 +219,7 @@ rec {
     ```
   */
   mk-if-available =
-    pkgName: stubArgs: pkgs.${pkgName} or (mk-platform-stub (stubArgs // { name = pkgName; }));
+    pkg-name: stub-args: pkgs.${pkg-name} or (mk-platform-stub (stub-args // { name = pkg-name; }));
 
   # ─────────────────────────────────────────────────────────────────────────
   # Common Stubs
@@ -296,15 +296,16 @@ rec {
     linux-only :: Derivation -> StubArgs -> Derivation
     ```
   */
-  linux-only = package: stubArgs: if pkgs.stdenv.isLinux then package else mk-platform-stub stubArgs;
+  linux-only =
+    package: stub-args: if pkgs.stdenv.isLinux then package else mk-platform-stub stub-args;
 
   /**
     Make an x86_64-Linux-only package with a helpful stub.
   */
   x86_64-linux-only =
-    package: stubArgs:
+    package: stub-args:
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
       package
     else
-      mk-platform-stub (stubArgs // { requires = stubArgs.requires or "x86_64-linux"; });
+      mk-platform-stub (stub-args // { requires = stub-args.requires or "x86_64-linux"; });
 }

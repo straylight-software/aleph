@@ -31,7 +31,7 @@ let
     pkgs.runCommand name
       (
         {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+          "nativeBuildInputs" = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
@@ -46,13 +46,14 @@ let
     {
       name,
       description,
-      nativeBuildInputs ? [ ],
-      buildInputs ? [ ],
+      native-build-inputs ? [ ],
+      build-inputs ? [ ],
       test-script,
     }:
     runCommand "test-toolchain-${name}"
       {
-        inherit nativeBuildInputs buildInputs;
+        "nativeBuildInputs" = native-build-inputs;
+        "buildInputs" = build-inputs;
         passthru = {
           inherit description;
         };
@@ -78,18 +79,18 @@ in
   ghc-version = mk-smoke-test {
     name = "ghc-version";
     description = "GHC compiler reports version";
-    nativeBuildInputs = [ prelude.ghc.pkg ];
+    native-build-inputs = [ prelude.ghc.pkg ];
     test-script = builtins.readFile ./scripts/test-ghc-version.bash;
   };
 
   ghc-hello-world = mk-smoke-test {
     name = "ghc-hello-world";
     description = "GHC can compile and run Hello World";
-    nativeBuildInputs = [ prelude.ghc.pkg ];
+    native-build-inputs = [ prelude.ghc.pkg ];
     test-script = ''
       bash ${
         render-dhall "test-ghc-hello.bash" ./scripts/test-ghc-hello.dhall {
-          ghc_hello = ./test-sources/ghc-hello.hs;
+          "ghc_hello" = ./test-sources/ghc-hello.hs;
         }
       }
     '';
@@ -98,7 +99,7 @@ in
   ghc-with-packages = mk-smoke-test {
     name = "ghc-with-packages";
     description = "ghcWithPackages provides requested packages";
-    nativeBuildInputs = [
+    native-build-inputs = [
       (prelude.ghc.pkgs'.ghcWithPackages (
         p: with p; [
           text
@@ -109,7 +110,7 @@ in
     test-script = ''
       bash ${
         render-dhall "test-ghc-packages.bash" ./scripts/test-ghc-packages.dhall {
-          ghc_text = ./test-sources/ghc-text.hs;
+          "ghc_text" = ./test-sources/ghc-text.hs;
         }
       }
     '';
@@ -122,7 +123,7 @@ in
   python-version = mk-smoke-test {
     name = "python-version";
     description = "Python interpreter reports version";
-    nativeBuildInputs = [ prelude.python.pkg ];
+    native-build-inputs = [ prelude.python.pkg ];
     test-script = builtins.readFile ./scripts/test-python-version.bash;
   };
 
@@ -133,11 +134,11 @@ in
   rust-version = mk-smoke-test {
     name = "rust-version";
     description = "Rust compiler reports version";
-    nativeBuildInputs = [ prelude.rust.pkg ];
+    native-build-inputs = [ prelude.rust.pkg ];
     test-script = ''
       bash ${
         render-dhall "test-rust-hello.bash" ./scripts/test-rust-hello.dhall {
-          rust_hello = ./test-sources/rust-hello.rs;
+          "rust_hello" = ./test-sources/rust-hello.rs;
         }
       }
     '';
@@ -150,7 +151,7 @@ in
   lean-version = mk-smoke-test {
     name = "lean-version";
     description = "Lean prover reports version";
-    nativeBuildInputs = [ prelude.lean.pkg ];
+    native-build-inputs = [ prelude.lean.pkg ];
     test-script = builtins.readFile ./scripts/test-lean-version.bash;
   };
 
@@ -161,11 +162,11 @@ in
   cpp-hello-world = mk-smoke-test {
     name = "cpp-hello-world";
     description = "C++ compiler can compile Hello World";
-    nativeBuildInputs = [ pkgs.stdenv.cc ];
+    native-build-inputs = [ pkgs.stdenv.cc ];
     test-script = ''
       bash ${
         render-dhall "test-cpp-hello.bash" ./scripts/test-cpp-hello.dhall {
-          cpp_hello = ./test-sources/cpp-hello.cpp;
+          "cpp_hello" = ./test-sources/cpp-hello.cpp;
         }
       }
     '';

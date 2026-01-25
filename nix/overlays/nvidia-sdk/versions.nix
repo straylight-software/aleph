@@ -6,7 +6,7 @@
 #   3. NGC containers - redistribution issues
 #
 # NGC 25.11 blessed for Blackwell (sm_120)
-{
+rec {
   # ════════════════════════════════════════════════════════════════════════════
   # PyPI wheels from pypi.nvidia.com (preferred - no redistribution issues)
   # ════════════════════════════════════════════════════════════════════════════
@@ -19,8 +19,8 @@
         url = "https://pypi.nvidia.com/nvidia-nccl-cu13/nvidia_nccl_cu13-2.28.9-py3-none-manylinux_2_18_x86_64.whl";
         hash = "sha256-5FU6MPNBlfP6HaAqbaPWM30o8gA5Q6oKPSR7vCX+/EI=";
         # Paths inside wheel
-        libPath = "nvidia/nccl/lib";
-        includePath = "nvidia/nccl/include";
+        lib-path = "nvidia/nccl/lib";
+        include-path = "nvidia/nccl/include";
       };
       aarch64-linux = {
         url = "";
@@ -34,8 +34,8 @@
       x86_64-linux = {
         url = "https://pypi.nvidia.com/nvidia-cudnn-cu13/nvidia_cudnn_cu13-9.17.0.29-py3-none-manylinux_2_27_x86_64.whl";
         hash = "sha256-Q0Uu8Jj0Q890hyvHj8zZon4af4NWelF5m/rsVgvP4Vo=";
-        libPath = "nvidia/cudnn/lib";
-        includePath = "nvidia/cudnn/include";
+        lib-path = "nvidia/cudnn/lib";
+        include-path = "nvidia/cudnn/include";
       };
       aarch64-linux = {
         url = "";
@@ -49,8 +49,8 @@
       x86_64-linux = {
         url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.14.1.48-py2.py3-none-manylinux_2_28_x86_64.whl";
         hash = "sha256-k8SI67WjD/g+pTYD54GAFN5bkyj7JJZZY9I2gUB2UHY=";
-        libPath = "tensorrt_libs";
-        includePath = null; # libs-only wheel
+        lib-path = "tensorrt_libs";
+        include-path = null; # libs-only wheel
       };
       aarch64-linux = {
         url = "";
@@ -64,8 +64,8 @@
       x86_64-linux = {
         url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_x86_64.whl";
         hash = "sha256-eGzodWjDA/rbWvzHEC1FTNMEDXX2+GJvXbRg0YcfTdA=";
-        libPath = "nvidia/cusparselt/lib";
-        includePath = "nvidia/cusparselt/include";
+        lib-path = "nvidia/cusparselt/lib";
+        include-path = "nvidia/cusparselt/include";
       };
       aarch64-linux = {
         url = "";
@@ -79,8 +79,8 @@
       x86_64-linux = {
         url = "https://pypi.nvidia.com/cutensor-cu13/cutensor_cu13-2.4.1-py3-none-manylinux2014_x86_64.whl";
         hash = "sha256-Hz1oTgSVOuRJI7ZzotQVbdmaghQAxC/ocqqF+PFmtyg=";
-        libPath = "cutensor/lib";
-        includePath = "cutensor/include";
+        lib-path = "cutensor/lib";
+        include-path = "cutensor/include";
       };
       aarch64-linux = {
         url = "";
@@ -95,7 +95,7 @@
         url = "https://pypi.nvidia.com/nvidia-nvcomp-cu13/nvidia_nvcomp_cu13-5.1.0.21-py3-none-manylinux_2_28_x86_64.whl";
         hash = "sha256-uLifFENVKbdQ8vq2HDVlXiNGEYB+CFfWBsd8QYB+XVg=";
         # This is a Python module, not a C library
-        pythonPath = "nvidia/nvcomp";
+        python-path = "nvidia/nvcomp";
       };
       aarch64-linux = {
         url = "";
@@ -150,11 +150,11 @@
   # Expected versions (informational)
   # ════════════════════════════════════════════════════════════════════════════
 
-  cudaVersion = "13.0.1";
-  cudnnVersion = "9.17.0";
-  ncclVersion = "2.28.9";
-  tensorrtVersion = "10.14.1";
-  cutensorVersion = "2.4.1";
+  cuda-version = "13.0.1";
+  cudnn-version = "9.17.0";
+  nccl-version = "2.28.9";
+  tensorrt-version = "10.14.1";
+  cutensor-version = "2.4.1";
 
   # SM architectures
   sm = {

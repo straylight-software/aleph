@@ -11,57 +11,57 @@
 { inputs }:
 let
   # Check if straylight-nix input is available
-  hasStraylightNix = inputs ? nix;
+  has-straylight-nix = inputs ? nix;
 
-  mkStraylightNixPackages =
+  mk-straylight-nix-packages =
     pkgs: system:
     let
-      straylightNixPkgs = inputs.nix.packages.${system};
-      unwrappedNix = straylightNixPkgs.nix;
+      straylight-nix-pkgs = inputs.nix.packages.${system};
+      unwrapped-nix = straylight-nix-pkgs.nix;
 
       # Wrap nix to add --no-eval-cache by default
       # This avoids stale derivation path issues during development
-      wrappedNix = pkgs.writeShellApplication {
+      wrapped-nix = pkgs.writeShellApplication {
         name = "nix";
-        runtimeInputs = [ ];
+        "runtimeInputs" = [ ];
         text = ''
-          exec ${unwrappedNix}/bin/nix --no-eval-cache "$@"
+          exec ${unwrapped-nix}/bin/nix --no-eval-cache "$@"
         '';
       };
 
       # Full wrapper that includes all nix subcommands and man pages
-      nixWrapper = pkgs.symlinkJoin {
+      nix-wrapper = pkgs.symlinkJoin {
         name = "straylight-nix";
         paths = [
-          wrappedNix
-          unwrappedNix
+          wrapped-nix
+          unwrapped-nix
         ];
-        # wrappedNix comes first, so its bin/nix takes precedence
-        postBuild = ''
+        # wrapped-nix comes first, so its bin/nix takes precedence
+        "postBuild" = ''
           # Remove the unwrapped nix binary, keep the wrapper
           rm $out/bin/nix
-          cp ${wrappedNix}/bin/nix $out/bin/nix
+          cp ${wrapped-nix}/bin/nix $out/bin/nix
         '';
       };
     in
     {
       # The main nix binary with builtins.wasm support + --no-eval-cache
-      nix = nixWrapper;
+      nix = nix-wrapper;
 
       # Unwrapped version if someone needs it
-      nix-unwrapped = unwrappedNix;
+      nix-unwrapped = unwrapped-nix;
 
       # Man pages
-      nix-man = straylightNixPkgs.nix-man;
+      nix-man = straylight-nix-pkgs.nix-man;
     };
 in
 {
   flake.overlays.straylight-nix =
     final: _prev:
-    if hasStraylightNix then
+    if has-straylight-nix then
       {
         straylight = (_prev.straylight or { }) // {
-          nix = mkStraylightNixPackages final final.stdenv.hostPlatform.system;
+          nix = mk-straylight-nix-packages final final.stdenv.hostPlatform.system;
         };
       }
     else

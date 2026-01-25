@@ -7,34 +7,35 @@
   lib,
 }:
 let
-  linterSrc = ../../linter;
+  write-shell-application = writeShellApplication;
+  linter-src = ../../linter;
 
   sgconfig = {
-    ruleDirs = [ "${linterSrc}/rules" ];
-    testConfigs = [
-      { testDir = "${linterSrc}/rule-tests"; }
+    "ruleDirs" = [ "${linter-src}/rules" ];
+    "testConfigs" = [
+      { "testDir" = "${linter-src}/rule-tests"; }
     ];
-    utilDirs = [ "${linterSrc}/utils" ];
+    "utilDirs" = [ "${linter-src}/utils" ];
   };
 
-  sgconfigYml = writers.writeYAML "sgconfig.yaml" sgconfig;
+  sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
 in
-writeShellApplication {
+write-shell-application {
   name = "wsn-lint";
-  runtimeInputs = [
+  "runtimeInputs" = [
     ast-grep
     tree-sitter
     tree-sitter-grammars.tree-sitter-nix
   ];
-  derivationArgs.postCheck = ''
-    echo "Checking config ${sgconfigYml}"
+  "derivationArgs"."postCheck" = ''
+    echo "Checking config ${sgconfig-yml}"
 
     ${lib.getExe ast-grep} \
-      --config ${sgconfigYml} \
+      --config ${sgconfig-yml} \
       test
   '';
   text = ''
-    cp --no-preserve=mode --force ${sgconfigYml} ./__sgconfig.yml
+    cp --no-preserve=mode --force ${sgconfig-yml} ./__sgconfig.yml
     trap 'rm -f ./__sgconfig.yml' EXIT
 
     ${lib.getExe ast-grep} \
