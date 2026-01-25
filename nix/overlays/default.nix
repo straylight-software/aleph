@@ -17,10 +17,18 @@ inputs:
 let
   inherit (inputs.nixpkgs) lib;
 
+  # Lisp-case aliases for lib functions
+  compose-many-extensions = lib.composeManyExtensions;
+
   # Package overlay - adds packages from overlays/packages/
-  packages-overlay = final: _prev: {
-    mdspan = final.callPackage ./packages/mdspan.nix { };
-  };
+  packages-overlay =
+    final: _prev:
+    let
+      call-package = final.callPackage;
+    in
+    {
+      mdspan = call-package ./packages/mdspan.nix { };
+    };
 
   # Individual overlays - each is a function: final: prev: { ... }
   llvm-git-overlay = import ./llvm-git.nix inputs;
@@ -53,7 +61,7 @@ in
     # Order matters:
     #   1. script must come before nvidia-sdk-packages (needs straylight.script.compiled)
     #   2. nvidia-sdk-ngc must come before nvidia-sdk-packages (needs container FOD)
-    default = lib.composeManyExtensions [
+    default = compose-many-extensions [
       packages-overlay
       llvm-git-overlay
       nvidia-sdk-overlay

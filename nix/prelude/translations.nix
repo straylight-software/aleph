@@ -54,6 +54,7 @@ let
     "dont-configure" = "dontConfigure";
     "dont-build" = "dontBuild";
     "dont-install" = "dontInstall";
+    "do-check" = "doCheck";
     "dont-check" = "dontCheck";
     "dont-fixup" = "dontFixup";
     "make-flags" = "makeFlags";

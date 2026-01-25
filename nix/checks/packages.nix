@@ -11,20 +11,47 @@
   ...
 }:
 let
+  # ────────────────────────────────────────────────────────────────────────────
+  # Lisp-case functions from prelude
+  # ────────────────────────────────────────────────────────────────────────────
+  inherit (pkgs.straylight.prelude)
+    get'
+    map-attrs'
+    read-file
+    replace
+    to-string
+    to-upper
+    translate-attrs
+    when-attr
+    ;
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Lisp-case aliases for pkgs.* functions (accessed via get' to avoid camelCase identifiers)
+  # ────────────────────────────────────────────────────────────────────────────
+  run-command =
+    name: attrs: script:
+    (get' "runCommand" pkgs) name (translate-attrs attrs) script;
+  write-text-dir = get' "writeTextDir" pkgs;
+  mk-derivation = attrs: (get' "mkDerivation" pkgs.stdenv) (translate-attrs attrs);
+
+  # Haskell packages alias
+  haskell-packages = get' "haskellPackages" pkgs;
+
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
-      envVars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
-      ) vars;
+      env-vars = map-attrs' (k: v: {
+        name = to-upper (replace [ "-" ] [ "_" ] k);
+        value = to-string v;
+      }) vars;
     in
-    pkgs.runCommand name
+    run-command name
       (
         {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+          native-build-inputs = [ haskell-packages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
@@ -36,29 +63,29 @@ let
   # Verify that mdspan headers are properly installed and can be used
   # to compile a C++23 program using std::mdspan
 
-  test-mdspan-installation = pkgs.stdenv.mkDerivation {
+  test-mdspan-installation = mk-derivation {
     name = "test-mdspan-installation";
 
-    src = pkgs.writeTextDir "test.cpp" (builtins.readFile ./test-sources/mdspan-test.cpp);
+    src = write-text-dir "test.cpp" (read-file ./test-sources/mdspan-test.cpp);
 
-    nativeBuildInputs = [
+    native-build-inputs = [
       pkgs.gcc15
       pkgs.mdspan
     ];
 
-    buildPhase = ''
+    build-phase = ''
       echo "Building mdspan test program..."
       g++ -std=c++23 -I${pkgs.mdspan}/include test.cpp -o test
     '';
 
-    doCheck = true;
-    checkPhase = ''
+    do-check = true;
+    check-phase = ''
       echo "Running mdspan test..."
       ./test
       echo "✓ mdspan test passed"
     '';
 
-    installPhase = ''
+    install-phase = ''
       mkdir -p $out
       echo "SUCCESS" > $out/SUCCESS
       echo "mdspan C++23 headers work correctly" >> $out/SUCCESS
@@ -76,13 +103,13 @@ let
 
   test-nvidia-sdk-structure =
     let
-      script = renderDhall "test-nvidia-sdk-structure.bash" ./scripts/test-nvidia-sdk-structure.dhall {
-        nvidia_sdk = pkgs.nvidia-sdk;
+      script = render-dhall "test-nvidia-sdk-structure.bash" ./scripts/test-nvidia-sdk-structure.dhall {
+        nvidia-sdk = pkgs.nvidia-sdk;
       };
     in
-    pkgs.runCommand "test-nvidia-sdk-structure"
+    run-command "test-nvidia-sdk-structure"
       {
-        nativeBuildInputs = [ pkgs.nvidia-sdk ];
+        native-build-inputs = [ pkgs.nvidia-sdk ];
       }
       ''
         bash ${script}
@@ -95,6 +122,6 @@ in
 
   # Only include NVIDIA SDK test on Linux
 }
-// lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
+// when-attr (system == "x86_64-linux" || system == "aarch64-linux") {
   inherit test-nvidia-sdk-structure;
 }
