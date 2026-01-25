@@ -8,9 +8,7 @@
   straylight-lib,
 }:
 let
-  # Import prelude for translate-attrs
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (final.straylight) stdenv;
 in
 {
   # Extract and patch binary packages
@@ -37,8 +35,8 @@ in
       run-path = straylight-lib.elf.mk-rpath runtime-inputs;
       interpreter-path = "$(cat ${final.stdenv.cc}/nix-support/dynamic-linker)";
     in
-    final.stdenv.mkDerivation (
-      translate-attrs {
+    stdenv.default (
+      {
         inherit
           pname
           version
@@ -66,10 +64,9 @@ in
           ${post-install}
           runHook postInstall
         '';
-
-        # NOTE: fixupPhase is not in translate-attrs, quote it
       }
       // {
+        # fixupPhase is not in translate-attrs - passed through as-is
         "fixupPhase" = ''
           runHook preFixup
           find $out -type f \( -executable -o -name "*.so*" \) 2>/dev/null | while read -r f; do
@@ -97,7 +94,7 @@ in
     let
       stub-src = builtins.toFile "stub.c" (lib.concatMapStringsSep "\n" (s: "void ${s}() {}") symbols);
     in
-    final.stdenv.mkDerivation (translate-attrs {
+    stdenv.default {
       pname = "${name}-stub";
       version = "1.0";
       dont-unpack = true;
@@ -114,5 +111,5 @@ in
       meta = {
         description = "Stub library providing symbol definitions for linking";
       };
-    });
+    };
 }

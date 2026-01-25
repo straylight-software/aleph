@@ -8,8 +8,7 @@
   straylight-lib,
 }:
 let
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
+  inherit (final.straylight) build-env write-shell-application;
 in
 {
   # Create a namespace environment runner
@@ -32,7 +31,7 @@ in
       network ? true,
     }:
     let
-      lib-env = final.buildEnv (translate-attrs {
+      lib-env = build-env {
         name = "${name}-libs";
         paths = packages;
         paths-to-link = [
@@ -40,7 +39,7 @@ in
           "/lib64"
           "/share"
         ];
-      });
+      };
 
       fhs-binds = lib.optionals fhs (straylight-lib.namespace.fhs-lib-flags "${lib-env}/lib");
       gpu-binds = lib.optionals gpu straylight-lib.namespace.gpu-flags;
@@ -55,14 +54,14 @@ in
         ++ extra-binds
       );
     in
-    final.writeShellApplication (translate-attrs {
+    write-shell-application {
       inherit name;
-      "runtimeInputs" = [ final.bubblewrap ];
+      runtime-inputs = [ final.bubblewrap ];
       text = ''
         exec bwrap \
           --ro-bind /nix/store /nix/store \
           ${all-binds} \
           -- "$@"
       '';
-    });
+    };
 }

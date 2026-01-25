@@ -109,6 +109,9 @@ let
   # write-shell-application: like pkgs.writeShellApplication but lisp-case
   write-shell-application = args: final.writeShellApplication (translate-attrs args);
 
+  # build-env: like pkgs.buildEnv but accepts lisp-case attrs
+  build-env = args: final.buildEnv (translate-attrs args);
+
   prelude =
     functions
     // languages
@@ -124,6 +127,7 @@ let
         schemas
         run-command
         write-shell-application
+        build-env
         ;
       inherit versions license;
     };
@@ -145,6 +149,7 @@ in
       cross
       run-command
       write-shell-application
+      build-env
       ;
     inherit (toolchain) llvm;
     inherit versions license;

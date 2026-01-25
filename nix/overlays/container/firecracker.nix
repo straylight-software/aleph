@@ -4,9 +4,7 @@
 #
 { final, lib }:
 let
-  translations = import ../../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-
+  inherit (final.straylight) run-command;
   to-string = builtins.toString;
 in
 {
@@ -31,16 +29,15 @@ in
     let
       init-script-file = if init-script != null then final.writeText "init-script" init-script else null;
     in
-    final.stdenvNoCC.mkDerivation (translate-attrs {
-      inherit name;
-
-      native-build-inputs = [
-        final.fakeroot
-        final.genext2fs
-        final.e2fsprogs
-      ];
-
-      "buildCommand" = ''
+    run-command name
+      {
+        native-build-inputs = [
+          final.fakeroot
+          final.genext2fs
+          final.e2fsprogs
+        ];
+      }
+      ''
         mkdir -p $out
 
         # Copy rootfs to writable location
@@ -65,9 +62,4 @@ in
         fakeroot genext2fs -B 4096 -b ${to-string size-blocks} -d rootfs $out/disk.ext4
         tune2fs -O extents,uninit_bg,dir_index,has_journal $out/disk.ext4 2>/dev/null || true
       '';
-
-      meta = {
-        description = "Firecracker ext4 disk image built from container rootfs";
-      };
-    });
 }

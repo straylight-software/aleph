@@ -7,12 +7,7 @@
   lib,
 }:
 let
-  # Translation layer for nixpkgs API
-  translations = import ../prelude/translations.nix { inherit lib; };
-  inherit (translations) translate-attrs;
-
-  # External API alias
-  write-shell-application = args: pkgs.writeShellApplication (translate-attrs args);
+  inherit (pkgs.straylight) write-shell-application;
 
   linter-src = ../../linter;
 
