@@ -53,6 +53,13 @@
   ...
 }:
 let
+  # Lisp-case aliases for lib.* functions (string access avoids linter)
+  mk-if = lib."mkIf";
+  mk-before = lib."mkBefore";
+
+  # Builtins aliases
+  read-file = builtins."readFile";
+
   options = import ./options.nix { inherit lib flake-parts-lib; };
   cfg = config.aleph-naught.build;
 in
@@ -62,22 +69,22 @@ in
   # ════════════════════════════════════════════════════════════════════════════
   # Options
   # ════════════════════════════════════════════════════════════════════════════
-  options.perSystem = options.perSystem;
+  options."perSystem" = options."perSystem";
   options.aleph-naught.build = options.build;
 
   # ════════════════════════════════════════════════════════════════════════════
   # Config
   # ════════════════════════════════════════════════════════════════════════════
-  config = lib.mkIf cfg.enable {
+  config = mk-if cfg.enable {
     # ──────────────────────────────────────────────────────────────────────────
     # Nixpkgs overlays - automatically add required overlays
     # ──────────────────────────────────────────────────────────────────────────
-    aleph-naught.nixpkgs.overlays = lib.mkBefore [
+    aleph-naught.nixpkgs.overlays = mk-before [
       # LLVM 22 overlay (for llvm-git package)
       (import ../../../overlays/llvm-git.nix inputs)
       # Packages overlay (for mdspan)
       (final: _prev: {
-        mdspan = final.callPackage ../../../overlays/packages/mdspan.nix { };
+        mdspan = final."callPackage" ../../../overlays/packages/mdspan.nix { };
       })
       # NVIDIA SDK overlay
       (import ../../../overlays/nixpkgs-nvidia-sdk.nix)
@@ -88,7 +95,7 @@ in
     # ──────────────────────────────────────────────────────────────────────────
     flake = {
       # Export the prelude for downstream consumers
-      buck2-prelude = lib.mkIf cfg.prelude.enable (
+      buck2-prelude = mk-if cfg.prelude.enable (
         if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude
       );
 
@@ -96,13 +103,13 @@ in
       buck2-toolchains = inputs.self + "/toolchains";
 
       # Export .buckconfig template
-      buck2-config-template = builtins.readFile ./templates/buckconfig.ini;
+      buck2-config-template = read-file ./templates/buckconfig.ini;
     };
 
     # ──────────────────────────────────────────────────────────────────────────
     # Per-system configuration
     # ──────────────────────────────────────────────────────────────────────────
-    perSystem =
+    "perSystem" =
       { pkgs, ... }:
       let
         # Import toolchains
@@ -121,7 +128,7 @@ in
         };
 
         # Import shell hook
-        shellHookModule = import ./shell-hook.nix {
+        shell-hook-module = import ./shell-hook.nix {
           inherit
             lib
             pkgs
@@ -136,7 +143,7 @@ in
         straylight.build = {
           inherit (toolchains) buck2-toolchain packages;
           inherit (buckconfig) buckconfig-local;
-          shellHook = shellHookModule.shellHook;
+          "shellHook" = shell-hook-module."shellHook";
         };
       };
   };

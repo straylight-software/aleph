@@ -60,8 +60,22 @@ let
     "make-flags" = "makeFlags";
     "cmake-flags" = "cmakeFlags";
     "meson-flags" = "mesonFlags";
+    "source-root" = "sourceRoot";
+    "unpack-phase" = "unpackPhase";
+    "enable-parallel-building" = "enableParallelBuilding";
     "deps" = "buildInputs";
     "native-deps" = "nativeBuildInputs";
+
+    # Rust-specific
+    "cargo-hash" = "cargoHash";
+    "cargo-lock" = "cargoLock";
+    "cargo-sha256" = "cargoSha256";
+    "use-next-est-lock-file" = "useNextestLockFile";
+
+    # buildEnv
+    "paths-to-link" = "pathsToLink";
+    "extra-outputs-to-install" = "extraOutputsToInstall";
+    "ignore-collision" = "ignoreCollisionExtraction";
   };
 
   # ──────────────────────────────────────────────────────────────────────────

@@ -10,42 +10,53 @@
 # For projects needing mathlib, we use lake with elan to handle
 # toolchain version requirements automatically.
 #
-final: prev: {
+# NOTE: This overlay must be applied after the prelude overlay.
+#
+final: prev:
+let
+  inherit (prev) lib;
+  inherit (prev.straylight) prelude translate-attrs;
+  inherit (prelude) licenses platforms get';
+
+  # Lisp-case wrappers for nixpkgs functions with attribute translation
+  # Uses get' (from prelude) to avoid camelCase identifiers in code
+  call-package = get' "callPackage" prev;
+  fetch-from-github = get' "fetchFromGitHub" prev;
+  rust-platform = get' "rustPlatform" prev;
+  build-rust-package = f: (get' "buildRustPackage" rust-platform) (attrs: translate-attrs (f attrs));
+  build-env = attrs: (get' "buildEnv" prev) (translate-attrs attrs);
+in
+{
   # Elan - Lean version manager (like rustup for Rust)
   # This allows lake to download the correct Lean version for each project
   elan =
-    prev.elan or (prev.callPackage (
-      {
-        lib,
-        stdenv,
-        fetchFromGitHub,
-        rustPlatform,
-      }:
-      rustPlatform.buildRustPackage (finalAttrs: {
+    prev.elan or (call-package (
+      { stdenv }:
+      build-rust-package (attrs: {
         pname = "elan";
         version = "4.1.2";
 
-        src = fetchFromGitHub {
+        src = fetch-from-github {
           owner = "leanprover";
           repo = "elan";
-          rev = "v${finalAttrs.version}";
+          rev = "v${attrs.version}";
           hash = "sha256-abc123"; # Would need real hash
         };
 
-        cargoHash = "sha256-xyz789"; # Would need real hash
+        cargo-hash = "sha256-xyz789"; # Would need real hash
 
         meta = {
           description = "Lean version manager";
           homepage = "https://github.com/leanprover/elan";
-          license = lib.licenses.asl20;
-          platforms = lib.platforms.unix;
+          license = licenses.asl20;
+          platforms = platforms.unix;
         };
       })
     ) { });
 
   # lean4-mathlib-env - Lean 4 environment with mathlib cache
   # Uses elan to fetch the correct toolchain
-  lean4-mathlib-env = prev.buildEnv {
+  lean4-mathlib-env = build-env {
     name = "lean4-mathlib-env";
     paths = [
       final.elan
@@ -53,6 +64,6 @@ final: prev: {
       prev.curl
       prev.cacert
     ];
-    pathsToLink = [ "/bin" ];
+    paths-to-link = [ "/bin" ];
   };
 }

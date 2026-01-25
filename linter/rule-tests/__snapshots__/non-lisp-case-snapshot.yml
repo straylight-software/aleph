@@ -18,6 +18,10 @@ snapshots:
       style: primary
       start: 4
       end: 10
+    - source: fooBar
+      style: primary
+      start: 19
+      end: 25
   myFunctionName:
     labels:
     - source: myFunctionName

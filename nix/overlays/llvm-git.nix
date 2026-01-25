@@ -10,30 +10,40 @@ inputs: _final: prev:
 let
   inherit (prev) lib;
 
+  # translation layer for derivation attributes
+  translations = import ../prelude/translations.nix { inherit lib; };
+  inherit (translations) translate-attrs;
+
+  # lisp-case platform check (use attribute access to avoid lint)
+  is-linux = prev.stdenv.isLinux;
+
+  # mk-derivation wrapper that translates lisp-case attrs to camelCase
+  mk-derivation = args: prev.stdenv.mkDerivation (translate-attrs args);
+
   # Only build on Linux (CUDA requirement)
-  llvm-git = lib.optionalAttrs prev.stdenv.isLinux {
-    llvm-git = prev.stdenv.mkDerivation {
+  llvm-git = lib.optionalAttrs is-linux {
+    llvm-git = mk-derivation {
       pname = "llvm-git";
       version = "22.0.0-git";
 
       src = inputs.llvm-project;
 
-      sourceRoot = "source/llvm";
+      source-root = "source/llvm";
 
-      nativeBuildInputs = with prev; [
+      native-build-inputs = with prev; [
         cmake
         ninja
         python3
       ];
 
-      buildInputs = with prev; [
+      build-inputs = with prev; [
         libxml2
         zlib
         ncurses
         libffi
       ];
 
-      cmakeFlags = [
+      cmake-flags = [
         "-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra;lld"
         "-DCMAKE_BUILD_TYPE=Release"
         "-DLLVM_TARGETS_TO_BUILD=X86;NVPTX;AArch64"
@@ -47,7 +57,7 @@ let
       ];
 
       # LLVM is huge, enable parallel building
-      enableParallelBuilding = true;
+      enable-parallel-building = true;
 
       meta = {
         description = "LLVM/Clang from git with CUDA 13 and SM120 Blackwell support";

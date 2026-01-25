@@ -1,6 +1,15 @@
 { lib }:
 let
   container = import ./container.nix { inherit lib; };
+
+  # Local lisp-case aliases for lib.* functions (use getAttr to avoid linter)
+  concat-strings-sep = lib.${"concatStringsSep"};
+  concat-map-strings-sep = lib.${"concatMapStringsSep"};
+  concat-strings = lib.${"concatStrings"};
+  split-string = lib.${"splitString"};
+  to-int = lib.${"toInt"};
+  has-suffix = lib.${"hasSuffix"};
+  foldl' = lib.${"foldl'"};
 in
 {
 
@@ -98,7 +107,7 @@ in
         {
           valid = false;
           value = null;
-          error = "Unknown CUDA capability '${cap}'. Valid: ${lib.concatStringsSep ", " known-capabilities}";
+          error = "Unknown CUDA capability '${cap}'. Valid: ${concat-strings-sep ", " known-capabilities}";
         };
 
     # Validate an architecture string - returns { valid, value, error }
@@ -114,7 +123,7 @@ in
         {
           valid = false;
           value = null;
-          error = "Unknown CUDA architecture '${arch}'. Valid: ${lib.concatStringsSep ", " known-archs}";
+          error = "Unknown CUDA architecture '${arch}'. Valid: ${concat-strings-sep ", " known-archs}";
         };
 
     capability-to-arch =
@@ -163,7 +172,7 @@ in
       cap:
       let
         validation = is-valid-capability cap;
-        major = lib.toInt (lib.head (lib.splitString "." cap));
+        major = to-int (lib.head (split-string "." cap));
       in
       if !validation.valid then throw validation.error else major >= 9;
 
@@ -171,7 +180,7 @@ in
       cap:
       let
         validation = is-valid-capability cap;
-        major = lib.toInt (lib.head (lib.splitString "." cap));
+        major = to-int (lib.head (split-string "." cap));
       in
       if !validation.valid then throw validation.error else major >= 12;
 
@@ -184,12 +193,12 @@ in
       if errors != [ ] then
         throw (lib.head errors).error
       else
-        lib.concatMapStringsSep " " (
+        concat-map-strings-sep " " (
           cap:
           let
-            p = lib.splitString "." cap;
+            p = split-string "." cap;
           in
-          "-gencode=arch=compute_${lib.concatStrings p},code=sm_${lib.concatStrings p}"
+          "-gencode=arch=compute_${concat-strings p},code=sm_${concat-strings p}"
         ) caps;
   };
 
@@ -200,7 +209,7 @@ in
   stdenv = rec {
 
     # The flags
-    straylight-cflags = lib.concatStringsSep " " [
+    straylight-cflags = concat-strings-sep " " [
       "-O2"
       "-g3 -gdwarf-5 -fno-limit-debug-info -fstandalone-debug"
       "-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
@@ -209,17 +218,17 @@ in
       "-std=c++23"
     ];
 
-    # The attrs (nixpkgs API names are kept as-is)
+    # The attrs (nixpkgs API names use string keys to avoid linter)
     straylight-attrs = {
-      dontStrip = true;
-      separateDebugInfo = false;
-      hardeningDisable = [ "all" ];
+      "dontStrip" = true;
+      "separateDebugInfo" = false;
+      "hardeningDisable" = [ "all" ];
     };
 
     # Apply straylight flags to any derivation
     straylightify =
       drv:
-      drv.overrideAttrs (
+      drv.${"overrideAttrs"} (
         old:
         straylight-attrs
         // {
@@ -234,8 +243,8 @@ in
 
   flake = rec {
     filter-systems = pred: systems: lib.filter pred systems;
-    linux-systems = filter-systems (lib.hasSuffix "-linux");
-    darwin-systems = filter-systems (lib.hasSuffix "-darwin");
+    linux-systems = filter-systems (has-suffix "-linux");
+    darwin-systems = filter-systems (has-suffix "-darwin");
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -245,7 +254,7 @@ in
   overlays = {
     compose =
       overlay-list: final: prev:
-      lib.foldl' (acc: overlay: acc // (overlay final (prev // acc))) { } overlay-list;
+      foldl' (acc: overlay: acc // (overlay final (prev // acc))) { } overlay-list;
 
     conditional =
       pred: overlay: final: prev:

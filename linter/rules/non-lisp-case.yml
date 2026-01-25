@@ -11,6 +11,10 @@ rule:
         - kind: interpolation
         # Allow in inherit statements (tree-sitter-nix calls this inherited_attrs)
         - kind: inherited_attrs
+        # Allow in attribute paths within select expressions (lib.optionalAttrs, prev.stdenv.mkDerivation)
+        - kind: attrpath
+          inside:
+            kind: select_expression
 message: "WSN-E003: non-lisp-case identifier"
 note: |
   ## What's wrong?
