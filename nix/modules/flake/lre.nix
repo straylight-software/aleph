@@ -42,7 +42,7 @@ let
   inherit (flake-parts-lib) mkPerSystemOption;
   cfg = config.aleph-naught.lre;
   # Remote execution config (from build module, with defaults if not present)
-  remoteCfg =
+  remote-cfg =
     config.aleph-naught.build.remote or {
       enable = false;
       scheduler = "aleph-scheduler.fly.dev";
@@ -124,10 +124,10 @@ in
         inherit (pkgs.stdenv) isLinux;
 
         # Render Dhall template with environment variables
-        renderDhall =
+        render-dhall =
           name: src: vars:
           let
-            envVars = lib.mapAttrs' (
+            env-vars = lib.mapAttrs' (
               k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
             ) vars;
           in
@@ -136,7 +136,7 @@ in
               {
                 nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
               }
-              // envVars
+              // env-vars
             )
             ''
               dhall text --file ${src} > $out
@@ -153,18 +153,18 @@ in
         # Buck2 RE configuration file (generated from Dhall template)
         # Use remote config if build.remote.enable is true, otherwise local
         buckconfig-re-file =
-          if remoteCfg.enable then
-            renderDhall "lre-buckconfig-remote.ini" ./scripts/lre-buckconfig-remote.dhall {
-              scheduler = remoteCfg.scheduler;
-              scheduler_port = toString remoteCfg.scheduler-port;
-              cas = remoteCfg.cas;
-              cas_port = toString remoteCfg.cas-port;
-              tls = if remoteCfg.tls then "true" else "false";
-              protocol = if remoteCfg.tls then "grpcs" else "grpc";
-              instance_name = remoteCfg.instance-name;
+          if remote-cfg.enable then
+            render-dhall "lre-buckconfig-remote.ini" ./scripts/lre-buckconfig-remote.dhall {
+              scheduler = remote-cfg.scheduler;
+              scheduler_port = toString remote-cfg.scheduler-port;
+              cas = remote-cfg.cas;
+              cas_port = toString remote-cfg.cas-port;
+              tls = if remote-cfg.tls then "true" else "false";
+              protocol = if remote-cfg.tls then "grpcs" else "grpc";
+              instance_name = remote-cfg.instance-name;
             }
           else
-            renderDhall "lre-buckconfig.ini" ./scripts/lre-buckconfig.dhall {
+            render-dhall "lre-buckconfig.ini" ./scripts/lre-buckconfig.dhall {
               port = toString cfg.port;
               instance_name = cfg.instance-name;
             };
@@ -172,16 +172,16 @@ in
         # lre-start script (generated from Dhall template)
         lre-start =
           let
-            nativelinkBin = if nativelink != null then "${nativelink}/bin/nativelink" else "nativelink";
-            scriptDrv = renderDhall "lre-start" ./scripts/lre-start.dhall {
+            nativelink-bin = if nativelink != null then "${nativelink}/bin/nativelink" else "nativelink";
+            script-drv = render-dhall "lre-start" ./scripts/lre-start.dhall {
               default_workers = toString cfg.workers;
               default_port = toString cfg.port;
-              nativelink = nativelinkBin;
+              nativelink = nativelink-bin;
             };
           in
           pkgs.stdenv.mkDerivation {
             name = "lre-start";
-            src = scriptDrv;
+            src = script-drv;
             dontUnpack = true;
             installPhase = ''
               mkdir -p $out/bin
@@ -195,11 +195,11 @@ in
           };
 
         # Shell hook to append RE config to .buckconfig.local
-        lreShellHook =
+        lre-shell-hook =
           let
-            modeMsg =
-              if remoteCfg.enable then
-                "Fly.io remote (${remoteCfg.scheduler})"
+            mode-msg =
+              if remote-cfg.enable then
+                "Fly.io remote (${remote-cfg.scheduler})"
               else
                 "local NativeLink (port ${toString cfg.port})";
           in
@@ -210,7 +210,7 @@ in
               # Check if RE config already present
               if ! grep -q "buck2_re_client" .buckconfig.local 2>/dev/null; then
                 cat ${buckconfig-re-file} >> .buckconfig.local
-                echo "Appended RE config to .buckconfig.local (${modeMsg})"
+                echo "Appended RE config to .buckconfig.local (${mode-msg})"
               fi
             else
               echo "Warning: .buckconfig.local not found, RE config not added"
@@ -220,7 +220,7 @@ in
       in
       {
         straylight.lre = {
-          shellHook = lreShellHook;
+          shellHook = lre-shell-hook;
           packages = [ lre-start ] ++ lib.optional (nativelink != null) nativelink;
           # Expose individual packages for flake outputs
           inherit lre-start nativelink;

@@ -11,7 +11,7 @@ let
   inherit (pkgs.stdenv) isLinux;
 
   # Turing Registry - authoritative build flags
-  turingRegistry =
+  turing-registry =
     pkgs.straylight.turing-registry or {
       cflags = [ ];
       cxxflags = [ ];
@@ -33,54 +33,54 @@ let
   mdspan = pkgs.mdspan;
 
   # Haskell
-  hsPkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
-  ghcVersion = hsPkgs.ghc.version;
+  hs-pkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
+  ghc-version = hs-pkgs.ghc.version;
 
   # The Haskell package universe
-  hsPackageList = cfg.toolchain.haskell.packages hsPkgs;
+  hs-package-list = cfg.toolchain.haskell.packages hs-pkgs;
 
   # GHC with all packages baked in
-  ghcForBuck2 = hsPkgs.ghcWithPackages (_: hsPackageList);
+  ghc-for-buck2 = hs-pkgs.ghcWithPackages (_: hs-package-list);
 
   # Extract package info for buckconfig.local
-  hsPackageInfo =
+  hs-package-info =
     pkg:
     let
       name = pkg.pname or (builtins.parseDrvName pkg.name).name;
       version = pkg.version or "0";
-      libdir = "${pkg}/lib/ghc-${ghcVersion}/lib";
-      confDir = "${libdir}/package.conf.d";
-      confFiles = builtins.attrNames (builtins.readDir confDir);
-      confFile = lib.head (lib.filter (f: lib.hasSuffix ".conf" f) confFiles);
-      id = lib.removeSuffix ".conf" confFile;
+      lib-dir = "${pkg}/lib/ghc-${ghc-version}/lib";
+      conf-dir = "${lib-dir}/package.conf.d";
+      conf-files = builtins.attrNames (builtins.readDir conf-dir);
+      conf-file = lib.head (lib.filter (f: lib.hasSuffix ".conf" f) conf-files);
+      id = lib.removeSuffix ".conf" conf-file;
     in
     {
       inherit
         name
         version
         id
-        libdir
+        lib-dir
         ;
       path = "${pkg}";
-      db = confDir;
+      db = conf-dir;
     };
 
   # Generate buckconfig entries for all packages
-  hsPackagesConfig = lib.concatMapStringsSep "\n" (
+  hs-packages-config = lib.concatMapStringsSep "\n" (
     pkg:
     let
-      info = hsPackageInfo pkg;
+      info = hs-package-info pkg;
     in
     ''
       ${info.name} = ${info.path}
       ${info.name}.db = ${info.db}
-      ${info.name}.libdir = ${info.libdir}
+      ${info.name}.libdir = ${info.lib-dir}
       ${info.name}.id = ${info.id}''
-  ) hsPackageList;
+  ) hs-package-list;
 
   # Python
   python = pkgs.python312 or pkgs.python311;
-  pythonEnv = python.withPackages cfg.toolchain.python.packages;
+  python-env = python.withPackages cfg.toolchain.python.packages;
 
   # ────────────────────────────────────────────────────────────────────────────
   # Buck2 toolchain configuration attrset
@@ -116,8 +116,8 @@ let
       mdspan-include = "${mdspan}/include";
 
       # Turing Registry flags (the true names)
-      c-flags = turingRegistry.cflags;
-      cxx-flags = turingRegistry.cxxflags;
+      c-flags = turing-registry.cflags;
+      cxx-flags = turing-registry.cxxflags;
     }
     // lib.optionalAttrs (isLinux && cfg.toolchain.nv.enable) {
       nvidia-sdk-path = "${nvidia-sdk}";
@@ -126,7 +126,7 @@ let
       nv-archs = lib.concatStringsSep "," cfg.toolchain.nv.archs;
     }
     // lib.optionalAttrs (isLinux && cfg.toolchain.python.enable) {
-      python-interpreter = "${pythonEnv}/bin/python3";
+      python-interpreter = "${python-env}/bin/python3";
       python-include = "${python}/include/python3.12";
       python-lib = "${python}/lib";
       nanobind-include = "${python.pkgs.nanobind}/lib/python3.12/site-packages/nanobind/include";
@@ -140,7 +140,7 @@ let
   packages =
     lib.optionals (isLinux && cfg.toolchain.cxx.enable) [ llvm-git ]
     ++ lib.optionals (isLinux && cfg.toolchain.nv.enable) [ nvidia-sdk ]
-    ++ lib.optionals cfg.toolchain.haskell.enable [ ghcForBuck2 ]
+    ++ lib.optionals cfg.toolchain.haskell.enable [ ghc-for-buck2 ]
     ++ lib.optionals (cfg.toolchain.rust.enable && pkgs ? rustc) [
       pkgs.rustc
       pkgs.cargo
@@ -149,18 +149,18 @@ let
       pkgs.rust-analyzer
     ]
     ++ lib.optionals (cfg.toolchain.lean.enable && pkgs ? lean4) [ pkgs.lean4 ]
-    ++ lib.optionals cfg.toolchain.python.enable [ pythonEnv ]
+    ++ lib.optionals cfg.toolchain.python.enable [ python-env ]
     ++ lib.optionals (pkgs ? buck2) [ pkgs.buck2 ];
 in
 {
   inherit
     buck2-toolchain
     packages
-    ghcForBuck2
-    ghcVersion
-    hsPackagesConfig
+    ghc-for-buck2
+    ghc-version
+    hs-packages-config
     llvm-git
     nvidia-sdk
-    pythonEnv
+    python-env
     ;
 }

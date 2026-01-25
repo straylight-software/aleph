@@ -142,13 +142,13 @@ in
 
       gcc = toolchain.gcc-info;
 
-      nvidia = lib.optionalAttrs platform.is-linux {
+      nvidia = functions.when platform.is-linux {
         sdk = toolchain.nvidia-sdk;
         arch = toolchain.default-gpu-arch;
       };
 
-      stdenvs = builtins.attrNames stdenv;
-      cross-targets = builtins.attrNames cross;
+      stdenvs = functions.keys stdenv;
+      cross-targets = functions.keys cross;
     };
   };
 

@@ -2,15 +2,15 @@
 set -e
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-@envExports@
+@env-exports@
 
-@baseInit@
+@base-init@
 
 hostname builder
 
-@networkSetup@
+@network-setup@
 
-@buildSection@
+@build-section@
 
 # Drop to interactive shell if no build command
-@interactiveSection@
+@interactive-section@

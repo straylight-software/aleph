@@ -226,7 +226,7 @@
         template = builtins.readFile ./scripts/fc-init.sh.in;
       in
       lib.replaceStrings
-        [ "@envExports@" "@baseInit@" "@networkSetup@" "@buildSection@" "@interactiveSection@" ]
+        [ "@env-exports@" "@base-init@" "@network-setup@" "@build-section@" "@interactive-section@" ]
         [
           env-exports
           (builtins.readFile ./scripts/fc-init-base.sh)
@@ -333,7 +333,7 @@
         '';
         template = builtins.readFile ./scripts/patch-elf-preserve.sh.in;
       in
-      lib.replaceStrings [ "@out@" "@rpath@" "@interpreterPatch@" ] [ out rpath interpreter-patch ]
+      lib.replaceStrings [ "@out@" "@rpath@" "@interpreter-patch@" ] [ out rpath interpreter-patch ]
         template;
   };
 

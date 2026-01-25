@@ -11,20 +11,20 @@
 let
   inherit (toolchains)
     buck2-toolchain
-    ghcForBuck2
-    ghcVersion
-    hsPackagesConfig
+    ghc-for-buck2
+    ghc-version
+    hs-packages-config
     ;
 
-  scriptsDir = ./scripts;
+  scripts-dir = ./scripts;
 
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
       # Convert vars attrset to env var exports
       # Dhall expects UPPER_SNAKE_CASE env vars
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -33,16 +33,16 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
       '';
 
   # Build config sections from Dhall templates
-  cxxConfig =
+  cxx-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? cc then
-      renderDhall "buckconfig-cxx.ini" (scriptsDir + "/buckconfig-cxx.dhall") {
+      render-dhall "buckconfig-cxx.ini" (scripts-dir + "/buckconfig-cxx.dhall") {
         cc = buck2-toolchain.cc;
         cxx = buck2-toolchain.cxx;
         cpp = buck2-toolchain.cpp;
@@ -61,34 +61,34 @@ let
       null;
 
   # Turing Registry flags
-  flagsConfig =
+  flags-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? c-flags then
-      renderDhall "buckconfig-flags.ini" (scriptsDir + "/buckconfig-flags.dhall") {
+      render-dhall "buckconfig-flags.ini" (scripts-dir + "/buckconfig-flags.dhall") {
         c_flags = lib.concatStringsSep " " buck2-toolchain.c-flags;
         cxx_flags = lib.concatStringsSep " " buck2-toolchain.cxx-flags;
       }
     else
       null;
 
-  haskellConfig =
+  haskell-config =
     if cfg.toolchain.haskell.enable then
-      renderDhall "buckconfig-haskell.ini" (scriptsDir + "/buckconfig-haskell.dhall") {
+      render-dhall "buckconfig-haskell.ini" (scripts-dir + "/buckconfig-haskell.dhall") {
         # Use bin/ghc wrapper which:
         # 1. Filters Mercury-specific flags
         # 2. Resolves -package to -package-id (GHC 9.12 workaround)
         ghc = "bin/ghc";
         ghc_pkg = "bin/ghc-pkg";
         haddock = "bin/haddock";
-        ghc_version = ghcVersion;
-        ghc_lib_dir = "${ghcForBuck2}/lib/ghc-${ghcVersion}/lib";
-        global_package_db = "${ghcForBuck2}/lib/ghc-${ghcVersion}/lib/package.conf.d";
+        ghc_version = ghc-version;
+        ghc_lib_dir = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib";
+        global_package_db = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib/package.conf.d";
       }
     else
       null;
 
-  pythonConfig =
+  python-config =
     if cfg.toolchain.python.enable && buck2-toolchain ? python-interpreter then
-      renderDhall "buckconfig-python.ini" (scriptsDir + "/buckconfig-python.dhall") {
+      render-dhall "buckconfig-python.ini" (scripts-dir + "/buckconfig-python.dhall") {
         interpreter = buck2-toolchain.python-interpreter;
         python_include = buck2-toolchain.python-include;
         python_lib = buck2-toolchain.python-lib;
@@ -99,9 +99,9 @@ let
     else
       null;
 
-  nvConfig =
+  nv-config =
     if cfg.toolchain.nv.enable && buck2-toolchain ? nvidia-sdk-path then
-      renderDhall "buckconfig-nv.ini" (scriptsDir + "/buckconfig-nv.dhall") {
+      render-dhall "buckconfig-nv.ini" (scripts-dir + "/buckconfig-nv.dhall") {
         nvidia_sdk_path = buck2-toolchain.nvidia-sdk-path;
         nvidia_sdk_include = buck2-toolchain.nvidia-sdk-include;
         nvidia_sdk_lib = buck2-toolchain.nvidia-sdk-lib;
@@ -110,9 +110,9 @@ let
     else
       null;
 
-  rustConfig =
+  rust-config =
     if cfg.toolchain.rust.enable && pkgs ? rustc then
-      renderDhall "buckconfig-rust.ini" (scriptsDir + "/buckconfig-rust.dhall") {
+      render-dhall "buckconfig-rust.ini" (scripts-dir + "/buckconfig-rust.dhall") {
         rustc = "${pkgs.rustc}/bin/rustc";
         rustdoc = "${pkgs.rustc}/bin/rustdoc";
         clippy_driver = "${pkgs.clippy}/bin/clippy-driver";
@@ -121,9 +121,9 @@ let
     else
       null;
 
-  leanConfig =
+  lean-config =
     if cfg.toolchain.lean.enable && pkgs ? lean4 then
-      renderDhall "buckconfig-lean.ini" (scriptsDir + "/buckconfig-lean.dhall") {
+      render-dhall "buckconfig-lean.ini" (scripts-dir + "/buckconfig-lean.dhall") {
         lean = "${pkgs.lean4}/bin/lean";
         leanc = "${pkgs.lean4}/bin/leanc";
         lake = "${pkgs.lean4}/bin/lake";
@@ -134,39 +134,40 @@ let
       null;
 
   # Combine all config sections
-  configParts = lib.filter (x: x != null) [
-    cxxConfig
-    flagsConfig
-    haskellConfig
-    pythonConfig
-    nvConfig
-    rustConfig
-    leanConfig
+  config-parts = lib.filter (x: x != null) [
+    cxx-config
+    flags-config
+    haskell-config
+    python-config
+    nv-config
+    rust-config
+    lean-config
   ];
 
   # Haskell packages config as a separate file
-  haskellPackagesFile =
+  haskell-packages-file =
     if cfg.toolchain.haskell.enable then
       pkgs.writeText "haskell-packages.ini" ''
 
         [haskell.packages]
-        ${hsPackagesConfig}
+        ${hs-packages-config}
       ''
     else
       null;
 
   # Generate the final .buckconfig.local by concatenating all parts
-  allConfigParts = configParts ++ lib.optional (haskellPackagesFile != null) haskellPackagesFile;
+  all-config-parts =
+    config-parts ++ lib.optional (haskell-packages-file != null) haskell-packages-file;
 
   buckconfig-local = pkgs.runCommand "buckconfig.local" { } ''
-    cat ${lib.concatMapStringsSep " " toString allConfigParts} > $out
+    cat ${lib.concatMapStringsSep " " toString all-config-parts} > $out
   '';
 in
 {
-  inherit buckconfig-local scriptsDir;
+  inherit buckconfig-local scripts-dir;
 
   # For use in shell-hook - use Dhall rendering
-  renderDhall =
+  render-dhall =
     name: src: vars:
-    renderDhall name src vars;
+    render-dhall name src vars;
 }

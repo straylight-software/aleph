@@ -13,10 +13,10 @@
 }:
 let
   # Import test suites
-  packageTests = import ./packages.nix { inherit pkgs system lib; };
-  libTests = import ./lib.nix { inherit pkgs system lib; };
-  moduleTests = import ./modules.nix { inherit pkgs system lib; };
-  moduleExportTests = import ./module-exports.nix { inherit pkgs system lib; };
+  package-tests = import ./packages.nix { inherit pkgs system lib; };
+  lib-tests = import ./lib.nix { inherit pkgs system lib; };
+  module-tests = import ./modules.nix { inherit pkgs system lib; };
+  module-export-tests = import ./module-exports.nix { inherit pkgs system lib; };
 in
 # Merge all test suites into a single attrset
-packageTests // libTests // moduleTests // moduleExportTests
+package-tests // lib-tests // module-tests // module-export-tests

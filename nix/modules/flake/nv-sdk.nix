@@ -127,14 +127,14 @@
       # ──────────────────────────────────────────────────────────────────────────
 
       # CUTLASS 4.3.3 - fetch directly since nixpkgs may not have latest
-      cutlass-latest = pkgs.stdenv.mkDerivation (finalAttrs: {
+      cutlass-latest = pkgs.stdenv.mkDerivation (final-attrs: {
         pname = "cutlass";
         version = "4.3.3";
 
         src = pkgs.fetchFromGitHub {
           owner = "NVIDIA";
           repo = "cutlass";
-          tag = "v${finalAttrs.version}";
+          tag = "v${final-attrs.version}";
           hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
         };
 
@@ -154,7 +154,7 @@
           cp -r examples $out/share/cutlass/
           cp -r python $out/share/cutlass/
 
-          echo "${finalAttrs.version}" > $out/CUTLASS_VERSION
+          echo "${final-attrs.version}" > $out/CUTLASS_VERSION
 
           runHook postInstall
         '';

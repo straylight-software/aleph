@@ -13,15 +13,30 @@
   ...
 }:
 let
+  # Use lib functions with lisp-case local aliases
+  join = lib.concatStringsSep;
+  map-attrs' = lib.mapAttrs';
+  replace = builtins.replaceStrings;
+  to-string = builtins.toString;
+  to-upper = lib.toUpper;
+  when-attr = lib.optionalAttrs;
+
   # Get script source and GHC from the overlay
   inherit (pkgs.straylight.script) src ghc;
 
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
-      envVars = lib.mapAttrs' (
-        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      env-vars = map-attrs' (
+        k: v:
+        let
+          name = to-upper (replace [ "-" ] [ "_" ] k);
+          value = to-string v;
+        in
+        {
+          inherit name value;
+        }
       ) vars;
     in
     pkgs.runCommand name
@@ -29,7 +44,7 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
@@ -70,7 +85,7 @@ let
   # ==============================================================================
   # Verify all compiled scripts in straylight.script.compiled build successfully
 
-  scriptNames = [
+  script-names = [
     "vfio-bind"
     "vfio-unbind"
     "vfio-list"
@@ -86,21 +101,23 @@ let
     "cloud-hypervisor-gpu"
   ];
 
-  scriptChecks = lib.concatMapStringsSep "\n" (name: ''
-    echo "  Checking ${name}..."
-    if [ ! -x "${pkgs.straylight.script.compiled.${name}}/bin/${name}" ]; then
-      echo "FAILED: ${name} not found or not executable"
-      exit 1
-    fi
-    echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
-  '') scriptNames;
+  script-checks = join "\n" (
+    map (name: ''
+      echo "  Checking ${name}..."
+      if [ ! -x "${pkgs.straylight.script.compiled.${name}}/bin/${name}" ]; then
+        echo "FAILED: ${name} not found or not executable"
+        exit 1
+      fi
+      echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
+    '') script-names
+  );
 
   test-aleph-compiled-scripts =
     let
       script =
-        renderDhall "test-aleph-compiled-scripts.bash" ./scripts/test-aleph-compiled-scripts.dhall
+        render-dhall "test-aleph-compiled-scripts.bash" ./scripts/test-aleph-compiled-scripts.dhall
           {
-            script_checks = scriptChecks;
+            script_checks = script-checks;
           };
     in
     pkgs.runCommand "test-aleph-compiled-scripts" { } ''
@@ -109,7 +126,7 @@ let
 
 in
 # Only run on Linux (Aleph.Nix has FFI bindings that may need Linux)
-lib.optionalAttrs (system == "x86_64-linux" || system == "aarch64-linux") {
+when-attr (system == "x86_64-linux" || system == "aarch64-linux") {
   inherit
     test-aleph-modules
     test-aleph-compiled-scripts

@@ -25,7 +25,7 @@ let
 
   # Use the consolidated GHC 9.12 from straylight.script
   # This ensures all Haskell code uses the same GHC version
-  ghcWithDeps = final.straylight.script.ghc;
+  ghc-with-deps = final.straylight.script.ghc;
 
   # ══════════════════════════════════════════════════════════════════════════════
   # HELPER SCRIPTS
@@ -39,7 +39,7 @@ let
       src = ../../../src/tools/scripts;
       dontUnpack = true;
 
-      nativeBuildInputs = [ ghcWithDeps ];
+      nativeBuildInputs = [ ghc-with-deps ];
 
       buildPhase = ''
         runHook preBuild
@@ -66,7 +66,7 @@ let
   # ══════════════════════════════════════════════════════════════════════════════
 
   # Standard CMake flags for all libmodern packages
-  standardCmakeFlags = [
+  standard-cmake-flags = [
     (lib.cmakeFeature "CMAKE_BUILD_TYPE" "RelWithDebInfo")
     (lib.cmakeFeature "CMAKE_CXX_STANDARD" "17")
     (lib.cmakeBool "CMAKE_POSITION_INDEPENDENT_CODE" true)
@@ -101,7 +101,7 @@ let
       ...
     }@args:
     let
-      extraArgs = builtins.removeAttrs args [
+      extra-args = builtins.removeAttrs args [
         "pname"
         "version"
         "src"
@@ -134,7 +134,7 @@ let
 
         inherit buildInputs propagatedBuildInputs;
 
-        cmakeFlags = standardCmakeFlags ++ cmakeFlags;
+        cmakeFlags = standard-cmake-flags ++ cmakeFlags;
 
         inherit postInstall;
 
@@ -148,7 +148,7 @@ let
         }
         // meta;
       }
-      // extraArgs
+      // extra-args
     );
 
   # ══════════════════════════════════════════════════════════════════════════════
@@ -170,7 +170,7 @@ in
 {
   libmodern = {
     # Builder (exposed for custom packages)
-    inherit mk-static-cpp standardCmakeFlags;
+    inherit mk-static-cpp standard-cmake-flags;
 
     # Helper scripts
     inherit combine-archive;

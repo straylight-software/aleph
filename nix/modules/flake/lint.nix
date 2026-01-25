@@ -19,7 +19,7 @@
 _:
 let
   # Individual config file paths (for flake.lintConfigs export)
-  lintConfigs = {
+  lint-configs = {
     clang-format = ../../configs/.clang-format;
     clang-tidy = ../../configs/.clang-tidy;
     ruff = ../../configs/ruff.toml;
@@ -30,7 +30,7 @@ let
   };
 
   # Script source directory
-  scriptSrc = ../../../src/tools/scripts;
+  script-src = ../../../src/tools/scripts;
 in
 { config, lib, ... }:
 let
@@ -46,45 +46,45 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    flake.lintConfigs = lintConfigs;
+    flake.lintConfigs = lint-configs;
 
     perSystem =
       { pkgs, ... }:
       let
         # Create a configs directory derivation with all lint configs
-        configsDir = pkgs.linkFarm "straylight-lint-configs" [
+        configs-dir = pkgs.linkFarm "straylight-lint-configs" [
           {
             name = ".clang-format";
-            path = lintConfigs.clang-format;
+            path = lint-configs.clang-format;
           }
           {
             name = ".clang-tidy";
-            path = lintConfigs.clang-tidy;
+            path = lint-configs.clang-tidy;
           }
           {
             name = "ruff.toml";
-            path = lintConfigs.ruff;
+            path = lint-configs.ruff;
           }
           {
             name = "biome.json";
-            path = lintConfigs.biome;
+            path = lint-configs.biome;
           }
           {
             name = ".stylua.toml";
-            path = lintConfigs.stylua;
+            path = lint-configs.stylua;
           }
           {
             name = ".rustfmt.toml";
-            path = lintConfigs.rustfmt;
+            path = lint-configs.rustfmt;
           }
           {
             name = "taplo.toml";
-            path = lintConfigs.taplo;
+            path = lint-configs.taplo;
           }
         ];
 
         # Haskell dependencies for Weyl.Script
-        hsDeps =
+        hs-deps =
           p: with p; [
             megaparsec
             text
@@ -101,19 +101,19 @@ in
             bytestring
           ];
 
-        ghcWithDeps = pkgs.haskellPackages.ghcWithPackages hsDeps;
+        ghc-with-deps = pkgs.haskellPackages.ghcWithPackages hs-deps;
 
         # Build a lint script
         # The script takes configs-dir as first argument, which we bake in via wrapper
-        mkLintScript =
+        mk-lint-script =
           name:
           pkgs.stdenv.mkDerivation {
             inherit name;
-            src = scriptSrc;
+            src = script-src;
             dontUnpack = true;
 
             nativeBuildInputs = [
-              ghcWithDeps
+              ghc-with-deps
               pkgs.makeWrapper
             ];
 
@@ -133,7 +133,7 @@ in
 
               # Wrap with configs directory baked in
               makeWrapper $out/bin/${name}-unwrapped $out/bin/${name} \
-                --add-flags "${configsDir}"
+                --add-flags "${configs-dir}"
               runHook postInstall
             '';
 
@@ -143,8 +143,8 @@ in
           };
       in
       {
-        packages.lint-init = mkLintScript "lint-init";
-        packages.lint-link = mkLintScript "lint-link";
+        packages.lint-init = mk-lint-script "lint-init";
+        packages.lint-link = mk-lint-script "lint-link";
       };
   };
 }

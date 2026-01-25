@@ -9,8 +9,8 @@ rule:
       any:
         # Allow in string interpolations (paths, commands)
         - kind: interpolation
-        # Allow in inherit statements
-        - kind: inherit
+        # Allow in inherit statements (tree-sitter-nix calls this inherited_attrs)
+        - kind: inherited_attrs
 message: "WSN-E003: non-lisp-case identifier"
 note: |
   ## What's wrong?

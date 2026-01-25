@@ -36,6 +36,10 @@ let
   translations = import ./translations.nix { inherit lib; };
   inherit (translations) translate-attrs;
 
+  # Prelude functions (avoid non-lisp-case lib.* calls)
+  when = cond: val: if cond then val else { };
+  join = builtins.concatStringsSep;
+
   # ──────────────────────────────────────────────────────────────────────────
   #                          // stdenv factory //
   # ──────────────────────────────────────────────────────────────────────────
@@ -84,11 +88,11 @@ let
         {
           cflags ? [ ],
           ldflags ? [ ],
-        }@extraFlags:
+        }@extra-flags:
         mk-stdenv {
           inherit name base extra;
-          cflags = cflags + " " + lib.concatStringsSep " " extraFlags.cflags;
-          ldflags = ldflags + " " + lib.concatStringsSep " " extraFlags.ldflags;
+          cflags = cflags + " " + join " " extra-flags.cflags;
+          ldflags = ldflags + " " + join " " extra-flags.ldflags;
         };
 
       passthru = {
@@ -117,7 +121,7 @@ let
   #                         // linux stdenvs //
   # ──────────────────────────────────────────────────────────────────────────
 
-  linux-stdenvs = lib.optionalAttrs platform.is-linux {
+  linux-stdenvs = when platform.is-linux {
     clang-glibc-dynamic = mk-stdenv {
       name = "clang-glibc-dynamic";
       base = final.stdenvAdapters.overrideCC final.stdenv toolchain.clang-glibc;
@@ -174,7 +178,7 @@ let
       ldflags = toolchain.musl-static-ldflags;
     };
 
-    nvidia = lib.optionalAttrs (toolchain.nvidia-sdk != null) (mk-stdenv {
+    nvidia = when (toolchain.nvidia-sdk != null) (mk-stdenv {
       name = "nvidia";
       base = final.stdenvAdapters.overrideCC final.stdenv toolchain.clang-cuda;
       cflags = toolchain.nvidia-cflags;
@@ -206,6 +210,6 @@ linux-stdenvs
 // {
   default = if platform.is-linux then linux-stdenvs.clang-glibc-dynamic else darwin-stdenv;
 }
-// lib.optionalAttrs platform.is-darwin {
+// when platform.is-darwin {
   darwin = darwin-stdenv;
 }

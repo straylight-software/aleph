@@ -26,13 +26,13 @@ let
   # Runtime dependencies for autoPatchelfHook
   # ════════════════════════════════════════════════════════════════════════════
 
-  runtimeDeps = with final; [
+  runtime-deps = with final; [
     stdenv.cc.cc.lib # libstdc++
     zlib
   ];
 
-  extendedRuntimeDeps =
-    runtimeDeps
+  extended-runtime-deps =
+    runtime-deps
     ++ (with final; [
       openssl
       curl
@@ -57,7 +57,7 @@ let
     });
 
   # Comprehensive runtime deps for tritonserver (mirrors libmodern-nvidia-sdk)
-  tritonRuntimeDeps = with final; [
+  triton-runtime-deps = with final; [
     # Core
     stdenv.cc.cc.lib
     zlib
@@ -133,7 +133,7 @@ let
   ];
 
   # Common ignored dependencies (driver libs provided at runtime)
-  commonIgnoredDeps = [
+  common-ignored-deps = [
     "libcuda.so.1"
     "libnvidia-ml.so.1"
     # CUDA runtime libs (cross-references between packages)
@@ -191,27 +191,27 @@ let
   };
 
   # ════════════════════════════════════════════════════════════════════════════
-  # mkWheelPkg - extract library from PyPI wheel
+  # mk-wheel-pkg - extract library from PyPI wheel
   # ════════════════════════════════════════════════════════════════════════════
   #
   # Two-phase:
   #   1. fetchurl downloads the wheel (FOD with hash)
   #   2. Derivation extracts and patches
 
-  mkWheelPkg =
+  mk-wheel-pkg =
     {
       pname,
-      wheelInfo,
-      runtimeInputs ? runtimeDeps,
-      ignoreMissingDeps ? [ ],
+      wheel-info,
+      runtime-inputs ? runtime-deps,
+      ignore-missing-deps ? [ ],
       meta ? { },
     }:
     prev.stdenv.mkDerivation {
       inherit pname;
-      inherit (wheelInfo) version;
+      inherit (wheel-info) version;
 
       src = fetchurl {
-        inherit (wheelInfo) url hash;
+        inherit (wheel-info) url hash;
       };
 
       nativeBuildInputs = [
@@ -221,9 +221,9 @@ let
         final.findutils
       ];
 
-      buildInputs = runtimeInputs;
+      buildInputs = runtime-inputs;
 
-      autoPatchelfIgnoreMissingDeps = commonIgnoredDeps ++ ignoreMissingDeps;
+      autoPatchelfIgnoreMissingDeps = common-ignored-deps ++ ignore-missing-deps;
 
       dontConfigure = true;
       dontBuild = true;
@@ -236,24 +236,24 @@ let
 
       installPhase =
         let
-          libPath = wheelInfo.libPath or null;
-          includePath = wheelInfo.includePath or null;
+          lib-path = wheel-info.libPath or null;
+          include-path = wheel-info.includePath or null;
         in
         ''
           runHook preInstall
           mkdir -p $out
 
-          ${lib.optionalString (libPath != null) ''
-            if [ -d "unpacked/${libPath}" ]; then
+          ${lib.optionalString (lib-path != null) ''
+            if [ -d "unpacked/${lib-path}" ]; then
               mkdir -p $out/lib
-              cp -r unpacked/${libPath}/* $out/lib/
+              cp -r unpacked/${lib-path}/* $out/lib/
             fi
           ''}
 
-          ${lib.optionalString (includePath != null) ''
-            if [ -d "unpacked/${includePath}" ]; then
+          ${lib.optionalString (include-path != null) ''
+            if [ -d "unpacked/${include-path}" ]; then
               mkdir -p $out/include
-              cp -r unpacked/${includePath}/* $out/include/
+              cp -r unpacked/${include-path}/* $out/include/
             fi
           ''}
 
@@ -279,23 +279,23 @@ let
     };
 
   # ════════════════════════════════════════════════════════════════════════════
-  # mkContainerPkg - extract from container rootfs using Haskell script
+  # mk-container-pkg - extract from container rootfs using Haskell script
   # ════════════════════════════════════════════════════════════════════════════
 
-  tritonRootfs = prev.nvidia-sdk-ngc-rootfs or null;
+  triton-rootfs = prev.nvidia-sdk-ngc-rootfs or null;
 
   # Haskell extraction script
   nvidia-sdk-script = final.straylight.script.compiled.nvidia-sdk;
 
-  mkContainerPkg =
+  mk-container-pkg =
     {
       pname,
       version,
       rootfs,
-      extractMode, # "cuda" | "triton" | "runtime"
-      runtimeInputs ? extendedRuntimeDeps,
-      ignoreMissingDeps ? [ ],
-      postExtract ? "",
+      extract-mode, # "cuda" | "triton" | "runtime"
+      runtime-inputs ? extended-runtime-deps,
+      ignore-missing-deps ? [ ],
+      post-extract ? "",
       meta ? { },
     }:
     prev.stdenv.mkDerivation {
@@ -314,10 +314,10 @@ let
         nvidia-sdk-script
       ];
 
-      buildInputs = runtimeInputs;
+      buildInputs = runtime-inputs;
 
       autoPatchelfIgnoreMissingDeps =
-        commonIgnoredDeps
+        common-ignored-deps
         ++ [
           "libpython3.8.so.1.0"
           "libpython3.9.so.1.0"
@@ -325,12 +325,12 @@ let
           "libpython3.11.so.1.0"
           "libpython3.12.so.1.0"
         ]
-        ++ ignoreMissingDeps;
+        ++ ignore-missing-deps;
 
       installPhase = ''
         runHook preInstall
-        nvidia-sdk ${extractMode} ${rootfs} $out
-        ${postExtract}
+        nvidia-sdk ${extract-mode} ${rootfs} $out
+        ${post-extract}
         runHook postInstall
       '';
 
@@ -342,11 +342,11 @@ let
         [ -d $out/tensorrt_llm/lib ] && addAutoPatchelfSearchPath $out/tensorrt_llm/lib
 
         # Build library path from runtime inputs
-        local libPaths="$out/lib"
-        [ -d $out/lib64 ] && libPaths="$libPaths:$out/lib64"
-        [ -d $out/nvvm/lib64 ] && libPaths="$libPaths:$out/nvvm/lib64"
-        [ -d $out/tensorrt_llm/lib ] && libPaths="$libPaths:$out/tensorrt_llm/lib"
-        libPaths="$libPaths:${lib.makeLibraryPath runtimeInputs}"
+        local lib_paths="$out/lib"
+        [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
+        [ -d $out/nvvm/lib64 ] && lib_paths="$lib_paths:$out/nvvm/lib64"
+        [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
+        lib_paths="$lib_paths:${lib.makeLibraryPath runtime-inputs}"
 
         echo "Setting RPATH on ELF files before autoPatchelf..."
 
@@ -359,22 +359,22 @@ let
               patchelf --set-interpreter "$(cat $NIX_CC/nix-support/dynamic-linker)" "$f" 2>/dev/null || true
             fi
             # Set RPATH for all ELF files
-            patchelf --set-rpath "$libPaths" "$f" 2>/dev/null || true
+            patchelf --set-rpath "$lib_paths" "$f" 2>/dev/null || true
           fi
         done
       '';
 
       postFixup = ''
         # Wrap executables with proper environment after autoPatchelf
-        local libPaths="$out/lib"
-        [ -d $out/lib64 ] && libPaths="$libPaths:$out/lib64"
-        [ -d $out/tensorrt_llm/lib ] && libPaths="$libPaths:$out/tensorrt_llm/lib"
-        libPaths="$libPaths:${lib.makeLibraryPath runtimeInputs}"
+        local lib_paths="$out/lib"
+        [ -d $out/lib64 ] && lib_paths="$lib_paths:$out/lib64"
+        [ -d $out/tensorrt_llm/lib ] && lib_paths="$lib_paths:$out/tensorrt_llm/lib"
+        lib_paths="$lib_paths:${lib.makeLibraryPath runtime-inputs}"
 
         for exe in $out/bin/*; do
           if [ -f "$exe" ] && [ -x "$exe" ]; then
             wrapProgram "$exe" \
-              --prefix LD_LIBRARY_PATH : "$libPaths" \
+              --prefix LD_LIBRARY_PATH : "$lib_paths" \
               --prefix PYTHONPATH : "$out/python" 2>/dev/null || true
           fi
         done
@@ -390,9 +390,9 @@ in
 # ══════════════════════════════════════════════════════════════════════════════
 
 lib.optionalAttrs (system == "x86_64-linux") {
-  nvidia-nccl = mkWheelPkg {
+  nvidia-nccl = mk-wheel-pkg {
     pname = "nvidia-nccl";
-    wheelInfo = wheels.nccl;
+    wheel-info = wheels.nccl;
     meta = {
       description = "NVIDIA NCCL ${wheels.nccl.version} (from PyPI)";
       homepage = "https://developer.nvidia.com/nccl";
@@ -401,9 +401,9 @@ lib.optionalAttrs (system == "x86_64-linux") {
     };
   };
 
-  nvidia-cudnn = mkWheelPkg {
+  nvidia-cudnn = mk-wheel-pkg {
     pname = "nvidia-cudnn";
-    wheelInfo = wheels.cudnn;
+    wheel-info = wheels.cudnn;
     meta = {
       description = "NVIDIA cuDNN ${wheels.cudnn.version} (from PyPI)";
       homepage = "https://developer.nvidia.com/cudnn";
@@ -412,9 +412,9 @@ lib.optionalAttrs (system == "x86_64-linux") {
     };
   };
 
-  nvidia-tensorrt = mkWheelPkg {
+  nvidia-tensorrt = mk-wheel-pkg {
     pname = "nvidia-tensorrt";
-    wheelInfo = wheels.tensorrt;
+    wheel-info = wheels.tensorrt;
     meta = {
       description = "NVIDIA TensorRT ${wheels.tensorrt.version} (from PyPI)";
       homepage = "https://developer.nvidia.com/tensorrt";
@@ -423,9 +423,9 @@ lib.optionalAttrs (system == "x86_64-linux") {
     };
   };
 
-  nvidia-cutensor = mkWheelPkg {
+  nvidia-cutensor = mk-wheel-pkg {
     pname = "nvidia-cutensor";
-    wheelInfo = wheels.cutensor;
+    wheel-info = wheels.cutensor;
     meta = {
       description = "NVIDIA cuTensor ${wheels.cutensor.version} (from PyPI)";
       homepage = "https://developer.nvidia.com/cutensor";
@@ -434,9 +434,9 @@ lib.optionalAttrs (system == "x86_64-linux") {
     };
   };
 
-  nvidia-cusparselt = mkWheelPkg {
+  nvidia-cusparselt = mk-wheel-pkg {
     pname = "nvidia-cusparselt";
-    wheelInfo = wheels.cusparselt;
+    wheel-info = wheels.cusparselt;
     meta = {
       description = "NVIDIA cuSPARSELt ${wheels.cusparselt.version} (from PyPI)";
       homepage = "https://developer.nvidia.com/cusparselt";
@@ -485,14 +485,14 @@ lib.optionalAttrs (system == "x86_64-linux") {
 # Container-based packages (for full CUDA toolkit with nvcc, etc.)
 # ══════════════════════════════════════════════════════════════════════════════
 
-// lib.optionalAttrs (tritonRootfs != null) {
+// lib.optionalAttrs (triton-rootfs != null) {
   # Full CUDA SDK from container (toolkit binaries like nvcc)
-  nvidia-cuda-toolkit = mkContainerPkg {
+  nvidia-cuda-toolkit = mk-container-pkg {
     pname = "nvidia-cuda-toolkit";
     version = "13.0.1";
-    rootfs = tritonRootfs;
-    extractMode = "cuda";
-    runtimeInputs = extendedRuntimeDeps;
+    rootfs = triton-rootfs;
+    extract-mode = "cuda";
+    runtime-inputs = extended-runtime-deps;
     meta = {
       description = "NVIDIA CUDA Toolkit 13.0.1 (from NGC container)";
       license = lib.licenses.unfree;
@@ -504,13 +504,13 @@ lib.optionalAttrs (system == "x86_64-linux") {
   };
 
   # Triton Inference Server
-  nvidia-tritonserver = mkContainerPkg {
+  nvidia-tritonserver = mk-container-pkg {
     pname = "nvidia-tritonserver";
     version = "25.11";
-    rootfs = tritonRootfs;
-    extractMode = "triton";
-    runtimeInputs = tritonRuntimeDeps;
-    ignoreMissingDeps = [
+    rootfs = triton-rootfs;
+    extract-mode = "triton";
+    runtime-inputs = triton-runtime-deps;
+    ignore-missing-deps = [
       # LLVM/Clang
       "libLLVM.so.18.1"
       # GC/ObjC
@@ -535,7 +535,7 @@ lib.optionalAttrs (system == "x86_64-linux") {
       "libcurand.so.10"
     ];
     # Symlinks are now created by Haskell script (createLibrarySymlinks)
-    postExtract = ''
+    post-extract = ''
       # Fix Python shebangs
       find $out -type f \( -name "*.py" -o -perm /u+x \) 2>/dev/null | while read -r f; do
         if [ -f "$f" ] && head -1 "$f" 2>/dev/null | grep -q '^#!.*python'; then

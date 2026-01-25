@@ -33,17 +33,17 @@ let
   # Library modules (Aleph.*) are in src/haskell/Aleph/
   # The -i flag should point to src/haskell so GHC finds Aleph/Script.hs etc.
   # Executable scripts are in src/tools/scripts/
-  alephSrc = ../../src/haskell;
-  scriptSrc = ../../src/tools/scripts;
-  corpusSrc = ../../src/tools/corpus;
+  aleph-src = ../../src/haskell;
+  script-src = ../../src/tools/scripts;
+  corpus-src = ../../src/tools/corpus;
 
   # Use GHC 9.12 consistently across the codebase
   # This matches nix/prelude/versions.nix and aligns with Buck2 toolchain
-  hsPkgs = final.haskell.packages.ghc912;
+  hs-pkgs = final.haskell.packages.ghc912;
 
   # Haskell dependencies for Aleph.Script
   # These must match SCRIPT_PACKAGES in src/tools/scripts/BUCK
-  hsDeps =
+  hs-deps =
     p: with p; [
       megaparsec
       text
@@ -71,17 +71,17 @@ let
     ];
 
   # GHC with Aleph.Script dependencies
-  ghcWithScript = hsPkgs.ghcWithPackages hsDeps;
+  ghc-with-script = hs-pkgs.ghcWithPackages hs-deps;
 
   # QuickCheck deps for property tests
-  testDeps =
+  test-deps =
     p:
-    hsDeps p
+    hs-deps p
     ++ [
       p.QuickCheck
       p.deepseq
     ];
-  ghcWithTests = hsPkgs.ghcWithPackages testDeps;
+  ghc-with-tests = hs-pkgs.ghcWithPackages test-deps;
 
   # ────────────────────────────────────────────────────────────────────────────
   # // compiled script builder //
@@ -100,30 +100,33 @@ let
   # If configExpr is provided, it generates a Dhall config file that the
   # script reads at startup via CONFIG_FILE environment variable.
 
-  mkCompiledScript =
+  mk-compiled-script =
     {
       name,
       deps ? [ ], # Runtime dependencies (wrapped into PATH)
-      configExpr ? null, # Dhall expression (Nix string with store paths)
+      config-expr ? null, # Dhall expression (Nix string with store paths)
     }:
     let
-      hasConfig = configExpr != null;
+      has-config = config-expr != null;
       # Generate config.dhall as a separate derivation
-      configFile = final.writeText "${name}-config.dhall" configExpr;
+      config-file = final.writeText "${name}-config.dhall" config-expr;
     in
     final.stdenv.mkDerivation {
       inherit name;
-      src = scriptSrc;
+      src = script-src;
       dontUnpack = true;
 
-      nativeBuildInputs = [ ghcWithScript ] ++ lib.optional (deps != [ ] || hasConfig) final.makeWrapper;
+      nativeBuildInputs = [
+        ghc-with-script
+      ]
+      ++ lib.optional (deps != [ ] || has-config) final.makeWrapper;
 
       buildPhase = ''
         runHook preBuild
         ghc -O2 -Wall -Wno-unused-imports \
           -hidir . -odir . \
-          -i${alephSrc} -i${scriptSrc} \
-          -o ${name} ${scriptSrc}/${name}.hs
+          -i${aleph-src} -i${script-src} \
+          -o ${name} ${script-src}/${name}.hs
         runHook postBuild
       '';
 
@@ -131,22 +134,22 @@ let
         runHook preInstall
         mkdir -p $out/bin
         cp ${name} $out/bin/
-        ${lib.optionalString hasConfig ''
+        ${lib.optionalString has-config ''
           mkdir -p $out/share/straylight
-          cp ${configFile} $out/share/straylight/config.dhall
+          cp ${config-file} $out/share/straylight/config.dhall
         ''}
         runHook postInstall
       '';
 
       postFixup =
         let
-          wrapArgs =
+          wrap-args =
             lib.optional (deps != [ ]) "--prefix PATH : ${lib.makeBinPath deps}"
-            ++ lib.optional hasConfig "--set CONFIG_FILE $out/share/straylight/config.dhall";
+            ++ lib.optional has-config "--set CONFIG_FILE $out/share/straylight/config.dhall";
         in
-        lib.optionalString (wrapArgs != [ ]) ''
+        lib.optionalString (wrap-args != [ ]) ''
           wrapProgram $out/bin/${name} \
-            ${lib.concatStringsSep " \\\n    " wrapArgs}
+            ${lib.concatStringsSep " \\\n    " wrap-args}
         '';
 
       meta = {
@@ -169,17 +172,17 @@ in
       # // source //
       # ──────────────────────────────────────────────────────────────────────
 
-      src = scriptSrc;
-      lib = alephSrc;
-      corpus = corpusSrc;
+      src = script-src;
+      lib = aleph-src;
+      corpus = corpus-src;
 
       # ──────────────────────────────────────────────────────────────────────
       # // ghc //
       # ──────────────────────────────────────────────────────────────────────
 
       # GHC with Aleph.Script modules available
-      ghc = ghcWithScript;
-      ghc-with-tests = ghcWithTests;
+      ghc = ghc-with-script;
+      ghc-with-tests = ghc-with-tests;
 
       # ──────────────────────────────────────────────────────────────────────
       # // gen-wrapper //
@@ -194,9 +197,9 @@ in
 
       gen-wrapper = final.writeShellApplication {
         name = "straylight-gen-wrapper";
-        runtimeInputs = [ ghcWithScript ];
+        runtimeInputs = [ ghc-with-script ];
         text = ''
-          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/gen-wrapper.hs "$@"
+          exec runghc -i${aleph-src} -i${script-src} ${script-src}/gen-wrapper.hs "$@"
         '';
       };
 
@@ -208,9 +211,9 @@ in
 
       check = final.writeShellApplication {
         name = "straylight-script-check";
-        runtimeInputs = [ ghcWithScript ];
+        runtimeInputs = [ ghc-with-script ];
         text = ''
-          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/check.hs "$@"
+          exec runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs "$@"
         '';
       };
 
@@ -222,9 +225,9 @@ in
 
       props = final.writeShellApplication {
         name = "straylight-script-props";
-        runtimeInputs = [ ghcWithTests ];
+        runtimeInputs = [ ghc-with-tests ];
         text = ''
-          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/Props.hs "$@"
+          exec runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs "$@"
         '';
       };
 
@@ -237,7 +240,7 @@ in
       shell = final.mkShell {
         name = "straylight-script-shell";
         buildInputs = [
-          ghcWithTests
+          ghc-with-tests
           # CLI tools for testing wrappers
           final.ripgrep
           final.fd
@@ -251,9 +254,9 @@ in
         ];
         shellHook = ''
           echo "Aleph.Script development shell"
-          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/check.hs"
-          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/Props.hs"
-          echo "  runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/gen-wrapper.hs <tool>"
+          echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs"
+          echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs"
+          echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/gen-wrapper.hs <tool>"
         '';
       };
 
@@ -317,23 +320,23 @@ in
 
       compiled = {
         # VFIO scripts - PCI device binding for GPU passthrough
-        vfio-bind = mkCompiledScript {
+        vfio-bind = mk-compiled-script {
           name = "vfio-bind";
           deps = [ final.pciutils ]; # lspci for device info
         };
 
-        vfio-unbind = mkCompiledScript {
+        vfio-unbind = mk-compiled-script {
           name = "vfio-unbind";
           deps = [ final.pciutils ];
         };
 
-        vfio-list = mkCompiledScript {
+        vfio-list = mk-compiled-script {
           name = "vfio-list";
           deps = [ final.pciutils ];
         };
 
         # Crane - OCI image operations (no runtime, just image manipulation)
-        crane-inspect = mkCompiledScript {
+        crane-inspect = mk-compiled-script {
           name = "crane-inspect";
           deps = [
             final.crane
@@ -341,13 +344,13 @@ in
           ];
         };
 
-        crane-pull = mkCompiledScript {
+        crane-pull = mk-compiled-script {
           name = "crane-pull";
           deps = [ final.crane ];
         };
 
         # Unshare - bwrap/namespace runners for OCI images
-        unshare-run = mkCompiledScript {
+        unshare-run = mk-compiled-script {
           name = "unshare-run";
           deps = [
             final.bubblewrap # Container sandbox
@@ -356,7 +359,7 @@ in
           ];
         };
 
-        unshare-gpu = mkCompiledScript {
+        unshare-gpu = mk-compiled-script {
           name = "unshare-gpu";
           deps = [
             final.bubblewrap
@@ -367,12 +370,12 @@ in
         };
 
         # FHS/GPU scripts - namespace environment wrappers
-        fhs-run = mkCompiledScript {
+        fhs-run = mk-compiled-script {
           name = "fhs-run";
           deps = [ final.bubblewrap ];
         };
 
-        gpu-run = mkCompiledScript {
+        gpu-run = mk-compiled-script {
           name = "gpu-run";
           deps = [
             final.bubblewrap
@@ -381,12 +384,12 @@ in
         };
 
         # Isospin - Firecracker fork for microVM management
-        isospin-run = mkCompiledScript {
+        isospin-run = mk-compiled-script {
           name = "isospin-run";
           deps = [ final.firecracker ]; # TODO: replace with isospin package
         };
 
-        isospin-build = mkCompiledScript {
+        isospin-build = mk-compiled-script {
           name = "isospin-build";
           deps = [
             final.e2fsprogs # mke2fs for rootfs
@@ -396,12 +399,12 @@ in
         };
 
         # Cloud Hypervisor - VM management
-        cloud-hypervisor-run = mkCompiledScript {
+        cloud-hypervisor-run = mk-compiled-script {
           name = "cloud-hypervisor-run";
           deps = [ final.cloud-hypervisor ];
         };
 
-        cloud-hypervisor-gpu = mkCompiledScript {
+        cloud-hypervisor-gpu = mk-compiled-script {
           name = "cloud-hypervisor-gpu";
           deps = [
             final.cloud-hypervisor
@@ -410,7 +413,7 @@ in
         };
 
         # NVIDIA SDK extraction - pull from NGC, extract CUDA/cuDNN/TensorRT
-        nvidia-extract = mkCompiledScript {
+        nvidia-extract = mk-compiled-script {
           name = "nvidia-extract";
           deps = [
             final.crane # OCI image tool
@@ -422,7 +425,7 @@ in
 
         # NVIDIA SDK extraction v2 - comprehensive extraction from containers/tarballs
         # Handles CUDA, cuDNN, NCCL, TensorRT, cuTensor, Tritonserver
-        nvidia-sdk-extract = mkCompiledScript {
+        nvidia-sdk-extract = mk-compiled-script {
           name = "nvidia-sdk-extract";
           deps = [
             final.crane # OCI image tool
@@ -435,7 +438,7 @@ in
         };
 
         # NVIDIA wheel extraction - extract from PyPI wheels (no redistribution issues)
-        nvidia-wheel-extract = mkCompiledScript {
+        nvidia-wheel-extract = mk-compiled-script {
           name = "nvidia-wheel-extract";
           deps = [
             final.curl # download wheels
@@ -447,7 +450,7 @@ in
 
         # NVIDIA SDK - unified extraction (wheels + containers)
         # Typed Haskell replacement for packages.nix shell scripts
-        nvidia-sdk = mkCompiledScript {
+        nvidia-sdk = mk-compiled-script {
           name = "nvidia-sdk";
           deps = [
             final.curl # download wheels
@@ -462,7 +465,7 @@ in
 
         # combine-archive - Combines multiple .a files into one
         # Used by libmodern overlay for static library aggregation
-        combine-archive = mkCompiledScript {
+        combine-archive = mk-compiled-script {
           name = "combine-archive";
           deps = [ ]; # No runtime deps, uses ar from stdenv
         };
@@ -490,22 +493,22 @@ in
       nix-dev = final.writeShellApplication {
         name = "nix-dev";
         runtimeInputs = [
-          ghcWithScript
+          ghc-with-script
           final.nix
         ];
         text = ''
-          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/nix-dev.hs "$@"
+          exec runghc -i${aleph-src} -i${script-src} ${script-src}/nix-dev.hs "$@"
         '';
       };
 
       nix-ci = final.writeShellApplication {
         name = "nix-ci";
         runtimeInputs = [
-          ghcWithScript
+          ghc-with-script
           final.nix
         ];
         text = ''
-          exec runghc -i${alephSrc} -i${scriptSrc} ${scriptSrc}/nix-ci.hs "$@"
+          exec runghc -i${aleph-src} -i${script-src} ${script-src}/nix-ci.hs "$@"
         '';
       };
     };

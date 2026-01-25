@@ -101,21 +101,21 @@ in
             or null;
 
         # Fly internal DNS addresses (for container-to-container communication)
-        schedulerAddr = "${cfg.fly.app-prefix}-scheduler.internal:${toString cfg.scheduler.port}";
-        casAddr = "${cfg.fly.app-prefix}-cas.internal:${toString cfg.cas.port}";
+        scheduler-addr = "${cfg.fly.app-prefix}-scheduler.internal:${toString cfg.scheduler.port}";
+        cas-addr = "${cfg.fly.app-prefix}-cas.internal:${toString cfg.cas.port}";
 
         # ──────────────────────────────────────────────────────────────────────
         # NativeLink JSON configs
         # ──────────────────────────────────────────────────────────────────────
 
-        schedulerConfig = pkgs.writeText "scheduler.json" (
+        scheduler-config = pkgs.writeText "scheduler.json" (
           builtins.toJSON {
             stores = [
               {
                 name = "CAS_MAIN_STORE";
                 grpc = {
                   instance_name = "main";
-                  endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
                   store_type = "cas";
                 };
               }
@@ -123,7 +123,7 @@ in
                 name = "AC_MAIN_STORE";
                 grpc = {
                   instance_name = "main";
-                  endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
                   store_type = "ac";
                 };
               }
@@ -191,7 +191,7 @@ in
           }
         );
 
-        casConfig = pkgs.writeText "cas.json" (
+        cas-config = pkgs.writeText "cas.json" (
           builtins.toJSON {
             stores = [
               {
@@ -246,7 +246,7 @@ in
           }
         );
 
-        workerConfig = pkgs.writeText "worker.json" (
+        worker-config = pkgs.writeText "worker.json" (
           builtins.toJSON {
             stores = [
               # Remote CAS store (for slow tier and AC uploads)
@@ -254,7 +254,7 @@ in
                 name = "REMOTE_CAS";
                 grpc = {
                   instance_name = "main";
-                  endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
                   store_type = "cas";
                 };
               }
@@ -263,7 +263,7 @@ in
                 name = "REMOTE_AC";
                 grpc = {
                   instance_name = "main";
-                  endpoints = [ { address = "grpc://${casAddr}"; } ];
+                  endpoints = [ { address = "grpc://${cas-addr}"; } ];
                   store_type = "ac";
                 };
               }
@@ -320,29 +320,29 @@ in
         # Wrapper scripts (entrypoints for containers)
         # ──────────────────────────────────────────────────────────────────────
 
-        schedulerScript = pkgs.writeShellApplication {
+        scheduler-script = pkgs.writeShellApplication {
           name = "nativelink-scheduler";
           runtimeInputs = [ nativelink ];
           text = ''
-            exec nativelink ${schedulerConfig}
+            exec nativelink ${scheduler-config}
           '';
         };
 
-        casScript = pkgs.writeShellApplication {
+        cas-script = pkgs.writeShellApplication {
           name = "nativelink-cas";
           runtimeInputs = [ nativelink ];
           text = ''
             mkdir -p ${cfg.cas.dataDir}/content ${cfg.cas.dataDir}/temp
-            exec nativelink ${casConfig}
+            exec nativelink ${cas-config}
           '';
         };
 
-        workerScript = pkgs.writeShellApplication {
+        worker-script = pkgs.writeShellApplication {
           name = "nativelink-worker";
           runtimeInputs = [ nativelink ];
           text = ''
             mkdir -p /tmp/nativelink-worker
-            exec nativelink ${workerConfig}
+            exec nativelink ${worker-config}
           '';
         };
 
@@ -358,25 +358,25 @@ in
 
         # Haskell toolchain - use straylight.script.ghc for full Aleph.Script support
         # This ensures NativeLink workers can build all Haskell scripts via Buck2
-        ghcWithPackages = pkgs.straylight.script.ghc;
+        ghc-with-packages = pkgs.straylight.script.ghc;
 
         # Python with nanobind/pybind11 for Buck2 python_cxx rules
-        pythonEnv = pkgs.python312.withPackages (ps: [
+        python-env = pkgs.python312.withPackages (ps: [
           ps.nanobind
           ps.pybind11
           ps.numpy
         ]);
 
         # All toolchain packages for workers
-        toolchainPackages =
+        toolchain-packages =
           lib.optionals (llvm-git != null) [ llvm-git ]
           ++ lib.optionals (nvidia-sdk != null) [ nvidia-sdk ]
           ++ [
             gcc
             pkgs.glibc
             pkgs.glibc.dev
-            ghcWithPackages
-            pythonEnv
+            ghc-with-packages
+            python-env
             pkgs.rustc
             pkgs.cargo
             pkgs.coreutils
@@ -389,15 +389,15 @@ in
         # Generate the toolchain manifest as a separate derivation
         # This exports the store paths for use by the worker setup script
         # The paths are written to a file that can be fetched at runtime
-        toolchainManifest = pkgs.writeText "toolchain-manifest.txt" (
+        toolchain-manifest = pkgs.writeText "toolchain-manifest.txt" (
           lib.concatMapStringsSep "\n" (
             pkg: builtins.unsafeDiscardStringContext (toString pkg)
-          ) toolchainPackages
+          ) toolchain-packages
         );
 
         # Minimal worker setup - just initializes the nix store on the volume
         # Toolchain fetching is done separately via a manifest URL
-        workerSetupScript = pkgs.writeShellApplication {
+        worker-setup-script = pkgs.writeShellApplication {
           name = "worker-setup";
           runtimeInputs = with pkgs; [ coreutils ];
           text = ''
@@ -426,7 +426,7 @@ in
         };
 
         # Modular service for nativelink (nimi pattern)
-        mkNativelinkService =
+        mk-nativelink-service =
           { script }:
           { lib, pkgs, ... }:
           { ... }:
@@ -440,14 +440,14 @@ in
         # Usage: nix run .#nativelink-deploy-<service>
         # ──────────────────────────────────────────────────────────────────────
 
-        flyConfigDir = ../../../modules/flake/nativelink/fly;
+        fly-config-dir = ../../../modules/flake/nativelink/fly;
 
         # Generic deploy script factory
-        mkDeployScript =
+        mk-deploy-script =
           {
             name,
-            flyApp,
-            flyConfig,
+            fly-app,
+            fly-config,
           }:
           pkgs.writeShellApplication {
             name = "nativelink-deploy-${name}";
@@ -460,10 +460,10 @@ in
               set -euo pipefail
 
               SERVICE="${name}"
-              FLY_APP="${flyApp}"
-              FLY_CONFIG="${flyConfig}"
+              FLY_APP="${fly-app}"
+              FLY_CONFIG="${fly-config}"
               GHCR_IMAGE="ghcr.io/straylight-software/aleph/nativelink-${name}:latest"
-              FLY_IMAGE="registry.fly.io/${flyApp}:latest"
+              FLY_IMAGE="registry.fly.io/${fly-app}:latest"
 
               echo "=== Deploying NativeLink $SERVICE ==="
 
@@ -507,30 +507,30 @@ in
             '';
           };
 
-        deployScheduler = mkDeployScript {
+        deploy-scheduler = mk-deploy-script {
           name = "scheduler";
-          flyApp = "${cfg.fly.app-prefix}-scheduler";
-          flyConfig = "${flyConfigDir}/scheduler.toml";
+          fly-app = "${cfg.fly.app-prefix}-scheduler";
+          fly-config = "${fly-config-dir}/scheduler.toml";
         };
 
-        deployCas = mkDeployScript {
+        deploy-cas = mk-deploy-script {
           name = "cas";
-          flyApp = "${cfg.fly.app-prefix}-cas";
-          flyConfig = "${flyConfigDir}/cas.toml";
+          fly-app = "${cfg.fly.app-prefix}-cas";
+          fly-config = "${fly-config-dir}/cas.toml";
         };
 
-        deployWorker = mkDeployScript {
+        deploy-worker = mk-deploy-script {
           name = "worker";
-          flyApp = "${cfg.fly.app-prefix}-worker";
-          flyConfig = "${flyConfigDir}/worker.toml";
+          fly-app = "${cfg.fly.app-prefix}-worker";
+          fly-config = "${fly-config-dir}/worker.toml";
         };
 
-        deployAll = pkgs.writeShellApplication {
+        deploy-all = pkgs.writeShellApplication {
           name = "nativelink-deploy-all";
           runtimeInputs = [
-            deployScheduler
-            deployCas
-            deployWorker
+            deploy-scheduler
+            deploy-cas
+            deploy-worker
           ];
           text = ''
             set -euo pipefail
@@ -543,7 +543,7 @@ in
         };
 
         # Status check script
-        statusScript = pkgs.writeShellApplication {
+        status-script = pkgs.writeShellApplication {
           name = "nativelink-status";
           runtimeInputs = with pkgs; [ flyctl ];
           text = ''
@@ -562,7 +562,7 @@ in
         };
 
         # Logs script
-        logsScript = pkgs.writeShellApplication {
+        logs-script = pkgs.writeShellApplication {
           name = "nativelink-logs";
           runtimeInputs = with pkgs; [ flyctl ];
           text = ''
@@ -600,11 +600,11 @@ in
           nativelink-scheduler = {
             systemPackages = [
               nativelink
-              schedulerScript
+              scheduler-script
             ];
 
             services.scheduler = {
-              imports = [ (mkNativelinkService { script = schedulerScript; } { inherit lib pkgs; }) ];
+              imports = [ (mk-nativelink-service { script = scheduler-script; } { inherit lib pkgs; }) ];
             };
 
             exposedPorts = {
@@ -622,11 +622,11 @@ in
           nativelink-cas = {
             systemPackages = [
               nativelink
-              casScript
+              cas-script
             ];
 
             services.cas = {
-              imports = [ (mkNativelinkService { script = casScript; } { inherit lib pkgs; }) ];
+              imports = [ (mk-nativelink-service { script = cas-script; } { inherit lib pkgs; }) ];
             };
 
             exposedPorts = {
@@ -645,12 +645,12 @@ in
           nativelink-worker = {
             systemPackages = [
               nativelink
-              workerScript
+              worker-script
             ]
-            ++ toolchainPackages;
+            ++ toolchain-packages;
 
             services.worker = {
-              imports = [ (mkNativelinkService { script = workerScript; } { inherit lib pkgs; }) ];
+              imports = [ (mk-nativelink-service { script = worker-script; } { inherit lib pkgs; }) ];
             };
 
             registries = [ cfg.registry ];
@@ -667,26 +667,26 @@ in
 
         packages = {
           # Configs (for debugging)
-          nativelink-scheduler-config = schedulerConfig;
-          nativelink-cas-config = casConfig;
-          nativelink-worker-config = workerConfig;
+          nativelink-scheduler-config = scheduler-config;
+          nativelink-cas-config = cas-config;
+          nativelink-worker-config = worker-config;
 
           # Entrypoint scripts (used by containers)
-          nativelink-scheduler-script = schedulerScript;
-          nativelink-cas-script = casScript;
-          nativelink-worker-script = workerScript;
-          nativelink-worker-setup = workerSetupScript;
-          nativelink-toolchain-manifest = toolchainManifest;
+          nativelink-scheduler-script = scheduler-script;
+          nativelink-cas-script = cas-script;
+          nativelink-worker-script = worker-script;
+          nativelink-worker-setup = worker-setup-script;
+          nativelink-toolchain-manifest = toolchain-manifest;
 
           # Deployment scripts (nix run .#nativelink-deploy-*)
-          nativelink-deploy-scheduler = deployScheduler;
-          nativelink-deploy-cas = deployCas;
-          nativelink-deploy-worker = deployWorker;
-          nativelink-deploy-all = deployAll;
+          nativelink-deploy-scheduler = deploy-scheduler;
+          nativelink-deploy-cas = deploy-cas;
+          nativelink-deploy-worker = deploy-worker;
+          nativelink-deploy-all = deploy-all;
 
           # Operations scripts
-          nativelink-status = statusScript;
-          nativelink-logs = logsScript;
+          nativelink-status = status-script;
+          nativelink-logs = logs-script;
         };
       };
   };

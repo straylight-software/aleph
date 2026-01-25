@@ -21,77 +21,77 @@
 { inputs }:
 let
   # Check if ghc-wasm-meta input is available
-  hasGhcWasmMeta = inputs ? ghc-wasm-meta;
+  has-ghc-wasm-meta = inputs ? ghc-wasm-meta;
 
   # ghc-wasm-meta provides packages per-system, not as an overlay
   # We wrap it to provide a consistent interface
-  mkGhcWasmPackages =
+  mk-ghc-wasm-packages =
     system:
     let
-      ghcWasmPkgs = inputs.ghc-wasm-meta.packages.${system};
+      ghc-wasm-pkgs = inputs.ghc-wasm-meta.packages.${system};
 
       # Helper to conditionally include an attribute
-      optionalPkg = name: if ghcWasmPkgs ? ${name} then { ${name} = ghcWasmPkgs.${name}; } else { };
+      optional-pkg = name: if ghc-wasm-pkgs ? ${name} then { ${name} = ghc-wasm-pkgs.${name}; } else { };
     in
     # Core packages (must exist)
     {
-      ghc-wasm = ghcWasmPkgs.wasm32-wasi-ghc-9_12;
-      ghc-wasm-cabal = ghcWasmPkgs.wasm32-wasi-cabal-9_12;
-      wasi-sdk = ghcWasmPkgs.wasi-sdk;
+      ghc-wasm = ghc-wasm-pkgs.wasm32-wasi-ghc-9_12;
+      ghc-wasm-cabal = ghc-wasm-pkgs.wasm32-wasi-cabal-9_12;
+      wasi-sdk = ghc-wasm-pkgs.wasi-sdk;
     }
     # Alternative GHC versions (optional)
-    // optionalPkg "wasm32-wasi-ghc-9_14"
-    // optionalPkg "wasm32-wasi-ghc-9_10"
-    // optionalPkg "wasm32-wasi-ghc-9_8"
-    // optionalPkg "wasm32-wasi-ghc-gmp"
-    // optionalPkg "wasm32-wasi-ghc-native"
-    // optionalPkg "binaryen"
-    // optionalPkg "wasmtime"
-    // optionalPkg "all_9_12"
-    // optionalPkg "all_9_14"
+    // optional-pkg "wasm32-wasi-ghc-9_14"
+    // optional-pkg "wasm32-wasi-ghc-9_10"
+    // optional-pkg "wasm32-wasi-ghc-9_8"
+    // optional-pkg "wasm32-wasi-ghc-gmp"
+    // optional-pkg "wasm32-wasi-ghc-native"
+    // optional-pkg "binaryen"
+    // optional-pkg "wasmtime"
+    // optional-pkg "all_9_12"
+    // optional-pkg "all_9_14"
     # Rename to our naming convention
     // (
-      if ghcWasmPkgs ? wasm32-wasi-ghc-9_14 then
-        { ghc-wasm-9_14 = ghcWasmPkgs.wasm32-wasi-ghc-9_14; }
+      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_14 then
+        { ghc-wasm-9_14 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_14; }
       else
         { }
     )
     // (
-      if ghcWasmPkgs ? wasm32-wasi-ghc-9_10 then
-        { ghc-wasm-9_10 = ghcWasmPkgs.wasm32-wasi-ghc-9_10; }
+      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_10 then
+        { ghc-wasm-9_10 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_10; }
       else
         { }
     )
     // (
-      if ghcWasmPkgs ? wasm32-wasi-ghc-9_8 then
-        { ghc-wasm-9_8 = ghcWasmPkgs.wasm32-wasi-ghc-9_8; }
+      if ghc-wasm-pkgs ? wasm32-wasi-ghc-9_8 then
+        { ghc-wasm-9_8 = ghc-wasm-pkgs.wasm32-wasi-ghc-9_8; }
       else
         { }
     )
     // (
-      if ghcWasmPkgs ? wasm32-wasi-ghc-gmp then
-        { ghc-wasm-gmp = ghcWasmPkgs.wasm32-wasi-ghc-gmp; }
+      if ghc-wasm-pkgs ? wasm32-wasi-ghc-gmp then
+        { ghc-wasm-gmp = ghc-wasm-pkgs.wasm32-wasi-ghc-gmp; }
       else
         { }
     )
     // (
-      if ghcWasmPkgs ? wasm32-wasi-ghc-native then
-        { ghc-wasm-native = ghcWasmPkgs.wasm32-wasi-ghc-native; }
+      if ghc-wasm-pkgs ? wasm32-wasi-ghc-native then
+        { ghc-wasm-native = ghc-wasm-pkgs.wasm32-wasi-ghc-native; }
       else
         { }
     )
-    // (if ghcWasmPkgs ? binaryen then { wasm-binaryen = ghcWasmPkgs.binaryen; } else { })
-    // (if ghcWasmPkgs ? wasmtime then { wasm-wasmtime = ghcWasmPkgs.wasmtime; } else { })
-    // (if ghcWasmPkgs ? all_9_12 then { ghc-wasm-all = ghcWasmPkgs.all_9_12; } else { })
-    // (if ghcWasmPkgs ? all_9_14 then { ghc-wasm-all-9_14 = ghcWasmPkgs.all_9_14; } else { });
+    // (if ghc-wasm-pkgs ? binaryen then { wasm-binaryen = ghc-wasm-pkgs.binaryen; } else { })
+    // (if ghc-wasm-pkgs ? wasmtime then { wasm-wasmtime = ghc-wasm-pkgs.wasmtime; } else { })
+    // (if ghc-wasm-pkgs ? all_9_12 then { ghc-wasm-all = ghc-wasm-pkgs.all_9_12; } else { })
+    // (if ghc-wasm-pkgs ? all_9_14 then { ghc-wasm-all-9_14 = ghc-wasm-pkgs.all_9_14; } else { });
 in
 {
   flake.overlays.ghc-wasm =
     final: prev:
-    if hasGhcWasmMeta then
+    if has-ghc-wasm-meta then
       {
         straylight = (prev.straylight or { }) // {
-          ghc-wasm = mkGhcWasmPackages final.stdenv.hostPlatform.system;
+          ghc-wasm = mk-ghc-wasm-packages final.stdenv.hostPlatform.system;
         };
       }
     else

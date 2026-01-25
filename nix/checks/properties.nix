@@ -16,7 +16,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #   properties.check       run all property tests
-#   properties.forAll      generate test cases and verify property
+#   properties.for-all     generate test cases and verify property
 #   properties.generators  sample data generators
 #   properties.laws        algebraic law checkers
 #
@@ -229,10 +229,10 @@ let
     # Type
 
     ```
-    forAll :: [a] -> (a -> Bool) -> { pass :: Bool; failures :: [a]; }
+    for-all :: [a] -> (a -> Bool) -> { pass :: Bool; failures :: [a]; }
     ```
   */
-  forAll =
+  for-all =
     samples: prop:
     let
       results = map (x: {
@@ -254,10 +254,10 @@ let
     # Type
 
     ```
-    forAll2 :: [a] -> [b] -> (a -> b -> Bool) -> { pass :: Bool; failures :: [{ fst :: a; snd :: b }]; }
+    for-all2 :: [a] -> [b] -> (a -> b -> Bool) -> { pass :: Bool; failures :: [{ fst :: a; snd :: b }]; }
     ```
   */
-  forAll2 =
+  for-all2 =
     xs: ys: prop:
     let
       pairs = lib.concatMap (
@@ -313,7 +313,7 @@ let
     */
     identity =
       f: id: samples:
-      forAll samples (x: f id x == x);
+      for-all samples (x: f id x == x);
 
     /**
       Associativity: f(f(a, b), c) == f(a, f(b, c))
@@ -331,12 +331,12 @@ let
           ) samples
         ) samples;
       in
-      forAll triples (t: f (f t.a t.b) t.c == f t.a (f t.b t.c));
+      for-all triples (t: f (f t.a t.b) t.c == f t.a (f t.b t.c));
 
     /**
       Commutativity: f(a, b) == f(b, a)
     */
-    commutative = f: samples: forAll2 samples samples (a: b: f a b == f b a);
+    commutative = f: samples: for-all2 samples samples (a: b: f a b == f b a);
 
     /**
       Distributivity: f(a, g(b, c)) == g(f(a, b), f(a, c))
@@ -354,59 +354,59 @@ let
           ) samples
         ) samples;
       in
-      forAll triples (t: f t.a (g t.b t.c) == g (f t.a t.b) (f t.a t.c));
+      for-all triples (t: f t.a (g t.b t.c) == g (f t.a t.b) (f t.a t.c));
   };
 
   # ─────────────────────────────────────────────────────────────────────────
   # Prelude-Specific Properties
   # ─────────────────────────────────────────────────────────────────────────
 
-  preludeProperties = prelude: {
+  prelude-properties = prelude: {
     # ─────────────────────────────────────────────────────────────────────
     # Totality: functions don't crash on edge cases
     # ─────────────────────────────────────────────────────────────────────
 
-    "safe.head terminates on all lists" = forAll generators.list-int (
+    "safe.head terminates on all lists" = for-all generators.list-int (
       xs: terminates prelude.safe.head xs
     );
 
-    "safe.tail terminates on all lists" = forAll generators.list-int (
+    "safe.tail terminates on all lists" = for-all generators.list-int (
       xs: terminates prelude.safe.tail xs
     );
 
-    "safe.minimum terminates on all lists" = forAll generators.list-int (
+    "safe.minimum terminates on all lists" = for-all generators.list-int (
       xs: terminates prelude.safe.minimum xs
     );
 
-    "safe.maximum terminates on all lists" = forAll generators.list-int (
+    "safe.maximum terminates on all lists" = for-all generators.list-int (
       xs: terminates prelude.safe.maximum xs
     );
 
-    "safe.chunks-of terminates for all n" = forAll2 generators.small-int generators.list-int (
+    "safe.chunks-of terminates for all n" = for-all2 generators.small-int generators.list-int (
       n: xs: terminates (prelude.safe.chunks-of n) xs
     );
 
-    "safe.take terminates for negative n" = forAll generators.list-int (
+    "safe.take terminates for negative n" = for-all generators.list-int (
       xs: terminates (prelude.safe.take (-5)) xs
     );
 
-    "safe.drop terminates for negative n" = forAll generators.list-int (
+    "safe.drop terminates for negative n" = for-all generators.list-int (
       xs: terminates (prelude.safe.drop (-5)) xs
     );
 
-    "safe.elem-at terminates for any index" = forAll2 generators.small-int generators.list-int (
+    "safe.elem-at terminates for any index" = for-all2 generators.small-int generators.list-int (
       i: xs: terminates (prelude.safe.elem-at xs) i
     );
 
-    "safe.div terminates for zero divisor" = forAll generators.int (
+    "safe.div terminates for zero divisor" = for-all generators.int (
       n: terminates (prelude.safe.div n) 0
     );
 
-    "safe.is-left handles malformed input" = forAll generators.malformed-either (
+    "safe.is-left handles malformed input" = for-all generators.malformed-either (
       x: terminates prelude.safe.is-left x
     );
 
-    "safe.is-right handles malformed input" = forAll generators.malformed-either (
+    "safe.is-right handles malformed input" = for-all generators.malformed-either (
       x: terminates prelude.safe.is-right x
     );
 
@@ -429,25 +429,27 @@ let
       failures = [ ];
     };
 
-    "safe.chunks-of 0 xs == []" = forAll generators.list-int (xs: prelude.safe.chunks-of 0 xs == [ ]);
+    "safe.chunks-of 0 xs == []" = for-all generators.list-int (xs: prelude.safe.chunks-of 0 xs == [ ]);
 
-    "safe.take negative == []" = forAll generators.list-int (xs: prelude.safe.take (-1) xs == [ ]);
+    "safe.take negative == []" = for-all generators.list-int (xs: prelude.safe.take (-1) xs == [ ]);
 
-    "safe.drop negative == identity" = forAll generators.list-int (xs: prelude.safe.drop (-1) xs == xs);
+    "safe.drop negative == identity" = for-all generators.list-int (
+      xs: prelude.safe.drop (-1) xs == xs
+    );
 
-    "safe.div x 0 == null" = forAll generators.int (x: prelude.safe.div x 0 == null);
+    "safe.div x 0 == null" = for-all generators.int (x: prelude.safe.div x 0 == null);
 
     # ─────────────────────────────────────────────────────────────────────
     # Schema validation
     # ─────────────────────────────────────────────────────────────────────
 
-    "schemas.either accepts valid Either" = forAll generators.either (e: prelude.schemas.either e);
+    "schemas.either accepts valid Either" = for-all generators.either (e: prelude.schemas.either e);
 
-    "schemas.either rejects malformed" = forAll generators.malformed-either (
+    "schemas.either rejects malformed" = for-all generators.malformed-either (
       x: !prelude.schemas.either x
     );
 
-    "schemas.positive-int accepts positive" = forAll generators.positive-int (
+    "schemas.positive-int accepts positive" = for-all generators.positive-int (
       n: prelude.schemas.positive-int n
     );
 
@@ -456,7 +458,7 @@ let
       failures = [ ];
     };
 
-    "schemas.positive-int rejects negative" = forAll [
+    "schemas.positive-int rejects negative" = for-all [
       (-1)
       (-10)
       (-999)
@@ -470,10 +472,10 @@ let
   /**
     Run all properties and return results.
   */
-  runProperties =
+  run-properties =
     prelude:
     let
-      props = preludeProperties prelude;
+      props = prelude-properties prelude;
       results = lib.mapAttrs (
         name: result:
         result
@@ -498,7 +500,7 @@ let
   /**
     Format test results as a report.
   */
-  formatReport =
+  format-report =
     results:
     let
       header = ''
@@ -507,7 +509,7 @@ let
         ════════════════════════════════════════════════════════════════════════════════
       '';
 
-      passedSection =
+      passed-section =
         if results.summary.passed > 0 then
           ''
 
@@ -517,7 +519,7 @@ let
         else
           "";
 
-      failedSection =
+      failed-section =
         if results.summary.failed > 0 then
           ''
 
@@ -539,13 +541,13 @@ let
         ────────────────────────────────────────────────────────────────────────────────
       '';
     in
-    header + passedSection + failedSection + summary;
+    header + passed-section + failed-section + summary;
 
   # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -554,7 +556,7 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
@@ -564,29 +566,29 @@ in
 {
   inherit
     generators
-    forAll
-    forAll2
+    for-all
+    for-all2
     terminates
     returns-type
     idempotent
     laws
-    preludeProperties
-    runProperties
-    formatReport
+    prelude-properties
+    run-properties
+    format-report
     ;
 
   /**
     Create a check derivation that runs property tests.
   */
-  mkCheck =
+  mk-check =
     prelude:
     let
-      results = runProperties prelude;
-      script = renderDhall "test-properties-script" ./scripts/test-properties.dhall {
-        report = formatReport results;
-        resultMessage =
+      results = run-properties prelude;
+      script = render-dhall "test-properties-script" ./scripts/test-properties.dhall {
+        report = format-report results;
+        result-message =
           if results.summary.pass then "All property tests passed." else "Property tests failed!";
-        touchOut = if results.summary.pass then "touch $out" else "exit 1";
+        touch-out = if results.summary.pass then "touch $out" else "exit 1";
       };
     in
     pkgs.runCommand "prelude-properties" { } ''

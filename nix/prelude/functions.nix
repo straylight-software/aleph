@@ -2391,10 +2391,10 @@ rec {
 
     # Arguments
 
-    onLeft
+    on-left
     : function for Left values
 
-    onRight
+    on-right
     : function for Right values
 
     e
@@ -2416,8 +2416,8 @@ rec {
     :::
   */
   either =
-    onLeft: onRight: e:
-    if e._tag == "left" then onLeft e.value else onRight e.value;
+    on-left: on-right: e:
+    if e._tag == "left" then on-left e.value else on-right e.value;
 
   /**
     Extract value from Right with a default.
@@ -3036,10 +3036,10 @@ rec {
 
     # Arguments
 
-    onFalse
+    on-false
     : value if false
 
-    onTrue
+    on-true
     : value if true
 
     b
@@ -3061,8 +3061,8 @@ rec {
     :::
   */
   bool =
-    onFalse: onTrue: b:
-    if b then onTrue else onFalse;
+    on-false: on-true: b:
+    if b then on-true else on-false;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Arithmetic

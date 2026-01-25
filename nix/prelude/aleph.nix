@@ -44,11 +44,11 @@
   lib,
   pkgs,
   wasmFile,
-  stdenvFn ? pkgs.stdenv.mkDerivation,
+  stdenv-fn ? pkgs.stdenv.mkDerivation,
 }:
 let
   # Import the WASM plugin infrastructure
-  wasmPlugin = import ./wasm-plugin.nix {
+  wasm-plugin = import ./wasm-plugin.nix {
     inherit lib;
     inherit (pkgs) stdenv runCommand;
     # ghc-wasm-meta not needed for loading, only for building
@@ -61,12 +61,12 @@ let
   # "Aleph.Packages.Nvidia.nccl" → "nvidia_nccl"
   # "Aleph.Nix.Packages.ZlibNg" → "zlib_ng"
   #
-  moduleToExport =
-    modulePath:
+  module-to-export =
+    module-path:
     let
-      parts = lib.splitString "." modulePath;
+      parts = lib.splitString "." module-path;
       # Take everything after known prefixes
-      relevantParts =
+      relevant-parts =
         if lib.length parts >= 3 && lib.elemAt parts 0 == "Aleph" && lib.elemAt parts 1 == "Packages" then
           lib.drop 2 parts
         else if
@@ -79,7 +79,7 @@ let
         else
           parts;
       # CamelCase to snake_case
-      toSnake =
+      to-snake =
         s:
         let
           chars = lib.stringToCharacters s;
@@ -90,17 +90,17 @@ let
         in
         lib.removePrefix "_" converted;
     in
-    lib.concatMapStringsSep "_" toSnake relevantParts;
+    lib.concatMapStringsSep "_" to-snake relevant-parts;
 
   # ────────────────────────────────────────────────────────────────────────────
   # Feature check
   # ────────────────────────────────────────────────────────────────────────────
-  requireWasm =
-    if wasmPlugin.features.can-load then
+  require-wasm =
+    if wasm-plugin.features.can-load then
       true
     else
       throw (
-        builtins.replaceStrings [ "@status@" ] [ wasmPlugin.features.status ] (
+        builtins.replaceStrings [ "@status@" ] [ wasm-plugin.features.status ] (
           builtins.readFile ./scripts/aleph-wasm-missing-error.txt
         )
       );
@@ -108,7 +108,7 @@ let
   # ────────────────────────────────────────────────────────────────────────────
   # Known module exports (for aleph.import)
   # ────────────────────────────────────────────────────────────────────────────
-  knownModules = {
+  known-modules = {
     "Aleph.Packages.Nvidia" = [
       "nccl"
       "cudnn"
@@ -150,13 +150,13 @@ in
   #   aleph.eval "Aleph.Build.withFlags" { pkg = myPkg; flags = ["-O3"]; }
   #
   eval =
-    modulePath: args:
-    assert requireWasm;
+    module-path: args:
+    assert require-wasm;
     let
-      exportName = moduleToExport modulePath;
-      spec = builtins.wasm wasmFile exportName args;
+      export-name = module-to-export module-path;
+      spec = builtins.wasm wasmFile export-name args;
     in
-    wasmPlugin.buildFromSpec { inherit spec pkgs stdenvFn; };
+    wasm-plugin.buildFromSpec { inherit spec pkgs stdenv-fn; };
 
   # ════════════════════════════════════════════════════════════════════════════
   # aleph.import : String -> AttrSet
@@ -168,24 +168,24 @@ in
   #   nvidia.nccl  # → derivation
   #
   import =
-    moduleName:
-    assert requireWasm;
+    module-name:
+    assert require-wasm;
     let
       exports =
-        knownModules.${moduleName}
-          or (throw "Unknown module: ${moduleName}. Known: ${toString (builtins.attrNames knownModules)}");
-      mkExport =
+        known-modules.${module-name}
+          or (throw "Unknown module: ${module-name}. Known: ${toString (builtins.attrNames known-modules)}");
+      mk-export =
         name:
         let
-          exportName = moduleToExport "${moduleName}.${name}";
-          spec = builtins.wasm wasmFile exportName { };
+          export-name = module-to-export "${module-name}.${name}";
+          spec = builtins.wasm wasmFile export-name { };
         in
         {
           inherit name;
-          value = wasmPlugin.buildFromSpec { inherit spec pkgs stdenvFn; };
+          value = wasm-plugin.buildFromSpec { inherit spec pkgs stdenv-fn; };
         };
     in
-    builtins.listToAttrs (map mkExport exports);
+    builtins.listToAttrs (map mk-export exports);
 
   # ════════════════════════════════════════════════════════════════════════════
   # aleph.spec : String -> AttrSet -> AttrSet
@@ -193,18 +193,18 @@ in
   # Get raw spec without building (for debugging/introspection).
   #
   spec =
-    modulePath: args:
-    assert requireWasm;
+    module-path: args:
+    assert require-wasm;
     let
-      exportName = moduleToExport modulePath;
+      export-name = module-to-export module-path;
     in
-    builtins.wasm wasmFile exportName args;
+    builtins.wasm wasmFile export-name args;
 
   # ════════════════════════════════════════════════════════════════════════════
   # Introspection
   # ════════════════════════════════════════════════════════════════════════════
 
-  inherit (wasmPlugin) features;
-  inherit knownModules;
-  inherit moduleToExport;
+  inherit (wasm-plugin) features;
+  inherit known-modules;
+  inherit module-to-export;
 }

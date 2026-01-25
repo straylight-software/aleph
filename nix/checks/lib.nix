@@ -10,13 +10,13 @@
   ...
 }:
 let
-  straylightLib = import ../lib/default.nix { inherit lib; };
+  straylight-lib = import ../lib/default.nix { inherit lib; };
 
   # Render Dhall template with environment variables
   renderDhall =
     name: src: vars:
     let
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -25,7 +25,7 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
@@ -39,19 +39,19 @@ let
   test-lib-nv-utils =
     let
       script = renderDhall "test-lib-nv-utils.bash" ./scripts/test-lib-nv-utils.dhall {
-        cap70 = straylightLib.nv.capability-to-arch "7.0";
-        cap75 = straylightLib.nv.capability-to-arch "7.5";
-        cap80 = straylightLib.nv.capability-to-arch "8.0";
-        cap89 = straylightLib.nv.capability-to-arch "8.9";
-        cap90 = straylightLib.nv.capability-to-arch "9.0";
-        cap100 = straylightLib.nv.capability-to-arch "10.0";
-        cap120 = straylightLib.nv.capability-to-arch "12.0";
-        fp8cap89 = builtins.toJSON (straylightLib.nv.supports-fp8 "8.9");
-        fp8cap90 = builtins.toJSON (straylightLib.nv.supports-fp8 "9.0");
-        fp8cap120 = builtins.toJSON (straylightLib.nv.supports-fp8 "12.0");
-        nvfp4cap90 = builtins.toJSON (straylightLib.nv.supports-nvfp4 "9.0");
-        nvfp4cap120 = builtins.toJSON (straylightLib.nv.supports-nvfp4 "12.0");
-        nvcc_flags = straylightLib.nv.nvcc-flags [
+        cap70 = straylight-lib.nv.capability-to-arch "7.0";
+        cap75 = straylight-lib.nv.capability-to-arch "7.5";
+        cap80 = straylight-lib.nv.capability-to-arch "8.0";
+        cap89 = straylight-lib.nv.capability-to-arch "8.9";
+        cap90 = straylight-lib.nv.capability-to-arch "9.0";
+        cap100 = straylight-lib.nv.capability-to-arch "10.0";
+        cap120 = straylight-lib.nv.capability-to-arch "12.0";
+        fp8cap89 = builtins.toJSON (straylight-lib.nv.supports-fp8 "8.9");
+        fp8cap90 = builtins.toJSON (straylight-lib.nv.supports-fp8 "9.0");
+        fp8cap120 = builtins.toJSON (straylight-lib.nv.supports-fp8 "12.0");
+        nvfp4cap90 = builtins.toJSON (straylight-lib.nv.supports-nvfp4 "9.0");
+        nvfp4cap120 = builtins.toJSON (straylight-lib.nv.supports-nvfp4 "12.0");
+        nvcc_flags = straylight-lib.nv.nvcc-flags [
           "8.0"
           "9.0"
         ];
@@ -66,7 +66,7 @@ let
   # ══════════════════════════════════════════════════════════════════════════
   # Test stdenv utility functions for straylight-cflags and straylightify wrapper
 
-  testDrv = straylightLib.stdenv.straylightify (
+  test-drv = straylight-lib.stdenv.straylightify (
     pkgs.runCommand "test-straylightify-input" { } ''
       mkdir -p $out
       echo "test" > $out/test
@@ -76,12 +76,12 @@ let
   test-lib-stdenv-utils =
     let
       script = renderDhall "test-lib-stdenv-utils.bash" ./scripts/test-lib-stdenv-utils.dhall {
-        straylight_cflags = straylightLib.stdenv.straylight-cflags;
-        dont_strip = builtins.toJSON straylightLib.stdenv.straylight-attrs.dontStrip;
+        straylight_cflags = straylight-lib.stdenv.straylight-cflags;
+        dont_strip = builtins.toJSON straylight-lib.stdenv.straylight-attrs.dontStrip;
         hardening_disable_all = builtins.toJSON (
-          builtins.elem "all" straylightLib.stdenv.straylight-attrs.hardeningDisable
+          builtins.elem "all" straylight-lib.stdenv.straylight-attrs.hardeningDisable
         );
-        test_drv = testDrv;
+        test_drv = test-drv;
       };
     in
     pkgs.runCommand "test-lib-stdenv-utils" { } ''

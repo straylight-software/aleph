@@ -71,7 +71,7 @@ let
   #
   # This is internal infrastructure. Users should use aleph.eval directly.
   #
-  buildWasmPlugin =
+  build-wasm-plugin =
     {
       name,
       src,
@@ -83,14 +83,14 @@ let
     }:
     let
       # Convert module names to file paths
-      moduleToPath = mod: builtins.replaceStrings [ "." ] [ "/" ] mod + ".hs";
-      allModules = [ mainModule ] ++ extraModules;
-      moduleFiles = map moduleToPath allModules;
+      module-to-path = mod: builtins.replaceStrings [ "." ] [ "/" ] mod + ".hs";
+      all-modules = [ mainModule ] ++ extraModules;
+      module-files = map module-to-path all-modules;
 
       # Generate linker flags to export each function
       # GHC WASM doesn't automatically export foreign export ccall symbols,
       # so we need to explicitly tell the linker to export them.
-      exportFlags = map (e: "'-optl-Wl,--export=${e}'") exports;
+      export-flags = map (e: "'-optl-Wl,--export=${e}'") exports;
     in
     runCommand "${name}.wasm"
       {
@@ -106,7 +106,7 @@ let
         cd build
 
         # Copy all source files preserving directory structure
-        for mod in ${lib.escapeShellArgs moduleFiles}; do
+        for mod in ${lib.escapeShellArgs module-files}; do
           mkdir -p "$(dirname "$mod")"
           cp "$src/$mod" "$mod"
         done
@@ -125,10 +125,10 @@ let
           -optl-mexec-model=reactor \
           '-optl-Wl,--allow-undefined' \
           '-optl-Wl,--export=hs_init' \
-          ${lib.concatStringsSep " " exportFlags} \
+          ${lib.concatStringsSep " " export-flags} \
           -O2 \
           ${lib.escapeShellArgs ghcFlags} \
-          ${moduleToPath mainModule} \
+          ${module-to-path mainModule} \
           -o plugin.wasm
 
         # Optionally optimize with wasm-opt
@@ -140,7 +140,7 @@ let
   # ──────────────────────────────────────────────────────────────────────────
   # The compiled typed package definitions. Internal implementation detail.
   #
-  alephWasm = buildWasmPlugin {
+  aleph-wasm = build-wasm-plugin {
     name = "aleph";
     src = ../../src/tools/scripts;
     # Use Main module to get proper GHC RTS initialization in reactor mode
@@ -208,27 +208,27 @@ let
   # This is the interpreter that makes typed phases work. Each Action variant
   # becomes a safe, properly-quoted shell command. No string interpolation bugs.
   #
-  actionToShell =
+  action-to-shell =
     action:
     if action.action == "writeFile" then
       # WriteFile path content → write content to $out/path
       # Use writeText to avoid heredocs entirely
       let
-        contentHash = builtins.hashString "sha256" action.content;
-        contentFile = writeText "wasm-content-${builtins.substring 0 8 contentHash}" action.content;
+        content-hash = builtins.hashString "sha256" action.content;
+        content-file = writeText "wasm-content-${builtins.substring 0 8 content-hash}" action.content;
       in
       ''
         mkdir -p "$out/$(dirname '${action.path}')"
-        cp ${contentFile} "$out/${action.path}"
+        cp ${content-file} "$out/${action.path}"
       ''
     else if action.action == "install" then
       # Install mode src dst → install -m<mode> src $out/dst
       let
-        modeStr = toString action.mode;
+        mode-str = toString action.mode;
       in
       ''
         mkdir -p "$out/$(dirname '${action.dst}')"
-        install -m${modeStr} '${action.src}' "$out/${action.dst}"
+        install -m${mode-str} '${action.src}' "$out/${action.dst}"
       ''
     else if action.action == "mkdir" then
       # Mkdir path → mkdir -p $out/path
@@ -261,34 +261,34 @@ let
       # PatchElfRpath path rpaths → set rpath on binary
       # Paths are relative to $out unless they start with /
       let
-        resolveRpath = p: if lib.hasPrefix "/" p then p else "$out/${p}";
-        rpathStr = lib.concatMapStringsSep ":" resolveRpath action.rpaths;
+        resolve-rpath = p: if lib.hasPrefix "/" p then p else "$out/${p}";
+        rpath-str = lib.concatMapStringsSep ":" resolve-rpath action.rpaths;
       in
       ''
-        patchelf --set-rpath '${rpathStr}' "$out/${action.path}"
+        patchelf --set-rpath '${rpath-str}' "$out/${action.path}"
       ''
     else if action.action == "patchelfAddRpath" then
       # PatchElfAddRpath path rpaths → add to rpath
       let
-        rpathStr = lib.concatStringsSep ":" action.rpaths;
+        rpath-str = lib.concatStringsSep ":" action.rpaths;
       in
       ''
-        patchelf --add-rpath '${rpathStr}' "$out/${action.path}"
+        patchelf --add-rpath '${rpath-str}' "$out/${action.path}"
       ''
     else if action.action == "substitute" then
       # Substitute file replacements → substituteInPlace with typed pairs
       let
-        replaceArgs = lib.concatMapStringsSep " " (
+        replace-args = lib.concatMapStringsSep " " (
           r: "--replace-fail ${lib.escapeShellArg r.from} ${lib.escapeShellArg r.to}"
         ) action.replacements;
       in
       ''
-        substituteInPlace '${action.file}' ${replaceArgs}
+        substituteInPlace '${action.file}' ${replace-args}
       ''
     else if action.action == "wrap" then
       # Wrap program wrapActions → wrapProgram with typed actions
       let
-        wrapArg =
+        wrap-arg =
           wa:
           if wa.type == "prefix" then
             "--prefix ${wa.var} : ${lib.escapeShellArg wa.value}"
@@ -304,45 +304,45 @@ let
             "--add-flags ${lib.escapeShellArg wa.flags}"
           else
             throw "Unknown wrap action type: ${wa.type}";
-        wrapArgs = lib.concatMapStringsSep " " wrapArg action.wrapActions;
+        wrap-args = lib.concatMapStringsSep " " wrap-arg action.wrapActions;
       in
       ''
-        wrapProgram "$out/${action.program}" ${wrapArgs}
+        wrapProgram "$out/${action.program}" ${wrap-args}
       ''
     else if action.action == "run" then
       # Run cmd args → escape hatch, run arbitrary command
       # Don't escape args that look like shell variables ($foo)
       let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
+        escape-arg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
       in
       ''
-        ${action.cmd} ${lib.concatMapStringsSep " " escapeArg action.args}
+        ${action.cmd} ${lib.concatMapStringsSep " " escape-arg action.args}
       ''
     else if action.action == "toolRun" then
       # ToolRun pkg args → typed tool invocation
-      # The tool is automatically added to nativeBuildInputs by extractToolDeps
+      # The tool is automatically added to nativeBuildInputs by extract-tool-deps
       let
-        escapeArg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
+        escape-arg = arg: if lib.hasPrefix "$" arg then arg else lib.escapeShellArg arg;
       in
       ''
-        ${action.pkg} ${lib.concatMapStringsSep " " escapeArg action.args}
+        ${action.pkg} ${lib.concatMapStringsSep " " escape-arg action.args}
       ''
     else
       throw "Unknown action type: ${action.action}";
 
   # Convert a list of actions to a shell script
-  actionsToShell = actions: lib.concatMapStringsSep "\n" actionToShell actions;
+  actions-to-shell = actions: lib.concatMapStringsSep "\n" action-to-shell actions;
 
   # ──────────────────────────────────────────────────────────────────────────
   #                        // build-from-spec //
   # ──────────────────────────────────────────────────────────────────────────
   # Convert a package spec (attrset from WASM) to an actual derivation.
   #
-  buildFromSpec =
+  build-from-spec =
     {
       spec,
       pkgs,
-      stdenvFn ? pkgs.stdenv.mkDerivation,
+      stdenv-fn ? pkgs.stdenv.mkDerivation,
     }:
     let
       # Resolve source
@@ -367,17 +367,17 @@ let
           throw "Unknown source type: ${spec.src.type}";
 
       # Resolve dependencies by name (supports dotted paths like "stdenv.cc.cc.lib")
-      resolveDep =
+      resolve-dep =
         name:
         let
           parts = lib.splitString "." name;
           resolved = lib.foldl' (acc: part: acc.${part} or null) pkgs parts;
         in
         if resolved != null then resolved else throw "Unknown package: ${name}";
-      resolveDeps = names: map resolveDep names;
+      resolve-deps = names: map resolve-dep names;
 
       # Extract tool dependencies from typed actions (ToolRun)
-      extractToolDeps =
+      extract-tool-deps =
         actions:
         lib.unique (
           lib.concatMap (action: if action.action or "" == "toolRun" then [ action.pkg ] else [ ]) actions
@@ -385,24 +385,24 @@ let
 
       # Collect all tool deps from all phases
       phases' = spec.phases or { };
-      allActions =
+      all-actions =
         (phases'.postPatch or [ ])
         ++ (phases'.preConfigure or [ ])
         ++ (phases'.installPhase or [ ])
         ++ (phases'.postInstall or [ ])
         ++ (phases'.postFixup or [ ]);
-      toolDeps = extractToolDeps allActions;
+      tool-deps = extract-tool-deps all-actions;
 
       deps = spec.deps or { };
-      nativeBuildInputs = resolveDeps ((deps.nativeBuildInputs or [ ]) ++ toolDeps);
-      buildInputs = resolveDeps (deps.buildInputs or [ ]);
-      propagatedBuildInputs = resolveDeps (deps.propagatedBuildInputs or [ ]);
-      checkInputs = resolveDeps (deps.checkInputs or [ ]);
+      nativeBuildInputs = resolve-deps ((deps.nativeBuildInputs or [ ]) ++ tool-deps);
+      buildInputs = resolve-deps (deps.buildInputs or [ ]);
+      propagatedBuildInputs = resolve-deps (deps.propagatedBuildInputs or [ ]);
+      checkInputs = resolve-deps (deps.checkInputs or [ ]);
 
       # Build phase based on builder type
       builder = spec.builder or { type = "none"; };
 
-      builderAttrs =
+      builder-attrs =
         if builder.type == "cmake" then
           {
             nativeBuildInputs = nativeBuildInputs ++ [ pkgs.cmake ];
@@ -439,38 +439,38 @@ let
           postFixup = [ ];
         };
 
-      phaseAttrs =
+      phase-attrs =
         { }
         // (
-          if (phases.postPatch or [ ]) != [ ] then { postPatch = actionsToShell phases.postPatch; } else { }
+          if (phases.postPatch or [ ]) != [ ] then { postPatch = actions-to-shell phases.postPatch; } else { }
         )
         // (
           if (phases.preConfigure or [ ]) != [ ] then
-            { preConfigure = actionsToShell phases.preConfigure; }
+            { preConfigure = actions-to-shell phases.preConfigure; }
           else
             { }
         )
         // (
           if (phases.installPhase or [ ]) != [ ] then
-            { installPhase = actionsToShell phases.installPhase; }
+            { installPhase = actions-to-shell phases.installPhase; }
           else
             { }
         )
         // (
           if (phases.postInstall or [ ]) != [ ] then
-            { postInstall = actionsToShell phases.postInstall; }
+            { postInstall = actions-to-shell phases.postInstall; }
           else
             { }
         )
         // (
-          if (phases.postFixup or [ ]) != [ ] then { postFixup = actionsToShell phases.postFixup; } else { }
+          if (phases.postFixup or [ ]) != [ ] then { postFixup = actions-to-shell phases.postFixup; } else { }
         );
 
       # Environment variables
       env = spec.env or { };
 
     in
-    stdenvFn (
+    stdenv-fn (
       {
         inherit (spec) pname;
         inherit (spec) version;
@@ -480,7 +480,7 @@ let
           propagatedBuildInputs
           checkInputs
           ;
-        nativeBuildInputs = builderAttrs.nativeBuildInputs or nativeBuildInputs;
+        nativeBuildInputs = builder-attrs.nativeBuildInputs or nativeBuildInputs;
 
         strictDeps = spec.strictDeps or true;
         doCheck = spec.doCheck or false;
@@ -494,8 +494,8 @@ let
           mainProgram = spec.meta.mainProgram or null;
         };
       }
-      // builderAttrs
-      // phaseAttrs
+      // builder-attrs
+      // phase-attrs
       // env
     );
 
@@ -512,15 +512,15 @@ let
   #
   # FEATURE REQUIREMENT: builtins.wasm (straylight-nix)
   #
-  loadWasmPackages =
+  load-wasm-packages =
     {
-      wasmFile,
+      wasm-file,
       pkgs,
-      stdenvFn ? pkgs.stdenv.mkDerivation,
+      stdenv-fn ? pkgs.stdenv.mkDerivation,
     }:
     let
       # Check for WASM support at call time with a clear error message
-      requireWasm =
+      require-wasm =
         if features.can-load then
           true
         else
@@ -562,19 +562,19 @@ let
       # Returns: derivation
       call =
         name: args:
-        assert requireWasm;
+        assert require-wasm;
         let
           # builtins.wasm wasmPath functionName arg
           # Returns the Nix value from the WASM function
-          spec = builtins.wasm wasmFile name args;
+          spec = builtins.wasm wasm-file name args;
         in
-        buildFromSpec { inherit spec pkgs stdenvFn; };
+        build-from-spec { inherit spec pkgs stdenv-fn; };
 
       # Get raw spec without building (for debugging)
       spec =
         name: args:
-        assert requireWasm;
-        builtins.wasm wasmFile name args;
+        assert require-wasm;
+        builtins.wasm wasm-file name args;
     };
 
 in
@@ -584,18 +584,18 @@ in
     features
 
     # WASM plugin building (requires ghc-wasm-meta)
-    buildWasmPlugin
+    build-wasm-plugin
 
     # The compiled aleph WASM module (internal)
-    alephWasm
+    aleph-wasm
 
     # WASM plugin loading (requires straylight-nix with builtins.wasm)
-    buildFromSpec
-    loadWasmPackages
+    build-from-spec
+    load-wasm-packages
 
     # Action interpreter - use this to interpret typed phases from any source
-    actionToShell
-    actionsToShell
+    action-to-shell
+    actions-to-shell
     ;
 
   # NOTE: The aleph interface (aleph.eval, aleph.import) is in ./aleph.nix

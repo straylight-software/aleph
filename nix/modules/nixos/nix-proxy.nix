@@ -40,13 +40,13 @@ let
   cfg = config.services.nix-proxy;
 
   # mitmproxy addon script for caching/logging
-  proxyAddon = ./scripts/nix-proxy-addon.py;
+  proxy-addon = ./scripts/nix-proxy-addon.py;
 
   # Proxy URL used throughout
-  proxyUrl = "http://${cfg.listenAddress}:${toString cfg.port}";
+  proxy-url = "http://${cfg.listenAddress}:${toString cfg.port}";
 
   # Wrapper script to start mitmproxy with our addon
-  proxyScript = pkgs.writeShellApplication {
+  proxy-script = pkgs.writeShellApplication {
     name = "nix-proxy";
     runtimeInputs = [ pkgs.mitmproxy ];
     runtimeEnv = {
@@ -59,7 +59,7 @@ let
         --listen-host ${cfg.listenAddress} \
         --listen-port ${toString cfg.port} \
         --set confdir=${cfg.certDir} \
-        --scripts ${proxyAddon} \
+        --scripts ${proxy-addon} \
         ${lib.optionalString cfg.quiet "--quiet"} \
         "$@"
     '';
@@ -165,10 +165,10 @@ in
       # Inject proxy environment into builds
       # This is what actually makes builds use the proxy
       impure-env = [
-        "http_proxy=${proxyUrl}"
-        "https_proxy=${proxyUrl}"
-        "HTTP_PROXY=${proxyUrl}"
-        "HTTPS_PROXY=${proxyUrl}"
+        "http_proxy=${proxy-url}"
+        "https_proxy=${proxy-url}"
+        "HTTP_PROXY=${proxy-url}"
+        "HTTPS_PROXY=${proxy-url}"
         "SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
         "NIX_SSL_CERT_FILE=${cfg.certDir}/mitmproxy-ca-cert.pem"
         "CURL_CA_BUNDLE=${cfg.certDir}/mitmproxy-ca-cert.pem"
@@ -212,7 +212,7 @@ in
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = lib.getExe proxyScript;
+        ExecStart = lib.getExe proxy-script;
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -264,10 +264,10 @@ in
     # For evaluation-time fetches, the daemon's environment is used.
     # This only affects nix-daemon, not other programs on the system.
     systemd.services.nix-daemon.environment = {
-      http_proxy = proxyUrl;
-      https_proxy = proxyUrl;
-      HTTP_PROXY = proxyUrl;
-      HTTPS_PROXY = proxyUrl;
+      http_proxy = proxy-url;
+      https_proxy = proxy-url;
+      HTTP_PROXY = proxy-url;
+      HTTPS_PROXY = proxy-url;
       SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       NIX_SSL_CERT_FILE = "${cfg.certDir}/mitmproxy-ca-cert.pem";
       # mkForce needed to override the default set by nix-daemon.nix

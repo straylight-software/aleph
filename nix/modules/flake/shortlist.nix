@@ -71,7 +71,7 @@ in
           default = "";
           description = "Buck2 config section for shortlist paths";
         };
-        shortlistFile = lib.mkOption {
+        shortlist-file = lib.mkOption {
           type = lib.types.package;
           description = "Derivation containing the shortlist buckconfig section";
         };
@@ -140,7 +140,7 @@ in
 
         # Generate buckconfig section
         # Note: Use -dev outputs for include paths, regular for libs
-        buckconfigSection = ''
+        buckconfig-section = ''
 
           [shortlist]
           # Hermetic C++ libraries
@@ -160,14 +160,14 @@ in
         '';
 
         # Shortlist section as a file in the store
-        shortlistFile = pkgs.writeText "shortlist-section" buckconfigSection;
+        shortlist-file = pkgs.writeText "shortlist-section" buckconfig-section;
 
         # Shell hook to add shortlist section to .buckconfig.local
-        shortlistShellHook = ''
+        shortlist-shell-hook = ''
           # Add shortlist section to .buckconfig.local
           if [ -f ".buckconfig.local" ]; then
             if ! grep -q "\\[shortlist\\]" .buckconfig.local 2>/dev/null; then
-              cat ${shortlistFile} >> .buckconfig.local
+              cat ${shortlist-file} >> .buckconfig.local
               echo "Added [shortlist] section to .buckconfig.local"
             fi
           fi
@@ -177,9 +177,9 @@ in
       {
         straylight.shortlist = {
           inherit libraries;
-          buckconfig = buckconfigSection;
-          shortlistFile = shortlistFile;
-          shellHook = shortlistShellHook;
+          buckconfig = buckconfig-section;
+          shortlist-file = shortlist-file;
+          shellHook = shortlist-shell-hook;
         };
       };
   };

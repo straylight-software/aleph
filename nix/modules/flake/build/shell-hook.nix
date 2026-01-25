@@ -12,21 +12,21 @@
 }:
 let
   inherit (pkgs.stdenv) isLinux;
-  scriptsDir = ./scripts;
+  scripts-dir = ./scripts;
 
   # Buck2 prelude source (requires inputs.buck2-prelude if cfg.prelude.path not set)
-  preludeSrc = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude;
+  prelude-src = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude;
 
   # Toolchains source (from this flake)
-  toolchainsSrc = inputs.self + "/toolchains";
+  toolchains-src = inputs.self + "/toolchains";
 
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
       # Convert vars attrset to env var exports
       # Dhall expects UPPER_SNAKE_CASE env vars
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -35,38 +35,38 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
       '';
 
   # Prelude and toolchains linking
-  preludeHook =
+  prelude-hook =
     if isLinux && cfg.prelude.enable then
-      renderDhall "shell-hook-prelude.bash" (scriptsDir + "/shell-hook-prelude.dhall") {
-        prelude_src = preludeSrc;
-        toolchains_src = toolchainsSrc;
+      render-dhall "shell-hook-prelude.bash" (scripts-dir + "/shell-hook-prelude.dhall") {
+        prelude_src = prelude-src;
+        toolchains_src = toolchains-src;
       }
     else
       null;
 
   # .buckconfig generation (main file, if enabled)
-  buckconfigMainHook =
+  buckconfig-main-hook =
     if isLinux && cfg.generate-buckconfig-main then
       let
-        buckconfigMainIni = pkgs.writeText "buckconfig-main.ini" (
-          builtins.readFile (scriptsDir + "/buckconfig-main.ini")
+        buckconfig-main-ini = pkgs.writeText "buckconfig-main.ini" (
+          builtins.readFile (scripts-dir + "/buckconfig-main.ini")
         );
       in
-      renderDhall "shell-hook-buckconfig-main.bash" (scriptsDir + "/shell-hook-buckconfig-main.dhall") {
-        buckconfig_main_ini = buckconfigMainIni;
+      render-dhall "shell-hook-buckconfig-main.bash" (scripts-dir + "/shell-hook-buckconfig-main.dhall") {
+        buckconfig_main_ini = buckconfig-main-ini;
       }
     else
       null;
 
   # .buckconfig.local generation
-  buckconfigLocalHook =
+  buckconfig-local-hook =
     if isLinux && cfg.generate-buckconfig then
       pkgs.writeText "buckconfig-local-hook.bash" ''
         # Generate .buckconfig.local with Nix store paths
@@ -79,34 +79,34 @@ let
       null;
 
   # Haskell wrappers
-  haskellWrappersHook =
+  haskell-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.haskell.enable then
-      renderDhall "haskell-wrappers.bash" (scriptsDir + "/haskell-wrappers.dhall") {
-        scripts_dir = scriptsDir;
+      render-dhall "haskell-wrappers.bash" (scripts-dir + "/haskell-wrappers.dhall") {
+        scripts_dir = scripts-dir;
       }
     else
       null;
 
   # Lean wrappers
-  leanWrappersHook =
+  lean-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.lean.enable then
-      renderDhall "lean-wrappers.bash" (scriptsDir + "/lean-wrappers.dhall") {
-        scripts_dir = scriptsDir;
+      render-dhall "lean-wrappers.bash" (scripts-dir + "/lean-wrappers.dhall") {
+        scripts_dir = scripts-dir;
       }
     else
       null;
 
   # C++ wrappers
-  cxxWrappersHook =
+  cxx-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.cxx.enable then
-      renderDhall "cxx-wrappers.bash" (scriptsDir + "/cxx-wrappers.dhall") {
-        scripts_dir = scriptsDir;
+      render-dhall "cxx-wrappers.bash" (scripts-dir + "/cxx-wrappers.dhall") {
+        scripts_dir = scripts-dir;
       }
     else
       null;
 
   # Auto-generate compile_commands.json
-  compdbAutoHook =
+  compdb-auto-hook =
     if isLinux && cfg.toolchain.cxx.enable && cfg.compdb.enable && cfg.compdb.auto-generate then
       let
         targets = lib.concatStringsSep " " cfg.compdb.targets;
@@ -127,35 +127,35 @@ let
 
   # Combine all hooks into a single script
   # Order matters: wrappers must be created before buckconfig.local references them
-  allHooks = lib.filter (x: x != null) [
-    preludeHook
-    buckconfigMainHook
+  all-hooks = lib.filter (x: x != null) [
+    prelude-hook
+    buckconfig-main-hook
     # Wrappers BEFORE buckconfig.local (buckconfig references bin/ghc wrapper)
-    haskellWrappersHook
-    leanWrappersHook
-    cxxWrappersHook
+    haskell-wrappers-hook
+    lean-wrappers-hook
+    cxx-wrappers-hook
     # buckconfig.local AFTER wrappers
-    buckconfigLocalHook
-    compdbAutoHook
+    buckconfig-local-hook
+    compdb-auto-hook
   ];
 
   # Generate combined shell hook
-  shellHook =
-    if allHooks == [ ] then
+  shell-hook =
+    if all-hooks == [ ] then
       ""
     else
       let
-        combinedHook = pkgs.runCommand "aleph-build-shell-hook.bash" { } ''
+        combined-hook = pkgs.runCommand "aleph-build-shell-hook.bash" { } ''
           echo "# aleph.build shell hook" > $out
           echo "mkdir -p bin" >> $out
-          ${lib.concatMapStringsSep "\n" (hook: "cat ${hook} >> $out") allHooks}
+          ${lib.concatMapStringsSep "\n" (hook: "cat ${hook} >> $out") all-hooks}
           echo 'echo "Generated bin/ wrappers for Buck2 toolchains"' >> $out
         '';
       in
       ''
-        source ${combinedHook}
+        source ${combined-hook}
       '';
 in
 {
-  inherit shellHook;
+  shellHook = shell-hook;
 }

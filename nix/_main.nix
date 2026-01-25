@@ -7,9 +7,9 @@
 { inputs, lib, ... }:
 let
   # Import module indices by kind
-  flakeModules = import ./modules/flake/_index.nix { inherit inputs lib; };
-  nixosModules = import ./modules/nixos/_index.nix;
-  homeModules = import ./modules/home/_index.nix;
+  flake-modules = import ./modules/flake/_index.nix { inherit inputs lib; };
+  nixos-modules = import ./modules/nixos/_index.nix;
+  home-modules = import ./modules/home/_index.nix;
 in
 {
   _class = "flake";
@@ -25,7 +25,7 @@ in
 
   flake.modules = {
     flake = {
-      inherit (flakeModules)
+      inherit (flake-modules)
         build
         buck2
         build-standalone
@@ -51,9 +51,9 @@ in
         ;
     };
 
-    nixos = nixosModules;
+    nixos = nixos-modules;
 
-    home = homeModules;
+    home = home-modules;
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -117,22 +117,22 @@ in
   # ════════════════════════════════════════════════════════════════════════════
 
   imports = [
-    flakeModules.formatter
-    flakeModules.lint
-    flakeModules.docs
-    flakeModules.std
-    flakeModules.devshell
-    flakeModules.prelude
-    flakeModules.prelude-demos
-    flakeModules.container
-    flakeModules.build
-    flakeModules.buck2
-    flakeModules.shortlist
-    flakeModules.lre
+    flake-modules.formatter
+    flake-modules.lint
+    flake-modules.docs
+    flake-modules.std
+    flake-modules.devshell
+    flake-modules.prelude
+    flake-modules.prelude-demos
+    flake-modules.container
+    flake-modules.build
+    flake-modules.buck2
+    flake-modules.shortlist
+    flake-modules.lre
     # nix2gpu.flakeModule must be imported before nativelink module
     # (provides perSystem.nix2gpu options)
     inputs.nix2gpu.flakeModule
-    flakeModules.nativelink
+    flake-modules.nativelink
   ];
 
   # Enable shortlist, LRE, and NativeLink containers for aleph itself
@@ -189,35 +189,35 @@ in
       call-package =
         path: args:
         let
-          pathStr = toString path;
-          ext = lib.last (lib.splitString "." pathStr);
-          alephModules = ../src/tools/scripts;
+          path-str = toString path;
+          ext = lib.last (lib.splitString "." path-str);
+          aleph-modules = ../src/tools/scripts;
 
           # Check for pre-built WASM file (avoids IFD)
-          baseName = lib.removeSuffix ".hs" (baseNameOf pathStr);
-          prebuiltWasm = ./packages + "/${baseName}.wasm";
-          hasPrebuiltWasm = builtins.pathExists prebuiltWasm;
+          base-name = lib.removeSuffix ".hs" (baseNameOf path-str);
+          prebuilt-wasm = ./packages + "/${base-name}.wasm";
+          has-prebuilt-wasm = builtins.pathExists prebuilt-wasm;
 
           # Generated Main.hs that wraps the user's package module
-          wrapperMain = ./build/templates/wasm-main.hs;
+          wrapper-main = ./build/templates/wasm-main.hs;
 
           # Build single-file Haskell to WASM
-          buildHsWasm =
-            hsPath:
+          build-hs-wasm =
+            hs-path:
             let
-              name = lib.removeSuffix ".hs" (baseNameOf (toString hsPath));
+              name = lib.removeSuffix ".hs" (baseNameOf (toString hs-path));
             in
             pkgs.runCommand "${name}.wasm"
               {
-                src = hsPath;
+                src = hs-path;
                 nativeBuildInputs = [ ghc-wasm ];
               }
               ''
                 mkdir -p build && cd build
-                cp -r ${alephModules}/Aleph Aleph
+                cp -r ${aleph-modules}/Aleph Aleph
                 chmod -R u+w Aleph
                 cp $src Pkg.hs
-                cp ${wrapperMain} Main.hs
+                cp ${wrapper-main} Main.hs
                 wasm32-wasi-ghc \
                   -optl-mexec-model=reactor \
                   -optl-Wl,--allow-undefined \
@@ -232,25 +232,25 @@ in
           if !(builtins ? wasm) then
             throw "call-package for .hs files requires straylight-nix with builtins.wasm"
           # Use pre-built WASM if available (no IFD)
-          else if hasPrebuiltWasm then
-            wasm-infra.buildFromSpec {
-              spec = builtins.wasm prebuiltWasm "pkg" args;
+          else if has-prebuilt-wasm then
+            wasm-infra.build-from-spec {
+              spec = builtins.wasm prebuilt-wasm "pkg" args;
               inherit pkgs;
             }
           # Fall back to building at eval time (causes IFD warning)
           else if ghc-wasm == null then
-            throw "call-package for .hs files requires ghc-wasm-meta input (or pre-built ${baseName}.wasm)"
+            throw "call-package for .hs files requires ghc-wasm-meta input (or pre-built ${base-name}.wasm)"
           else
             let
-              wasmDrv = buildHsWasm path;
-              spec = builtins.wasm wasmDrv "pkg" args;
+              wasm-drv = build-hs-wasm path;
+              spec = builtins.wasm wasm-drv "pkg" args;
             in
-            wasm-infra.buildFromSpec { inherit spec pkgs; }
+            wasm-infra.build-from-spec { inherit spec pkgs; }
         else if ext == "wasm" then
           if !(builtins ? wasm) then
             throw "call-package for .wasm files requires straylight-nix"
           else
-            wasm-infra.buildFromSpec {
+            wasm-infra.build-from-spec {
               spec = builtins.wasm path "pkg" args;
               inherit pkgs;
             }
@@ -266,7 +266,7 @@ in
       # Only available when using straylight-nix (builtins.wasm).
       #
       # List of all .hs package files (used for both building and pre-building WASM)
-      hsPackageFiles = [
+      hs-package-files = [
         "test-hello"
         "test-zlib-ng"
         "test-tool-deps"
@@ -287,24 +287,24 @@ in
       ];
 
       # Build WASM from a single .hs file (for pre-building)
-      buildHsWasmStandalone =
+      build-hs-wasm-standalone =
         name:
         let
-          hsPath = ./packages + "/${name}.hs";
-          wrapperMain = ./build/templates/wasm-main.hs;
-          alephModules = ../src/tools/scripts;
+          hs-path = ./packages + "/${name}.hs";
+          wrapper-main = ./build/templates/wasm-main.hs;
+          aleph-modules = ../src/tools/scripts;
         in
         pkgs.runCommand "${name}.wasm"
           {
-            src = hsPath;
+            src = hs-path;
             nativeBuildInputs = [ ghc-wasm ];
           }
           ''
             mkdir -p build && cd build
-            cp -r ${alephModules}/Aleph Aleph
+            cp -r ${aleph-modules}/Aleph Aleph
             chmod -R u+w Aleph
             cp $src Pkg.hs
-            cp ${wrapperMain} Main.hs
+            cp ${wrapper-main} Main.hs
             wasm32-wasi-ghc \
               -optl-mexec-model=reactor \
               -optl-Wl,--allow-undefined \
@@ -316,21 +316,21 @@ in
           '';
 
       # All WASM files bundled together (for easy copying to repo)
-      wasmPackagesBundle = lib.optionalAttrs (ghc-wasm != null) {
+      wasm-packages-bundle = lib.optionalAttrs (ghc-wasm != null) {
         wasm-packages = pkgs.runCommand "wasm-packages" { } ''
           mkdir -p $out
           ${lib.concatMapStringsSep "\n" (name: ''
-            cp ${buildHsWasmStandalone name} $out/${name}.wasm
-          '') hsPackageFiles}
+            cp ${build-hs-wasm-standalone name} $out/${name}.wasm
+          '') hs-package-files}
         '';
       };
 
-      typedPackages = lib.optionalAttrs (builtins ? wasm) (
+      typed-packages = lib.optionalAttrs (builtins ? wasm) (
         lib.listToAttrs (
           map (name: {
             inherit name;
             value = call-package (./packages + "/${name}.hs") { };
-          }) hsPackageFiles
+          }) hs-package-files
         )
       );
 
@@ -373,8 +373,8 @@ in
       // lib.optionalAttrs (nativelink != null) {
         inherit nativelink;
       }
-      // wasmPackagesBundle
-      // typedPackages;
+      // wasm-packages-bundle
+      // typed-packages;
 
       checks = import ./checks/default.nix { inherit pkgs system lib; };
 
@@ -430,6 +430,6 @@ in
     theme = "ono-sendai";
 
     # Document all aleph-naught modules
-    modules = [ flakeModules.options-only ];
+    modules = [ flake-modules.options-only ];
   };
 }

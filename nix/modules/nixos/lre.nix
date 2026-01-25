@@ -50,7 +50,7 @@ let
   cfg = config.services.lre;
 
   # Scheduler configuration (CAS + AC + Scheduler + optional Worker API)
-  schedulerConfig = {
+  scheduler-config = {
     stores = [
       {
         name = "CAS_MAIN_STORE";
@@ -138,7 +138,7 @@ let
   };
 
   # Worker configuration
-  workerConfig = {
+  worker-config = {
     stores = [
       {
         name = "GRPC_LOCAL_STORE";
@@ -195,9 +195,11 @@ let
     servers = [ ];
   };
 
-  schedulerConfigFile = pkgs.writeText "nativelink-scheduler.json" (builtins.toJSON schedulerConfig);
+  scheduler-config-file = pkgs.writeText "nativelink-scheduler.json" (
+    builtins.toJSON scheduler-config
+  );
 
-  workerConfigFile = pkgs.writeText "nativelink-worker.json" (builtins.toJSON workerConfig);
+  worker-config-file = pkgs.writeText "nativelink-worker.json" (builtins.toJSON worker-config);
 
 in
 {
@@ -355,7 +357,7 @@ in
         Type = "simple";
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = "${cfg.package}/bin/nativelink ${schedulerConfigFile}";
+        ExecStart = "${cfg.package}/bin/nativelink ${scheduler-config-file}";
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -387,7 +389,7 @@ in
         Type = "simple";
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = "${cfg.package}/bin/nativelink ${workerConfigFile}";
+        ExecStart = "${cfg.package}/bin/nativelink ${worker-config-file}";
         Restart = "on-failure";
         RestartSec = "10s";
 

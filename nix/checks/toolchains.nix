@@ -21,10 +21,10 @@ let
   inherit (pkgs) runCommand lib;
 
   # Render Dhall template with environment variables
-  renderDhall =
+  render-dhall =
     name: src: vars:
     let
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -33,7 +33,7 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
@@ -42,13 +42,13 @@ let
   # ─────────────────────────────────────────────────────────────────────────
   # Helper: create a smoke test derivation
   # ─────────────────────────────────────────────────────────────────────────
-  mkSmokeTest =
+  mk-smoke-test =
     {
       name,
       description,
       nativeBuildInputs ? [ ],
       buildInputs ? [ ],
-      testScript,
+      test-script,
     }:
     runCommand "test-toolchain-${name}"
       {
@@ -63,7 +63,7 @@ let
         echo "║  ${description}"
         echo "╚════════════════════════════════════════════════════════════════╝"
         echo ""
-        ${testScript}
+        ${test-script}
         echo ""
         echo "✓ ${name} smoke test passed"
         touch $out
@@ -75,27 +75,27 @@ in
   # GHC Toolchain
   # ─────────────────────────────────────────────────────────────────────────
 
-  ghc-version = mkSmokeTest {
+  ghc-version = mk-smoke-test {
     name = "ghc-version";
     description = "GHC compiler reports version";
     nativeBuildInputs = [ prelude.ghc.pkg ];
-    testScript = builtins.readFile ./scripts/test-ghc-version.bash;
+    test-script = builtins.readFile ./scripts/test-ghc-version.bash;
   };
 
-  ghc-hello-world = mkSmokeTest {
+  ghc-hello-world = mk-smoke-test {
     name = "ghc-hello-world";
     description = "GHC can compile and run Hello World";
     nativeBuildInputs = [ prelude.ghc.pkg ];
-    testScript = ''
+    test-script = ''
       bash ${
-        renderDhall "test-ghc-hello.bash" ./scripts/test-ghc-hello.dhall {
+        render-dhall "test-ghc-hello.bash" ./scripts/test-ghc-hello.dhall {
           ghc_hello = ./test-sources/ghc-hello.hs;
         }
       }
     '';
   };
 
-  ghc-with-packages = mkSmokeTest {
+  ghc-with-packages = mk-smoke-test {
     name = "ghc-with-packages";
     description = "ghcWithPackages provides requested packages";
     nativeBuildInputs = [
@@ -106,9 +106,9 @@ in
         ]
       ))
     ];
-    testScript = ''
+    test-script = ''
       bash ${
-        renderDhall "test-ghc-packages.bash" ./scripts/test-ghc-packages.dhall {
+        render-dhall "test-ghc-packages.bash" ./scripts/test-ghc-packages.dhall {
           ghc_text = ./test-sources/ghc-text.hs;
         }
       }
@@ -119,24 +119,24 @@ in
   # Python Toolchain
   # ─────────────────────────────────────────────────────────────────────────
 
-  python-version = mkSmokeTest {
+  python-version = mk-smoke-test {
     name = "python-version";
     description = "Python interpreter reports version";
     nativeBuildInputs = [ prelude.python.pkg ];
-    testScript = builtins.readFile ./scripts/test-python-version.bash;
+    test-script = builtins.readFile ./scripts/test-python-version.bash;
   };
 
   # ─────────────────────────────────────────────────────────────────────────
   # Rust Toolchain
   # ─────────────────────────────────────────────────────────────────────────
 
-  rust-version = mkSmokeTest {
+  rust-version = mk-smoke-test {
     name = "rust-version";
     description = "Rust compiler reports version";
     nativeBuildInputs = [ prelude.rust.pkg ];
-    testScript = ''
+    test-script = ''
       bash ${
-        renderDhall "test-rust-hello.bash" ./scripts/test-rust-hello.dhall {
+        render-dhall "test-rust-hello.bash" ./scripts/test-rust-hello.dhall {
           rust_hello = ./test-sources/rust-hello.rs;
         }
       }
@@ -147,24 +147,24 @@ in
   # Lean Toolchain
   # ─────────────────────────────────────────────────────────────────────────
 
-  lean-version = mkSmokeTest {
+  lean-version = mk-smoke-test {
     name = "lean-version";
     description = "Lean prover reports version";
     nativeBuildInputs = [ prelude.lean.pkg ];
-    testScript = builtins.readFile ./scripts/test-lean-version.bash;
+    test-script = builtins.readFile ./scripts/test-lean-version.bash;
   };
 
   # ─────────────────────────────────────────────────────────────────────────
   # C++ Toolchain (via stdenv)
   # ─────────────────────────────────────────────────────────────────────────
 
-  cpp-hello-world = mkSmokeTest {
+  cpp-hello-world = mk-smoke-test {
     name = "cpp-hello-world";
     description = "C++ compiler can compile Hello World";
     nativeBuildInputs = [ pkgs.stdenv.cc ];
-    testScript = ''
+    test-script = ''
       bash ${
-        renderDhall "test-cpp-hello.bash" ./scripts/test-cpp-hello.dhall {
+        render-dhall "test-cpp-hello.bash" ./scripts/test-cpp-hello.dhall {
           cpp_hello = ./test-sources/cpp-hello.cpp;
         }
       }

@@ -12,13 +12,13 @@
 { inputs, lib }:
 let
   # Scripts directory
-  scriptsDir = ./scripts;
+  scripts-dir = ./scripts;
 
   # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
-  renderDhall =
+  render-dhall =
     pkgs: name: src: vars:
     let
-      envVars = lib.mapAttrs' (
+      env-vars = lib.mapAttrs' (
         k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
     in
@@ -27,19 +27,19 @@ let
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
-        // envVars
+        // env-vars
       )
       ''
         dhall text --file ${src} > $out
       '';
 
   # Generate .buckconfig.local file using Dhall templates
-  mkBuckconfigFile =
+  mk-buckconfig-file =
     pkgs:
     let
       llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
     in
-    renderDhall pkgs "buckconfig-local" (scriptsDir + "/buckconfig.dhall") {
+    render-dhall pkgs "buckconfig-local" (scripts-dir + "/buckconfig.dhall") {
       cc = "${llvm.clang}/bin/clang";
       cxx = "${llvm.clang}/bin/clang++";
       cpp = "${llvm.clang}/bin/clang-cpp";
@@ -73,10 +73,10 @@ let
     };
 
   # For backwards compatibility: generate buckconfig content string
-  mkBuckconfig = pkgs: builtins.readFile (mkBuckconfigFile pkgs);
+  mk-buckconfig = pkgs: builtins.readFile (mk-buckconfig-file pkgs);
 
   # Build packages needed for Buck2
-  mkPackages =
+  mk-packages =
     pkgs:
     let
       llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
@@ -117,36 +117,38 @@ in
     }:
     let
       # Convert //foo/bar:baz to foo-bar-baz for derivation name
-      rawName = builtins.replaceStrings [ "//" "/" ":" ] [ "" "-" "-" ] target;
-      cleanName = lib.removePrefix "-" (lib.removeSuffix "-" rawName);
-      targetName =
+      raw-name = builtins.replaceStrings [ "//" "/" ":" ] [ "" "-" "-" ] target;
+      clean-name = lib.removePrefix "-" (lib.removeSuffix "-" raw-name);
+      target-name =
         if name != null then
           name
-        else if cleanName == "" then
+        else if clean-name == "" then
           "buck2-target"
         else
-          cleanName;
+          clean-name;
 
       # Get prelude
       prelude = inputs.buck2-prelude or (throw "aleph.lib.buck2.build requires inputs.buck2-prelude");
 
-      buckconfigFile = mkBuckconfigFile pkgs;
-      packages = mkPackages pkgs;
-      outputName = if output != null then output else targetName;
+      buckconfig-file = mk-buckconfig-file pkgs;
+      packages = mk-packages pkgs;
+      output-name = if output != null then output else target-name;
     in
     pkgs.stdenv.mkDerivation {
-      name = targetName;
+      name = target-name;
       inherit src;
 
       nativeBuildInputs = packages;
 
       # Environment variables for scripts
-      inherit buckconfigFile prelude outputName;
+      buckconfigFile = buckconfig-file;
+      inherit prelude;
+      outputName = output-name;
       buck2Target = target;
 
-      configurePhase = builtins.readFile (scriptsDir + "/buck2-configure.bash");
-      buildPhase = builtins.readFile (scriptsDir + "/buck2-build.bash");
-      installPhase = builtins.readFile (scriptsDir + "/buck2-install.bash");
+      configurePhase = builtins.readFile (scripts-dir + "/buck2-configure.bash");
+      buildPhase = builtins.readFile (scripts-dir + "/buck2-build.bash");
+      installPhase = builtins.readFile (scripts-dir + "/buck2-install.bash");
 
       meta = {
         description = "Buck2 target ${target} built as Nix derivation";
@@ -154,11 +156,11 @@ in
     };
 
   # Get the buckconfig file for inspection/debugging
-  buckconfigFile = mkBuckconfigFile;
+  buckconfigFile = mk-buckconfig-file;
 
   # Get the buckconfig content for inspection/debugging (backwards compat)
-  buckconfig = mkBuckconfig;
+  buckconfig = mk-buckconfig;
 
   # Get the build packages list
-  packages = mkPackages;
+  packages = mk-packages;
 }

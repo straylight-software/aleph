@@ -156,7 +156,7 @@ rec {
       true
     else
       let
-        featureInfo =
+        feature-info =
           info.${feature} or {
             name = feature;
             description = "Unknown feature";
@@ -165,11 +165,11 @@ rec {
           };
       in
       throw ''
-        Feature '${featureInfo.name}' is not available.
+        Feature '${feature-info.name}' is not available.
 
-        Description: ${featureInfo.description}
-        Requires: ${featureInfo.requires}
-        ${lib.optionalString (featureInfo.docs != "") "See: ${featureInfo.docs}"}
+        Description: ${feature-info.description}
+        Requires: ${feature-info.requires}
+        ${lib.optionalString (feature-info.docs != "") "See: ${feature-info.docs}"}
       '';
 
   /**
@@ -354,15 +354,15 @@ rec {
   */
   diagnostic =
     let
-      formatFeature =
+      format-feature =
         name: avail:
         let
           status = if avail then "[+]" else "[-]";
-          featureInfo = info.${name} or { inherit name; };
+          feature-info = info.${name} or { inherit name; };
         in
-        "${status} ${featureInfo.name}";
+        "${status} ${feature-info.name}";
 
-      lines = lib.mapAttrsToList formatFeature available;
+      lines = lib.mapAttrsToList format-feature available;
     in
     lib.concatStringsSep "\n" ([ "Feature Availability:" ] ++ lines);
 }

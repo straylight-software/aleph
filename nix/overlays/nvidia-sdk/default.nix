@@ -4,7 +4,7 @@
 # Extraction logic is in Aleph.Script.Nvidia.Container (Haskell).
 #
 # Architecture:
-#   1. containerToNix: FOD that pulls container image (cached, network access)
+#   1. container-to-nix: FOD that pulls container image (cached, network access)
 #   2. packages.nix: Uses nvidia-sdk Haskell script to extract from rootfs
 #
 # Usage:
@@ -18,16 +18,16 @@ let
   inherit (prev.stdenv.hostPlatform) system;
 
   # ════════════════════════════════════════════════════════════════════════════
-  # containerToNix: Fixed-output derivation for container pulling
+  # container-to-nix: Fixed-output derivation for container pulling
   # ════════════════════════════════════════════════════════════════════════════
   #
   # This is a FOD - Nix allows network access and verifies the hash.
   # The output is the unpacked container rootfs.
 
-  containerToNix =
+  container-to-nix =
     {
       name,
-      imageRef,
+      image-ref,
       hash,
     }:
     stdenvNoCC.mkDerivation {
@@ -49,7 +49,7 @@ let
 
       buildCommand = ''
         mkdir -p $out
-        crane export ${imageRef} - | tar -xf - -C $out
+        crane export ${image-ref} - | tar -xf - -C $out
       '';
 
       meta = {
@@ -88,35 +88,35 @@ let
   };
 
   # Container info for current system
-  hasTritonInfo = containers.tritonserver ? ${system};
-  hasCudaInfo = containers.cuda-devel ? ${system};
+  has-triton-info = containers.tritonserver ? ${system};
+  has-cuda-info = containers.cuda-devel ? ${system};
 
-  tritonInfo = containers.tritonserver.${system};
-  cudaInfo = containers.cuda-devel.${system};
+  triton-info = containers.tritonserver.${system};
+  cuda-info = containers.cuda-devel.${system};
 
   # Container rootfs FODs (only defined if hash is provided)
-  hasTritonRootfs = hasTritonInfo && tritonInfo.hash != "";
-  hasCudaRootfs = hasCudaInfo && cudaInfo.hash != "";
+  has-triton-rootfs = has-triton-info && triton-info.hash != "";
+  has-cuda-rootfs = has-cuda-info && cuda-info.hash != "";
 
-  tritonRootfs = containerToNix {
+  triton-rootfs = container-to-nix {
     name = "tritonserver-${containers.tritonserver.version}-rootfs";
-    imageRef = tritonInfo.ref;
-    inherit (tritonInfo) hash;
+    image-ref = triton-info.ref;
+    inherit (triton-info) hash;
   };
 
-  cudaRootfs = containerToNix {
+  cuda-rootfs = container-to-nix {
     name = "cuda-devel-${containers.cuda-devel.version}-rootfs";
-    imageRef = cudaInfo.ref;
-    inherit (cudaInfo) hash;
+    image-ref = cuda-info.ref;
+    inherit (cuda-info) hash;
   };
 
 in
-lib.optionalAttrs hasTritonRootfs {
+lib.optionalAttrs has-triton-rootfs {
   # Expose rootfs for packages.nix and debugging
-  nvidia-sdk-ngc-rootfs = tritonRootfs;
+  nvidia-sdk-ngc-rootfs = triton-rootfs;
 }
-// lib.optionalAttrs hasCudaRootfs {
-  nvidia-sdk-cuda-rootfs = cudaRootfs;
+// lib.optionalAttrs has-cuda-rootfs {
+  nvidia-sdk-cuda-rootfs = cuda-rootfs;
 }
 // {
   # Container definitions for reference

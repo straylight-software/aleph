@@ -114,7 +114,7 @@ let
     # Hex conversion
     toHexString =
       let
-        hexDigits = {
+        hex-digits = {
           "10" = "A";
           "11" = "B";
           "12" = "C";
@@ -122,9 +122,9 @@ let
           "14" = "E";
           "15" = "F";
         };
-        toHexDigit = d: if d < 10 then toString d else hexDigits.${toString d};
+        to-hex-digit = d: if d < 10 then toString d else hex-digits.${toString d};
       in
-      i: P.join "" (P.map toHexDigit (trivial.toBaseDigits 16 i));
+      i: P.join "" (P.map to-hex-digit (trivial.toBaseDigits 16 i));
 
     toBaseDigits =
       base: i:
@@ -772,9 +772,9 @@ let
       str:
       let
         parts = P.split "-" str;
-        capitalize = s: P.to-upper (P.substring 0 1 s) + P.substring 1 (P.string-length s) s;
+        cap = s: P.to-upper (P.substring 0 1 s) + P.substring 1 (P.string-length s) s;
       in
-      P.head parts + P.join "" (P.map capitalize (P.tail parts));
+      P.head parts + P.join "" (P.map cap (P.tail parts));
 
     # toSentenceCase :: String -> String
     toSentenceCase =
@@ -788,20 +788,20 @@ let
       }:
       str:
       let
-        trimStart =
+        trim-start =
           s:
           let
             m = builtins.match "[ \t\n]*(.*)" s;
           in
           if m == null then s else P.head m;
-        trimEnd =
+        trim-end =
           s:
           let
             m = builtins.match "(.*[^ \t\n])[ \t\n]*" s;
           in
           if m == null then s else P.head m;
       in
-      (if end then trimEnd else P.id) ((if start then trimStart else P.id) str);
+      (if end then trim-end else P.id) ((if start then trim-start else P.id) str);
 
     # replaceString - alias for single replacement
     replaceString = old: new: P.replace [ old ] [ new ];
@@ -848,10 +848,10 @@ let
     composeExtensions =
       f: g: final: prev:
       let
-        fApplied = f final prev;
-        prev' = prev // fApplied;
+        f-applied = f final prev;
+        prev' = prev // f-applied;
       in
-      fApplied // g final prev';
+      f-applied // g final prev';
 
     composeManyExtensions = P.fold fixedPoints.composeExtensions (_: _: { });
 

@@ -90,8 +90,8 @@ let
     if platform.is-linux then
       final.wrapCCWith {
         cc = llvm.clang-unwrapped;
-        useCcForLibs = true;
-        gccForLibs = gcc.cc;
+        "useCcForLibs" = true;
+        "gccForLibs" = gcc.cc;
       }
     else
       null;
@@ -106,8 +106,8 @@ let
           bintools = final.binutils-unwrapped;
           libc = final.musl;
         };
-        useCcForLibs = true;
-        gccForLibs = musl-gcc.cc;
+        "useCcForLibs" = true;
+        "gccForLibs" = musl-gcc.cc;
       }
     else
       null;
@@ -189,8 +189,8 @@ let
     if platform.is-linux && has-llvm-git then
       final.wrapCCWith {
         cc = llvm-git;
-        useCcForLibs = true;
-        gccForLibs = gcc.cc;
+        "useCcForLibs" = true;
+        "gccForLibs" = gcc.cc;
       }
     else
       clang-glibc;

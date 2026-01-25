@@ -50,8 +50,8 @@
         ╚════════════════════════════════════════════════════════════════════════════╝
       '';
       mk-report-footer =
-        passed: total: allPass:
-        if allPass then
+        passed: total: all-pass:
+        if all-pass then
           "  ✓ All ${toString total} tests passed"
         else
           "  ✗ ${toString passed}/${toString total} passed";
@@ -71,17 +71,17 @@
 
           passed = lib.count (r: r.success) results;
           total = builtins.length results;
-          allPass = passed == total;
+          all-pass = passed == total;
 
-          resultsText = lib.concatMapStrings (r: "  ${r.status} ${r.name}${r.detail}\n") results;
+          results-text = lib.concatMapStrings (r: "  ${r.status} ${r.name}${r.detail}\n") results;
           separator = "────────────────────────────────────────────────────────────────────────────────";
           report =
             mk-report-header suite-name
             + "\n"
-            + resultsText
+            + results-text
             + separator
             + "\n"
-            + mk-report-footer passed total allPass;
+            + mk-report-footer passed total all-pass;
         in
         pkgs.runCommand "test-${lib.replaceStrings [ " " ] [ "-" ] (lib.toLower suite-name)}"
           {
@@ -90,14 +90,14 @@
                 results
                 passed
                 total
-                allPass
+                all-pass
                 ;
             };
             passAsFile = [ "reportText" ];
             reportText = report;
           }
           (
-            if allPass then
+            if all-pass then
               ''
                 cat "$reportTextPath"
                 mkdir -p $out
@@ -154,13 +154,13 @@
           let
             # Legacy Nix: nested function calls, read inside-out
             legacy = x: (x + 1) * (x + 1);
-            legacyResult = legacy 4;
+            legacy-result = legacy 4;
             # Prelude: compose reads right-to-left like math (f ∘ g)
             square = x: x * x;
             incr = x: x + 1;
-            preludeResult = P.compose square incr 4;
+            prelude-result = P.compose square incr 4;
           in
-          assert-eq "compose chains functions (f ∘ g)" legacyResult preludeResult
+          assert-eq "compose chains functions (f ∘ g)" legacy-result prelude-result
         )
 
         (
@@ -1887,9 +1887,9 @@
       demo-lib-shim = run-suite "lib.nix Compatibility Shim" (
         let
           # Import the lib shim using the pure prelude
-          purePrelude = config.straylight.prelude;
+          pure-prelude = config.straylight.prelude;
           # Note: in flake context, paths are relative to the file
-          L = import ../../prelude/lib.nix { prelude = purePrelude; };
+          L = import ../../prelude/lib.nix { prelude = pure-prelude; };
         in
         [
           # Test that lib functions work and match expected behavior

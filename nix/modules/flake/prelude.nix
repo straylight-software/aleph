@@ -94,7 +94,7 @@ in
         # Haskell package set - using GHC 9.12 from nixpkgs (stable, well-tested)
         # GHC 9.12 is the latest stable before 9.14's doctest/HLS breakage.
         # This replaces the Mercury GHC approach which had package.cache.lock bugs.
-        hsPkgs = pkgs.haskell.packages.ghc912;
+        hs-pkgs = pkgs.haskell.packages.ghc912;
 
         python =
           let
@@ -114,8 +114,8 @@ in
         ghc =
           let
             version = straylight.versions.ghc;
-            pkg = hsPkgs.ghc;
-            pkgs' = hsPkgs;
+            pkg = hs-pkgs.ghc;
+            pkgs' = hs-pkgs;
             build = attrs: pkgs'.mkDerivation (straylight.translate-attrs attrs);
           in
           {
@@ -152,7 +152,7 @@ in
               }:
               let
                 # Base turtle dependencies (always included)
-                baseDeps =
+                base-deps =
                   p: with p; [
                     turtle # The Haskell package, not ghc.turtle-script
                     text
@@ -162,16 +162,16 @@ in
                   ];
 
                 # Combined Haskell dependencies
-                allHsDeps = p: baseDeps p ++ hs-deps p;
+                all-hs-deps = p: base-deps p ++ hs-deps p;
 
                 # GHC with turtle and user's Haskell deps (using ghc912 from nixpkgs)
-                ghcWithDeps = hsPkgs.ghcWithPackages allHsDeps;
+                ghc-with-deps = hs-pkgs.ghcWithPackages all-hs-deps;
               in
               pkgs.stdenv.mkDerivation {
                 inherit name src;
                 dontUnpack = true;
 
-                nativeBuildInputs = [ ghcWithDeps ] ++ pkgs.lib.optional (deps != [ ]) pkgs.makeWrapper;
+                nativeBuildInputs = [ ghc-with-deps ] ++ pkgs.lib.optional (deps != [ ]) pkgs.makeWrapper;
                 buildInputs = deps;
 
                 buildPhase = ''
@@ -365,7 +365,7 @@ in
             name: src: vars:
             let
               # Convert vars attrset to env var exports
-              envVars = lib.mapAttrs' (
+              env-vars = lib.mapAttrs' (
                 k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
               ) vars;
             in
@@ -374,7 +374,7 @@ in
                 {
                   nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
                 }
-                // envVars
+                // env-vars
               )
               ''
                 dhall text --file ${src} > $out
@@ -430,11 +430,11 @@ in
                 let
                   # Write content to a temp file in the store, then copy
                   # This avoids heredocs entirely
-                  contentFile = pkgs.writeText (baseNameOf path) content;
+                  content-file = pkgs.writeText (baseNameOf path) content;
                 in
                 ''
                   mkdir -p "$(dirname '${path}')"
-                  cp ${contentFile} '${path}'
+                  cp ${content-file} '${path}'
                 ''
               ) files
             );
@@ -986,13 +986,13 @@ in
         call-package =
           path: args:
           let
-            pathStr = toString path;
-            ext = lib.last (lib.splitString "." pathStr);
-            alephModules = ../../../src/tools/scripts;
+            path-str = toString path;
+            ext = lib.last (lib.splitString "." path-str);
+            aleph-modules = ../../../src/tools/scripts;
 
             # Generated Main.hs that wraps the user's Pkg module
             # User files just need: module Pkg where ... pkg = mkDerivation [...]
-            wrapperMain = pkgs.writeText "Main.hs" ''
+            wrapper-main = pkgs.writeText "Main.hs" ''
               {-# LANGUAGE ForeignFunctionInterface #-}
               module Main where
 
@@ -1014,14 +1014,14 @@ in
             '';
 
             # Build single-file Haskell to WASM
-            buildHsWasm =
-              hsPath:
+            build-hs-wasm =
+              hs-path:
               let
-                name = lib.removeSuffix ".hs" (baseNameOf (toString hsPath));
+                name = lib.removeSuffix ".hs" (baseNameOf (toString hs-path));
               in
               pkgs.runCommand "${name}.wasm"
                 {
-                  src = hsPath;
+                  src = hs-path;
                   nativeBuildInputs = [ ghc-wasm ];
                 }
                 ''
@@ -1029,12 +1029,12 @@ in
                   cd build
 
                   # Copy Aleph.Nix infrastructure (make writable for .hi files)
-                  cp -r ${alephModules}/Aleph Aleph
+                  cp -r ${aleph-modules}/Aleph Aleph
                   chmod -R u+w Aleph
 
                   # Copy user's package as Pkg.hs, wrapper as Main.hs
                   cp $src Pkg.hs
-                  cp ${wrapperMain} Main.hs
+                  cp ${wrapper-main} Main.hs
 
                   ${ghc-wasm}/bin/wasm32-wasi-ghc \
                     -optl-mexec-model=reactor \
@@ -1062,9 +1062,9 @@ in
               ''
             else
               let
-                wasmDrv = buildHsWasm path;
+                wasm-drv = build-hs-wasm path;
                 # Call "pkg" export which returns the package spec
-                spec = builtins.wasm wasmDrv "pkg" args;
+                spec = builtins.wasm wasm-drv "pkg" args;
               in
               wasm-infra.buildFromSpec { inherit spec pkgs; }
 
