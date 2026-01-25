@@ -37,11 +37,11 @@ let
     final.straylight.script.compiled.combine-archive or (final.stdenv.mkDerivation {
       name = "combine-archive";
       src = ../../../src/tools/scripts;
-      dontUnpack = true;
+      "dontUnpack" = true;
 
-      nativeBuildInputs = [ ghc-with-deps ];
+      "nativeBuildInputs" = [ ghc-with-deps ];
 
-      buildPhase = ''
+      "buildPhase" = ''
         runHook preBuild
         ghc -O2 -Wall -Wno-unused-imports \
           -hidir . -odir . \
@@ -49,7 +49,7 @@ let
         runHook postBuild
       '';
 
-      installPhase = ''
+      "installPhase" = ''
         runHook preInstall
         mkdir -p $out/bin
         cp combine-archive $out/bin/
@@ -81,7 +81,7 @@ let
   #     pname = "simdjson";
   #     version = "3.12.3";
   #     src = ...;
-  #     cmakeFlags = [ ... ];  # merged with standard flags
+  #     cmake-flags = [ ... ];  # merged with standard flags
   #   }
   #
   mk-static-cpp =
@@ -89,14 +89,14 @@ let
       pname,
       version,
       src,
-      nativeBuildInputs ? [ ],
-      buildInputs ? [ ],
-      propagatedBuildInputs ? [ ],
-      cmakeFlags ? [ ],
-      postInstall ? "",
-      postPatch ? "",
+      native-build-inputs ? [ ],
+      build-inputs ? [ ],
+      propagated-build-inputs ? [ ],
+      cmake-flags ? [ ],
+      post-install ? "",
+      post-patch ? "",
       patches ? [ ],
-      env ? { },
+      env ? [ ],
       meta ? { },
       ...
     }@args:
@@ -105,12 +105,12 @@ let
         "pname"
         "version"
         "src"
-        "nativeBuildInputs"
-        "buildInputs"
-        "propagatedBuildInputs"
-        "cmakeFlags"
-        "postInstall"
-        "postPatch"
+        "native-build-inputs"
+        "build-inputs"
+        "propagated-build-inputs"
+        "cmake-flags"
+        "post-install"
+        "post-patch"
         "patches"
         "env"
         "meta"
@@ -123,23 +123,25 @@ let
           version
           src
           patches
-          postPatch
           ;
 
-        nativeBuildInputs = [
+        "postPatch" = post-patch;
+
+        "nativeBuildInputs" = [
           final.cmake
           final.pkg-config
         ]
-        ++ nativeBuildInputs;
+        ++ native-build-inputs;
 
-        inherit buildInputs propagatedBuildInputs;
+        "buildInputs" = build-inputs;
+        "propagatedBuildInputs" = propagated-build-inputs;
 
-        cmakeFlags = standard-cmake-flags ++ cmakeFlags;
+        "cmakeFlags" = standard-cmake-flags ++ cmake-flags;
 
-        inherit postInstall;
+        "postInstall" = post-install;
 
         env = {
-          NIX_CFLAGS_COMPILE = "-fPIC";
+          "NIX_CFLAGS_COMPILE" = "-fPIC";
         }
         // env;
 

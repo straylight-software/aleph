@@ -35,8 +35,6 @@ let
   mk-if = lib.mkIf;
   mk-per-system-option = flake-parts-lib.mkPerSystemOption;
   null-or = lib.types.nullOr;
-  # readOnly attribute for mk-option (inherited to avoid direct camelCase usage)
-  readOnly = true;
 in
 {
   _class = "flake";
@@ -81,13 +79,13 @@ in
 
       sdk = mk-option {
         type = lib.types.package;
-        inherit readOnly;
+        "readOnly" = true;
         description = "The computed NVIDIA SDK package";
       };
 
       cutlass = mk-option {
         type = lib.types.package;
-        inherit readOnly;
+        "readOnly" = true;
         description = "CUTLASS package (CUDA Templates for Linear Algebra Subroutines)";
       };
     };
@@ -113,30 +111,8 @@ in
       symlink-join = pkgs.symlinkJoin;
       write-text = pkgs.writeText;
 
-      # derivation attributes (for inherit pattern)
-      dontBuild = true;
-      dontConfigure = true;
+      # cutlass version
       cutlass-version = "4.3.3";
-      installPhase = ''
-        runHook preInstall
-
-        mkdir -p $out/include
-        cp -r include/cutlass $out/include/
-        cp -r include/cute $out/include/
-
-        # Tools and examples for reference
-        mkdir -p $out/share/cutlass
-        cp -r tools $out/share/cutlass/
-        cp -r examples $out/share/cutlass/
-        cp -r python $out/share/cutlass/
-
-        echo "${cutlass-version}" > $out/CUTLASS_VERSION
-
-        runHook postInstall
-      '';
-
-      # passthru attributes (for inherit pattern) - defined after nv-packages
-      gccVersion = pkgs.stdenv.cc.cc.version or "unknown";
 
       cfg = config.nv.sdk;
 
@@ -167,11 +143,12 @@ in
 
       driver-pkg-final = if cfg.with-driver then driver-pkg else null;
 
-      # passthru attribute (must be after nv-packages)
-      cudaVersion = nv-packages.cudatoolkit.version;
+      # passthru attributes (lisp-case local bindings for external API)
+      cuda-version = nv-packages.cudatoolkit.version;
+      gcc-version = pkgs.stdenv.cc.cc.version or "unknown";
 
-      # symlinkJoin attribute (for inherit pattern)
-      postBuild = ''
+      # symlinkJoin postBuild script
+      post-build = ''
         # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         # CRITICAL: lib64 -> lib symlink
         # Many NVIDIA tools expect lib64, but Nix uses lib
@@ -299,7 +276,25 @@ in
           hash = "sha256-uOfSEjbwn/edHEgBikC9wAarn6c6T71ebPg74rv2qlw=";
         };
 
-        inherit dontBuild dontConfigure installPhase;
+        "dontBuild" = true;
+        "dontConfigure" = true;
+        "installPhase" = ''
+          runHook preInstall
+
+          mkdir -p $out/include
+          cp -r include/cutlass $out/include/
+          cp -r include/cute $out/include/
+
+          # Tools and examples for reference
+          mkdir -p $out/share/cutlass
+          cp -r tools $out/share/cutlass/
+          cp -r examples $out/share/cutlass/
+          cp -r python $out/share/cutlass/
+
+          echo "${cutlass-version}" > $out/CUTLASS_VERSION
+
+          runHook postInstall
+        '';
 
         meta = {
           description = "CUDA Templates for Linear Algebra Subroutines";
@@ -386,7 +381,7 @@ in
       # ──────────────────────────────────────────────────────────────────────────
 
       nvidia-sdk = symlink-join {
-        name = "nvidia-sdk-cuda${cfg.cuda-version}";
+        name = "nvidia-sdk-cuda${cuda-version}";
 
         paths = [
 
@@ -467,16 +462,18 @@ in
 
         ++ lib.optional (pkgs ? openmpi) pkgs.openmpi;
 
-        inherit postBuild;
+        "postBuild" = post-build;
 
-        passthru = {
+        "passthru" = {
 
           # expose what this SDK was built with for cache invalidation and compatibility checking
           inherit (pkgs) stdenv;
           inherit (pkgs.stdenv) cc;
           inherit nv-packages;
           inherit cutlass-package;
-          inherit cudaVersion gccVersion;
+
+          "cudaVersion" = cuda-version;
+          "gccVersion" = gcc-version;
 
           gcc = pkgs.stdenv.cc.cc;
         };

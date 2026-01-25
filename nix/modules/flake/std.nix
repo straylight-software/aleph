@@ -16,15 +16,15 @@
 { config, lib, ... }:
 let
   cfg = config.aleph-naught;
-  nixpkgsModule = import ./nixpkgs.nix { inherit inputs; };
-  nixconfModule = import ./nix-conf.nix { };
+  nixpkgs-module = import ./nixpkgs.nix { inherit inputs; };
+  nix-conf-module = import ./nix-conf.nix { };
 in
 {
   _class = "flake";
 
   imports = [
-    nixpkgsModule
-    nixconfModule
+    nixpkgs-module
+    nix-conf-module
   ];
 
   # ────────────────────────────────────────────────────────────────────────────
@@ -51,35 +51,36 @@ in
     { system, ... }:
     let
       # Overlay to inject WASM-enabled nix from straylight nix
-      straylightNixOverlay = _final: _prev: {
+      straylight-nix-overlay = _final: _prev: {
         inherit (inputs.nix.packages.${system}) nix;
       };
 
-      pkgsWithOverlays = import inputs.nixpkgs {
+      pkgs-with-overlays = import inputs.nixpkgs {
         inherit system;
 
         # nixpkgs API uses "cuda" - that's their vocabulary, not ours
+        # Use string access for external camelCase API names
         config = {
-          allowUnfree = cfg.nixpkgs.allow-unfree;
-          cudaSupport = cfg.nixpkgs.nv.enable;
-          cudaCapabilities = cfg.nixpkgs.nv.capabilities;
-          cudaForwardCompat = cfg.nixpkgs.nv.forward-compat;
+          "allowUnfree" = cfg.nixpkgs.allow-unfree;
+          "cudaSupport" = cfg.nixpkgs.nv.enable;
+          "cudaCapabilities" = cfg.nixpkgs.nv.capabilities;
+          "cudaForwardCompat" = cfg.nixpkgs.nv.forward-compat;
         };
 
         # straylight nix provides WASM-enabled nix (builtins.wasm + wasm32-wasip1)
         overlays = [
-          straylightNixOverlay
+          straylight-nix-overlay
           (import ../../overlays inputs).flake.overlays.default
         ]
         ++ cfg.overlays.extra;
       };
     in
     lib.mkIf cfg.overlays.enable {
-      _module.args.pkgs = lib.mkForce pkgsWithOverlays;
+      _module.args.pkgs = lib.mkForce pkgs-with-overlays;
 
       # Re-export configured pkgs with overlays as legacyPackages
       # This lets consumers access straylight.prelude, straylight.stdenv, etc.:
       #   inputs.aleph-naught.legacyPackages.${system}.straylight.prelude
-      legacyPackages = lib.mkForce pkgsWithOverlays;
+      legacyPackages = lib.mkForce pkgs-with-overlays;
     };
 }

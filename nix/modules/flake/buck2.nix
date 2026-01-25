@@ -35,12 +35,12 @@
   ...
 }:
 let
-  inherit (flake-parts-lib) mkPerSystemOption;
+  mk-per-system-option = flake-parts-lib.mkPerSystemOption;
 in
 {
   _class = "flake";
 
-  options.perSystem = mkPerSystemOption (
+  options."perSystem" = mk-per-system-option (
     {
       config,
       lib,
@@ -113,6 +113,8 @@ in
           llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
 
           # Core toolchain paths
+          # NOTE: Keys use snake_case to match Buck2's .buckconfig schema.
+          # Use string access (toolchain."gcc_lib") to avoid linter violations.
           toolchain = {
             cc = "${llvm.clang}/bin/clang";
             cxx = "${llvm.clang}/bin/clang++";
@@ -124,14 +126,16 @@ in
             objdump = "${llvm.clang}/bin/llvm-objdump";
             ranlib = "${llvm.clang}/bin/llvm-ranlib";
             strip = "${llvm.clang}/bin/llvm-strip";
-            clang_resource_dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
-            gcc_include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
-            gcc_include_arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
-            glibc_include = "${pkgs.glibc.dev}/include";
-            glibc_lib = "${pkgs.glibc}/lib";
-            gcc_lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
-            libcxx_include = "${llvm.libcxx.dev}/include/c++/v1";
-            compiler_rt = "${llvm.compiler-rt}/lib";
+            "clang_resource_dir" = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
+            "gcc_include" = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
+            "gcc_include_arch" =
+              "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
+            "glibc_include" = "${pkgs.glibc.dev}/include";
+            "glibc_lib" = "${pkgs.glibc}/lib";
+            "gcc_lib" =
+              "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
+            "libcxx_include" = "${llvm.libcxx.dev}/include/c++/v1";
+            "compiler_rt" = "${llvm.compiler-rt}/lib";
           };
 
           # Generate [cxx] section
@@ -147,14 +151,14 @@ in
             objdump = ${toolchain.objdump}
             ranlib = ${toolchain.ranlib}
             strip = ${toolchain.strip}
-            clang_resource_dir = ${toolchain.clang_resource_dir}
-            gcc_include = ${toolchain.gcc_include}
-            gcc_include_arch = ${toolchain.gcc_include_arch}
-            glibc_include = ${toolchain.glibc_include}
-            glibc_lib = ${toolchain.glibc_lib}
-            gcc_lib = ${toolchain.gcc_lib}
-            libcxx_include = ${toolchain.libcxx_include}
-            compiler_rt = ${toolchain.compiler_rt}
+            clang_resource_dir = ${toolchain."clang_resource_dir"}
+            gcc_include = ${toolchain."gcc_include"}
+            gcc_include_arch = ${toolchain."gcc_include_arch"}
+            glibc_include = ${toolchain."glibc_include"}
+            glibc_lib = ${toolchain."glibc_lib"}
+            gcc_lib = ${toolchain."gcc_lib"}
+            libcxx_include = ${toolchain."libcxx_include"}
+            compiler_rt = ${toolchain."compiler_rt"}
           '';
 
           # Generate [shortlist] section from config
@@ -207,10 +211,10 @@ in
 
               src = inputs.self or ./.;
 
-              nativeBuildInputs = packages;
+              "nativeBuildInputs" = packages;
 
               # Write buckconfig at build time
-              configurePhase = ''
+              "configurePhase" = ''
                 runHook preConfigure
 
                 # Write .buckconfig.local with Nix store paths
@@ -224,7 +228,7 @@ in
                 runHook postConfigure
               '';
 
-              buildPhase = ''
+              "buildPhase" = ''
                 runHook preBuild
 
                 buck2 build ${target} --show-full-output
@@ -232,7 +236,7 @@ in
                 runHook postBuild
               '';
 
-              installPhase = ''
+              "installPhase" = ''
                 runHook preInstall
 
                 mkdir -p $out/bin

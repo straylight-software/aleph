@@ -33,7 +33,7 @@ let
     pkgs.runCommand name
       (
         {
-          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+          "nativeBuildInputs" = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
       )
@@ -45,8 +45,8 @@ let
   prelude-hook =
     if isLinux && cfg.prelude.enable then
       render-dhall "shell-hook-prelude.bash" (scripts-dir + "/shell-hook-prelude.dhall") {
-        prelude_src = prelude-src;
-        toolchains_src = toolchains-src;
+        "prelude_src" = prelude-src;
+        "toolchains_src" = toolchains-src;
       }
     else
       null;
@@ -60,7 +60,7 @@ let
         );
       in
       render-dhall "shell-hook-buckconfig-main.bash" (scripts-dir + "/shell-hook-buckconfig-main.dhall") {
-        buckconfig_main_ini = buckconfig-main-ini;
+        "buckconfig_main_ini" = buckconfig-main-ini;
       }
     else
       null;
@@ -82,7 +82,7 @@ let
   haskell-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.haskell.enable then
       render-dhall "haskell-wrappers.bash" (scripts-dir + "/haskell-wrappers.dhall") {
-        scripts_dir = scripts-dir;
+        "scripts_dir" = scripts-dir;
       }
     else
       null;
@@ -91,7 +91,7 @@ let
   lean-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.lean.enable then
       render-dhall "lean-wrappers.bash" (scripts-dir + "/lean-wrappers.dhall") {
-        scripts_dir = scripts-dir;
+        "scripts_dir" = scripts-dir;
       }
     else
       null;
@@ -100,7 +100,7 @@ let
   cxx-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.cxx.enable then
       render-dhall "cxx-wrappers.bash" (scripts-dir + "/cxx-wrappers.dhall") {
-        scripts_dir = scripts-dir;
+        "scripts_dir" = scripts-dir;
       }
     else
       null;
@@ -157,5 +157,5 @@ let
       '';
 in
 {
-  shellHook = shell-hook;
+  "shellHook" = shell-hook;
 }
