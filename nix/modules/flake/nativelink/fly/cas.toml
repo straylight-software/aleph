@@ -1,5 +1,8 @@
 # fly.toml for aleph-cas  
 # NativeLink CAS - content-addressed storage with LZ4 compression
+#
+# This is the hot path for all blob transfers. Size it accordingly.
+# 100GB volume, 4GB RAM for aggressive caching.
 
 app = "aleph-cas"
 primary_region = "iad"
@@ -8,8 +11,9 @@ primary_region = "iad"
   image = "registry.fly.io/aleph-cas:latest"
 
 [env]
-  RUST_LOG = "info"
+  RUST_LOG = "info,nativelink=debug"
 
+# gRPC over HTTPS
 [http_service]
   internal_port = 50052
   force_https = true
@@ -19,26 +23,22 @@ primary_region = "iad"
 
   [http_service.concurrency]
     type = "connections"
-    hard_limit = 1000
-    soft_limit = 800
+    hard_limit = 10000
+    soft_limit = 8000
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 50052
+  [http_service.checks]
+    [http_service.checks.health]
+      interval = "10s"
+      timeout = "2s"
+      grace_period = "5s"
 
-  [[services.ports]]
-    port = 50052
-    handlers = ["tls"]
-
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-
+# Persistent storage for CAS blobs
 [mounts]
   source = "cas_data"
   destination = "/data"
+  initial_size = "100gb"
 
 [[vm]]
-  memory = "2gb"
+  memory = "4gb"
   cpu_kind = "shared"
-  cpus = 2
+  cpus = 4

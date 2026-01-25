@@ -192,13 +192,21 @@ let
           "upload_action_result"."ac_store" = "GRPC_LOCAL_AC_STORE";
           "work_directory" = "${cfg.persistence.directory}/worker/work";
           "platform_properties" = {
+            # nproc works without shell - simple single command
             "cpu_count"."query_cmd" = "nproc";
-            "memory_kb"."query_cmd" = "grep MemTotal /proc/meminfo | awk '{print $2}'";
+            # NativeLink runs query_cmd without a shell, so pipes/awk don't work.
+            # Use static value based on common server memory. Workers with different
+            # memory can override via worker.platform-properties.
+            "memory_kb".values = [ "32000000" ]; # ~32GB default
             "OSFamily".values = [
               ""
               "linux"
             ];
-            "container-image".values = [ "" ];
+            # Accept both empty (legacy) and nix-worker (matches Fly.io workers)
+            "container-image".values = [
+              ""
+              "nix-worker"
+            ];
           }
           // map-attrs (_: v: { values = [ v ]; }) cfg.worker.platform-properties;
         };

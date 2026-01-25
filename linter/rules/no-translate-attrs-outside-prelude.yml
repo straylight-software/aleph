@@ -27,7 +27,7 @@ rule:
       has:
         kind: identifier
         regex: ^translate-attrs$
-message: "WSN-E013: translate-attrs used outside prelude"
+message: "ALEPH-E013: translate-attrs used outside prelude"
 note: |
   ## What's wrong?
   `translate-attrs` is the prelude's internal translation layer.

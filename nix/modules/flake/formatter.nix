@@ -64,8 +64,8 @@ in
           };
 
           settings.formatter = {
-            wsn-lint = {
-              command = lib.getExe inputs.self.packages.${system}.wsn-lint;
+            aleph-lint = {
+              command = lib.getExe inputs.self.packages.${system}.aleph-lint;
               includes = [ "*.nix" ];
             };
           };

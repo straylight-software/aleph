@@ -45,7 +45,7 @@ let
   #   3. Optionally waits for GPU
   #   4. Execs into final process (shell or build runner)
 
-  # Script fragments loaded from external files to comply with WSN-W003
+  # Script fragments loaded from external files to comply with ALEPH-W003
   network-setup-script = read-file ../scripts/vm-init-network.bash;
   gpu-setup-script = read-file ../scripts/vm-init-gpu.bash;
 

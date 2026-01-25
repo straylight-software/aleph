@@ -11,7 +11,7 @@ ignores:
 rule:
   kind: select_expression
   pattern: $OBJ.mkDerivation
-message: "WSN-E010: raw mkDerivation call"
+message: "ALEPH-E010: raw mkDerivation call"
 note: |
   ## What's wrong?
   Direct `mkDerivation` calls bypass the typed prelude boundary.

@@ -183,7 +183,7 @@ of untested code. The prelude provides typed alternatives.
 4. **Never** — Heredocs (`cat <<EOF`), inline strings >10 lines
 
 **Prelude builders** are escape hatches, not recommendations. They exist because
-sometimes you need to generate a script. They are WARNING-level in wsn-lint.
+sometimes you need to generate a script. They are WARNING-level in aleph-lint.
 If you find yourself using them frequently, you are doing something wrong.
 
 ```nix
@@ -239,7 +239,7 @@ AlephScript is the **only** sanctioned way to generate files inline. It:
 
 - Separates file content from shell logic
 - Uses structured data (`builtins.toJSON`, `prelude.to-ini`) instead of string templates
-- Is mechanically verifiable by wsn-lint
+- Is mechanically verifiable by aleph-lint
 - Provides a clear audit trail of what files are generated
 
 The `files` attribute is a declarative specification. The `run` attribute is optional
@@ -274,8 +274,8 @@ Module options SHALL have descriptions that ndg can extract.
 
 ### 9. Mechanical Enforcement
 
-Straylight Standard Nix requirements SHALL be mechanically enforced via `wsn-lint` as specified
-in [ℵ-002](aleph-002-lint.md). CI pipelines SHALL fail on `wsn-lint` errors.
+Aleph Prelude requirements SHALL be mechanically enforced via `aleph-lint` as specified
+in [ℵ-002](aleph-002-lint.md). CI pipelines SHALL fail on `aleph-lint` errors.
 
 ## Conformance
 
@@ -286,7 +286,7 @@ A flake is **Straylight Standard Nix conformant** if it:
 1. Adheres to the naming conventions specified in §1
 1. Avoids all forbidden patterns specified in §6
 1. Passes `nix flake check` and `nix fmt -- --check`
-1. Passes `wsn-lint check` with exit code 0
+1. Passes `aleph-lint` with exit code 0
 
 ## Authority
 

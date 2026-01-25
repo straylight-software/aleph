@@ -9,7 +9,7 @@ let
   # ════════════════════════════════════════════════════════════════════════════
   # LISP-CASE ALIASES
   #
-  # Local aliases for lib.* and builtins.* functions to satisfy WSN-E003.
+  # Local aliases for lib.* and builtins.* functions to satisfy ALEPH-E003.
   # External API names (nixpkgs attributes, flake outputs) remain unchanged.
   # ════════════════════════════════════════════════════════════════════════════
   split-string = lib.splitString;
@@ -375,7 +375,7 @@ in
       };
 
       packages = {
-        wsn-lint = pkgs.callPackage ./packages/wsn-lint.nix { };
+        aleph-lint = pkgs.callPackage ./packages/aleph-lint.nix { };
 
         # Buck2 built packages - these can be used in NixOS, containers, etc.
         # fmt-test = config.buck2.build { target = "//examples/cxx:fmt_test"; };

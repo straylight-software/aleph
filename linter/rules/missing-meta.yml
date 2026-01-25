@@ -67,7 +67,7 @@ rule:
                         has:
                           kind: identifier
                           regex: ^meta$
-message: "WSN-W007: missing meta attribute"
+message: "ALEPH-W007: missing meta attribute"
 note: |
   ## What's wrong?
   A derivation is missing a `meta` attribute.

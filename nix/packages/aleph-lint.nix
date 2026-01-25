@@ -22,7 +22,7 @@ let
   sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
 in
 write-shell-application {
-  name = "wsn-lint";
+  name = "aleph-lint";
   runtime-inputs = [
     ast-grep
     tree-sitter

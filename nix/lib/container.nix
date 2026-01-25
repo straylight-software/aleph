@@ -229,7 +229,7 @@ in
     #   3. Runs a build command (if provided)
     #   4. Either exits (build mode) or drops to shell (interactive mode)
     #
-    # Template loaded from ./scripts/fc-init.sh.in to comply with WSN-W003.
+    # Template loaded from ./scripts/fc-init.sh.in to comply with ALEPH-W003.
     init-script =
       {
         with-network ? true,
@@ -341,7 +341,7 @@ in
       '';
 
     # Patch ELF with existing rpath preserved
-    # Template loaded from ./scripts/patch-elf-preserve.sh.in to comply with WSN-W003.
+    # Template loaded from ./scripts/patch-elf-preserve.sh.in to comply with ALEPH-W003.
     patch-commands-preserve =
       {
         rpath,

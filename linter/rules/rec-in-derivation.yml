@@ -23,7 +23,7 @@ rule:
               has:
                 kind: identifier
                 regex: ^mkDerivation$
-message: "WSN-E002: `rec` used with mkDerivation"
+message: "ALEPH-E002: `rec` used with mkDerivation"
 note: |
   ## What's wrong?
   A recursive attrset (`rec { ... }`) was passed to `mkDerivation`.

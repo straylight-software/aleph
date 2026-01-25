@@ -32,5 +32,5 @@ instance_name = ${instanceName}
 
 [buck2_re_client.platform_properties]
 OSFamily = linux
-container-image = nix-lre-worker
+container-image = nix-worker
 ''

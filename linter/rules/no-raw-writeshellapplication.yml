@@ -11,7 +11,7 @@ ignores:
 rule:
   kind: select_expression
   pattern: $OBJ.writeShellApplication
-message: "WSN-E012: raw writeShellApplication call"
+message: "ALEPH-E012: raw writeShellApplication call"
 note: |
   ## What's wrong?
   Direct `writeShellApplication` calls bypass the typed prelude boundary.

@@ -59,14 +59,64 @@ in
       };
     };
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Builder: dedicated nix build machine on Fly
+    # SSH in, run nix build, push images. Your laptop stays cool.
+    # ──────────────────────────────────────────────────────────────────────────
+    builder = {
+      enable = mk-option {
+        type = types.bool;
+        default = true;
+        description = "Deploy a dedicated nix builder on Fly";
+      };
+
+      cpus = mk-option {
+        type = types.int;
+        default = 16;
+        description = "CPUs for builder (performance cores)";
+      };
+
+      memory = mk-option {
+        type = types.str;
+        default = "32gb";
+        description = "RAM for builder";
+      };
+
+      volume-size = mk-option {
+        type = types.str;
+        default = "200gb";
+        description = "Nix store volume size";
+      };
+    };
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Scheduler: coordinates work, routes actions to workers
+    # Stateless, minimal resources needed
+    # ──────────────────────────────────────────────────────────────────────────
     scheduler = {
       port = mk-option {
         type = types.port;
         default = 50051;
         description = "gRPC port for scheduler";
       };
+
+      cpus = mk-option {
+        type = types.int;
+        default = 2;
+        description = "CPUs for scheduler";
+      };
+
+      memory = mk-option {
+        type = types.str;
+        default = "2gb";
+        description = "RAM for scheduler";
+      };
     };
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # CAS: content-addressed storage with LZ4 compression
+    # Hot path for all blob transfers - size aggressively
+    # ──────────────────────────────────────────────────────────────────────────
     cas = {
       port = mk-option {
         type = types.port;
@@ -82,16 +132,66 @@ in
 
       max-bytes = mk-option {
         type = types.int;
-        default = 10737418240; # 10GB
+        default = 500 * 1024 * 1024 * 1024; # 500GB
         description = "Maximum CAS storage size in bytes";
+      };
+
+      cpus = mk-option {
+        type = types.int;
+        default = 4;
+        description = "CPUs for CAS server";
+      };
+
+      memory = mk-option {
+        type = types.str;
+        default = "8gb";
+        description = "RAM for CAS (more = better caching)";
+      };
+
+      volume-size = mk-option {
+        type = types.str;
+        default = "500gb";
+        description = "CAS storage volume size";
       };
     };
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Workers: execute build actions
+    # These do the actual compilation. Go big.
+    # 8x performance-16 = 128 cores total
+    # ──────────────────────────────────────────────────────────────────────────
     worker = {
       count = mk-option {
         type = types.int;
-        default = 2;
+        default = 8;
         description = "Number of worker instances";
+      };
+
+      cpus = mk-option {
+        type = types.int;
+        default = 16;
+        description = "CPUs per worker (Fly performance cores)";
+      };
+
+      memory = mk-option {
+        type = types.str;
+        default = "32gb";
+        description = "RAM per worker";
+      };
+
+      cpu-kind = mk-option {
+        type = types.enum [
+          "shared"
+          "performance"
+        ];
+        default = "performance";
+        description = "Fly CPU type (performance = dedicated)";
+      };
+
+      volume-size = mk-option {
+        type = types.str;
+        default = "100gb";
+        description = "Persistent volume size for nix store";
       };
     };
 
@@ -408,33 +508,46 @@ in
           concat-map-strings-sep "\n" (pkg: unsafe-discard-string-context (to-string pkg)) toolchain-packages
         );
 
-        # Minimal worker setup - just initializes the nix store on the volume
-        # Toolchain fetching is done separately via a manifest URL
+        # Worker setup - fetches toolchain from cache.nixos.org on first boot
+        # Toolchain paths are baked into the manifest at build time
         worker-setup-script = write-shell-application {
           name = "worker-setup";
-          "runtimeInputs" = with pkgs; [ coreutils ];
+          "runtimeInputs" = with pkgs; [
+            coreutils
+            nix
+            cacert
+          ];
+          "runtimeEnv" = {
+            NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+          };
           text = ''
             set -euo pipefail
 
             DATA_DIR="/data"
-            MARKER="$DATA_DIR/.nix-initialized"
+            MARKER="$DATA_DIR/.toolchain-ready"
 
             if [ -f "$MARKER" ]; then
-              echo "Volume already initialized"
+              echo "Toolchain already fetched"
               exit 0
             fi
 
-            echo "Initializing nix store on volume..."
-            mkdir -p "$DATA_DIR/nix/store"
-            mkdir -p "$DATA_DIR/nix/var/nix/db"
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  Fetching toolchain from cache.nixos.org...                  ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
 
-            # Copy base system from container
-            echo "Copying base nix store..."
-            cp -an /nix/store/* "$DATA_DIR/nix/store/" 2>/dev/null || true
-            cp -an /nix/var/nix/db/* "$DATA_DIR/nix/var/nix/db/" 2>/dev/null || true
+            # Toolchain store paths (baked at build time)
+            TOOLCHAIN_PATHS="${
+              concat-map-strings-sep " " (pkg: unsafe-discard-string-context (to-string pkg)) toolchain-packages
+            }"
+
+            # Fetch each path from cache
+            for path in $TOOLCHAIN_PATHS; do
+              echo "Fetching $path..."
+              nix-store --realise "$path" || echo "  (will build if not in cache)"
+            done
 
             touch "$MARKER"
-            echo "Base nix store initialized. Toolchain will be fetched on demand."
+            echo "✓ Toolchain ready"
           '';
         };
 
@@ -449,109 +562,353 @@ in
           };
 
         # ──────────────────────────────────────────────────────────────────────
-        # Deployment scripts for Fly.io
-        # Usage: nix run .#nativelink-deploy-<service>
+        # Fly.io configuration (generated from options)
         # ──────────────────────────────────────────────────────────────────────
 
-        fly-config-dir = ../../../modules/flake/nativelink/fly;
+        scheduler-fly-toml = write-text "scheduler.toml" ''
+          # Generated by aleph.nativelink module
+          app = "${cfg.fly.app-prefix}-scheduler"
+          primary_region = "${cfg.fly.region}"
 
-        # Generic deploy script factory
-        mk-deploy-script =
-          {
-            name,
-            fly-app,
-            fly-config,
-          }:
-          write-shell-application {
-            name = "nativelink-deploy-${name}";
-            "runtimeInputs" = with pkgs; [
-              skopeo
-              flyctl
-              coreutils
-            ];
-            text = ''
-              set -euo pipefail
+          [build]
+            image = "registry.fly.io/${cfg.fly.app-prefix}-scheduler:latest"
 
-              SERVICE="${name}"
-              FLY_APP="${fly-app}"
-              FLY_CONFIG="${fly-config}"
-              GHCR_IMAGE="ghcr.io/straylight-software/aleph/nativelink-${name}:latest"
-              FLY_IMAGE="registry.fly.io/${fly-app}:latest"
+          [env]
+            RUST_LOG = "info,nativelink=debug"
 
-              echo "=== Deploying NativeLink $SERVICE ==="
+          [http_service]
+            internal_port = ${to-string cfg.scheduler.port}
+            force_https = true
+            auto_stop_machines = "off"
+            auto_start_machines = true
+            min_machines_running = 1
 
-              # Get GitHub token for GHCR push
-              if command -v gh &> /dev/null; then
-                GH_TOKEN=$(gh auth token 2>/dev/null || true)
-              fi
-              if [ -z "''${GH_TOKEN:-}" ]; then
-                echo "Error: GitHub CLI not authenticated. Run 'gh auth login' first."
-                exit 1
-              fi
+            [http_service.concurrency]
+              type = "connections"
+              hard_limit = 10000
+              soft_limit = 8000
 
-              # Get Fly token for registry push
-              echo "Creating Fly deploy token..."
-              FLY_TOKEN=$(flyctl tokens create deploy -a "$FLY_APP" -x 2h 2>&1 | head -1)
-              if [ -z "$FLY_TOKEN" ] || [[ "$FLY_TOKEN" != FlyV1* ]]; then
-                echo "Error: Failed to create Fly token. Run 'flyctl auth login' first."
-                exit 1
-              fi
+          [[vm]]
+            memory = "${cfg.scheduler.memory}"
+            cpu_kind = "shared"
+            cpus = ${to-string cfg.scheduler.cpus}
+        '';
 
-              # Build and push to GHCR
-              echo "Building and pushing to GHCR..."
-              nix run ".#nativelink-${name}.copyTo" -- \
-                --dest-creds "''${GITHUB_USER:-$(gh api user -q .login)}:$GH_TOKEN" \
-                "docker://$GHCR_IMAGE"
+        cas-fly-toml = write-text "cas.toml" ''
+          # Generated by aleph.nativelink module
+          app = "${cfg.fly.app-prefix}-cas"
+          primary_region = "${cfg.fly.region}"
 
-              # Copy from GHCR to Fly registry
-              echo "Copying to Fly registry..."
-              skopeo copy \
-                --src-creds "''${GITHUB_USER:-$(gh api user -q .login)}:$GH_TOKEN" \
-                --dest-creds "x:$FLY_TOKEN" \
-                "docker://$GHCR_IMAGE" \
-                "docker://$FLY_IMAGE"
+          [build]
+            image = "registry.fly.io/${cfg.fly.app-prefix}-cas:latest"
 
-              # Deploy to Fly
-              echo "Deploying to Fly.io..."
-              flyctl deploy -c "$FLY_CONFIG" -y
+          [env]
+            RUST_LOG = "info,nativelink=debug"
 
-              echo "=== $SERVICE deployed successfully ==="
-              flyctl status -a "$FLY_APP"
-            '';
-          };
+          [http_service]
+            internal_port = ${to-string cfg.cas.port}
+            force_https = true
+            auto_stop_machines = "off"
+            auto_start_machines = true
+            min_machines_running = 1
 
-        deploy-scheduler = mk-deploy-script {
-          name = "scheduler";
-          fly-app = "${cfg.fly.app-prefix}-scheduler";
-          fly-config = "${fly-config-dir}/scheduler.toml";
-        };
+            [http_service.concurrency]
+              type = "connections"
+              hard_limit = 10000
+              soft_limit = 8000
 
-        deploy-cas = mk-deploy-script {
-          name = "cas";
-          fly-app = "${cfg.fly.app-prefix}-cas";
-          fly-config = "${fly-config-dir}/cas.toml";
-        };
+          [mounts]
+            source = "cas_data"
+            destination = "/data"
+            initial_size = "${cfg.cas.volume-size}"
 
-        deploy-worker = mk-deploy-script {
-          name = "worker";
-          fly-app = "${cfg.fly.app-prefix}-worker";
-          fly-config = "${fly-config-dir}/worker.toml";
-        };
+          [[vm]]
+            memory = "${cfg.cas.memory}"
+            cpu_kind = "shared"
+            cpus = ${to-string cfg.cas.cpus}
+        '';
 
+        worker-fly-toml = write-text "worker.toml" ''
+          # Generated by aleph.nativelink module
+          # ${to-string cfg.worker.count}x performance-${to-string cfg.worker.cpus} = ${
+            to-string (cfg.worker.count * cfg.worker.cpus)
+          } cores total
+          app = "${cfg.fly.app-prefix}-worker"
+          primary_region = "${cfg.fly.region}"
+
+          [build]
+            image = "registry.fly.io/${cfg.fly.app-prefix}-worker:latest"
+
+          [env]
+            RUST_LOG = "info,nativelink=debug"
+
+          [mounts]
+            source = "worker_data"
+            destination = "/data"
+            initial_size = "${cfg.worker.volume-size}"
+
+          [[vm]]
+            memory = "${cfg.worker.memory}"
+            cpu_kind = "${cfg.worker.cpu-kind}"
+            cpus = ${to-string cfg.worker.cpus}
+        '';
+
+        builder-fly-toml = write-text "builder.toml" ''
+          # Generated by aleph.nativelink module
+          # Dedicated nix builder - SSH in, build containers, push to registry
+          # Your laptop stays cool.
+          app = "${cfg.fly.app-prefix}-builder"
+          primary_region = "${cfg.fly.region}"
+
+          [build]
+            image = "registry.fly.io/${cfg.fly.app-prefix}-builder:latest"
+
+          [env]
+            NIX_CONFIG = "experimental-features = nix-command flakes"
+
+          [mounts]
+            source = "builder_nix"
+            destination = "/nix"
+            initial_size = "${cfg.builder.volume-size}"
+
+          [[vm]]
+            memory = "${cfg.builder.memory}"
+            cpu_kind = "performance"
+            cpus = ${to-string cfg.builder.cpus}
+        '';
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Deployment scripts for Fly.io
+        # Usage: nix run .#nativelink-deploy
+        # ──────────────────────────────────────────────────────────────────────
+
+        # Single unified deploy script - idempotent, does everything
         deploy-all = write-shell-application {
-          name = "nativelink-deploy-all";
-          "runtimeInputs" = [
-            deploy-scheduler
-            deploy-cas
-            deploy-worker
+          name = "nativelink-deploy";
+          "runtimeInputs" = with pkgs; [
+            skopeo
+            flyctl
+            gh
+            coreutils
+            jq
           ];
           text = ''
             set -euo pipefail
-            echo "=== Deploying all NativeLink services ==="
-            nativelink-deploy-scheduler
-            nativelink-deploy-cas
-            nativelink-deploy-worker
-            echo "=== All services deployed ==="
+
+            PREFIX="${cfg.fly.app-prefix}"
+            REGION="${cfg.fly.region}"
+            WORKER_COUNT=${to-string cfg.worker.count}
+
+            # Parse args
+            BUILD_IMAGES=true
+            for arg in "$@"; do
+              case "$arg" in
+                --no-build) BUILD_IMAGES=false ;;
+                --help|-h)
+                  echo "Usage: nativelink-deploy [--no-build]"
+                  echo ""
+                  echo "Options:"
+                  echo "  --no-build  Skip container builds, just deploy existing images"
+                  exit 0
+                  ;;
+              esac
+            done
+
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║           NativeLink Fly.io Deploy                               ║"
+            echo "║  ${to-string cfg.worker.count}x performance-${to-string cfg.worker.cpus} workers = ${
+              to-string (cfg.worker.count * cfg.worker.cpus)
+            } cores                              ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+
+            # ── Auth check ──────────────────────────────────────────────────────
+            echo "Checking authentication..."
+            if ! gh auth status &>/dev/null; then
+              echo "Error: GitHub CLI not authenticated. Run 'gh auth login'"
+              exit 1
+            fi
+            GH_TOKEN=$(gh auth token)
+            GH_USER=$(gh api user -q .login)
+
+            if ! flyctl auth whoami &>/dev/null; then
+              echo "Error: Fly CLI not authenticated. Run 'flyctl auth login'"
+              exit 1
+            fi
+            echo "  ✓ GitHub: $GH_USER"
+            echo "  ✓ Fly.io: $(flyctl auth whoami)"
+            echo ""
+
+            # ── Create apps if needed ───────────────────────────────────────────
+            echo "Ensuring Fly apps exist..."
+            for APP in "$PREFIX-scheduler" "$PREFIX-cas" "$PREFIX-worker"; do
+              if ! flyctl apps list --json | jq -e ".[] | select(.Name == \"$APP\")" &>/dev/null; then
+                echo "  Creating $APP..."
+                flyctl apps create "$APP" --org personal || true
+              else
+                echo "  ✓ $APP exists"
+              fi
+            done
+            echo ""
+
+            # ── Allocate IPs if needed ──────────────────────────────────────────
+            echo "Ensuring public IPs allocated..."
+            for APP in "$PREFIX-scheduler" "$PREFIX-cas"; do
+              if ! flyctl ips list -a "$APP" --json | jq -e '.[] | select(.Type == "shared_v4" or .Type == "v4")' &>/dev/null; then
+                echo "  Allocating IPv4 for $APP..."
+                flyctl ips allocate-v4 --shared -a "$APP"
+              fi
+              if ! flyctl ips list -a "$APP" --json | jq -e '.[] | select(.Type == "v6")' &>/dev/null; then
+                echo "  Allocating IPv6 for $APP..."
+                flyctl ips allocate-v6 -a "$APP"
+              fi
+            done
+            echo "  ✓ IPs allocated"
+            echo ""
+
+            # ── Create volumes if needed ────────────────────────────────────────
+            echo "Ensuring volumes exist..."
+            if ! flyctl volumes list -a "$PREFIX-cas" --json | jq -e '.[] | select(.Name == "cas_data")' &>/dev/null; then
+              echo "  Creating CAS volume (${cfg.cas.volume-size})..."
+              flyctl volumes create cas_data -a "$PREFIX-cas" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.cas.volume-size)} -y
+            fi
+            for i in $(seq 1 $WORKER_COUNT); do
+              VOL_NAME="worker_data"
+              # Check if we have enough volumes
+              VOL_COUNT=$(flyctl volumes list -a "$PREFIX-worker" --json | jq '[.[] | select(.Name == "worker_data")] | length')
+              if [ "$VOL_COUNT" -lt "$i" ]; then
+                echo "  Creating worker volume $i (${cfg.worker.volume-size})..."
+                flyctl volumes create "$VOL_NAME" -a "$PREFIX-worker" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.worker.volume-size)} -y
+              fi
+            done
+            echo "  ✓ Volumes ready"
+            echo ""
+
+            if [ "$BUILD_IMAGES" = "true" ]; then
+            # ── Ensure builder exists ───────────────────────────────────────────
+            BUILDER_APP="$PREFIX-builder"
+            if ! flyctl apps list --json | jq -e ".[] | select(.Name == \"$BUILDER_APP\")" &>/dev/null; then
+              echo "Creating builder app..."
+              flyctl apps create "$BUILDER_APP" --org personal || true
+            fi
+
+            # Check if builder needs volume
+            if ! flyctl volumes list -a "$BUILDER_APP" --json | jq -e '.[] | select(.Name == "builder_nix")' &>/dev/null; then
+              echo "Creating builder volume (${cfg.builder.volume-size})..."
+              flyctl volumes create builder_nix -a "$BUILDER_APP" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.builder.volume-size)} -y
+            fi
+
+            # Check if builder is running
+            BUILDER_STATE=$(flyctl status -a "$BUILDER_APP" --json 2>/dev/null | jq -r '.Machines[0].state // "none"' || echo "none")
+            if [ "$BUILDER_STATE" != "started" ]; then
+              echo "Starting builder..."
+              # First time: need to push image from local (bootstrap)
+              # After that: builder rebuilds itself
+              if ! flyctl status -a "$BUILDER_APP" --json 2>/dev/null | jq -e '.Machines[0]' &>/dev/null; then
+                echo "  Bootstrap: building builder image locally (one-time)..."
+                nix run ".#nativelink-builder.copyTo" -- \
+                  --dest-creds "$GH_USER:$GH_TOKEN" \
+                  "docker://ghcr.io/straylight-software/aleph/nativelink-builder:latest" 2>&1 | tail -2
+                FLY_TOKEN=$(flyctl tokens create deploy -a "$BUILDER_APP" -x 2h 2>&1 | head -1)
+                skopeo copy \
+                  --src-creds "$GH_USER:$GH_TOKEN" \
+                  --dest-creds "x:$FLY_TOKEN" \
+                  "docker://ghcr.io/straylight-software/aleph/nativelink-builder:latest" \
+                  "docker://registry.fly.io/$BUILDER_APP:latest" 2>&1 | tail -1
+                flyctl deploy -c ${builder-fly-toml} -a "$BUILDER_APP" -y 2>&1 | tail -3
+              else
+                flyctl machines start -a "$BUILDER_APP" "$(flyctl machines list -a "$BUILDER_APP" --json | jq -r '.[0].id')"
+              fi
+            fi
+            echo "  ✓ Builder ready"
+            echo ""
+
+            # ── Build images on remote builder ──────────────────────────────────
+            echo "Building containers on Fly builder (your laptop stays cool)..."
+            REPO_URL="https://github.com/straylight-software/aleph.git"
+
+            for SERVICE in scheduler cas worker; do
+              echo "  Building nativelink-$SERVICE..."
+              flyctl ssh console -a "$BUILDER_APP" -C "
+                set -e
+                cd /tmp
+                rm -rf aleph 2>/dev/null || true
+                git clone --depth 1 $REPO_URL aleph
+                cd aleph
+                nix run .#nativelink-$SERVICE.copyTo -- \\
+                  --dest-creds '$GH_USER:$GH_TOKEN' \\
+                  'docker://ghcr.io/straylight-software/aleph/nativelink-$SERVICE:latest'
+              " 2>&1 | tail -5
+
+              echo "  Pushing to Fly registry..."
+              FLY_TOKEN=$(flyctl tokens create deploy -a "$PREFIX-$SERVICE" -x 2h 2>&1 | head -1)
+              flyctl ssh console -a "$BUILDER_APP" -C "
+                skopeo copy \\
+                  --src-creds '$GH_USER:$GH_TOKEN' \\
+                  --dest-creds 'x:$FLY_TOKEN' \\
+                  'docker://ghcr.io/straylight-software/aleph/nativelink-$SERVICE:latest' \\
+                  'docker://registry.fly.io/$PREFIX-$SERVICE:latest'
+              " 2>&1 | tail -2
+            done
+            echo "  ✓ Containers built and pushed"
+            echo ""
+            else
+              echo "Skipping container builds (--no-build)"
+              echo ""
+            fi
+
+            # ── Deploy services ─────────────────────────────────────────────────
+            echo "Deploying services..."
+            flyctl deploy -c ${scheduler-fly-toml} -a "$PREFIX-scheduler" -y 2>&1 | tail -2
+            flyctl deploy -c ${cas-fly-toml} -a "$PREFIX-cas" -y 2>&1 | tail -2
+            flyctl deploy -c ${worker-fly-toml} -a "$PREFIX-worker" -y 2>&1 | tail -2
+            echo "  ✓ Services deployed"
+            echo ""
+
+            # ── Scale workers ───────────────────────────────────────────────────
+            echo "Scaling workers to $WORKER_COUNT..."
+            flyctl scale count $WORKER_COUNT -a "$PREFIX-worker" -y 2>&1 | tail -2
+            echo "  ✓ Workers scaled"
+            echo ""
+
+            # ── Status ──────────────────────────────────────────────────────────
+            echo "╔══════════════════════════════════════════════════════════════════╗"
+            echo "║                      Deployment Complete                          ║"
+            echo "╚══════════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "Endpoints:"
+            echo "  Scheduler: grpcs://$PREFIX-scheduler.fly.dev:443"
+            echo "  CAS:       grpcs://$PREFIX-cas.fly.dev:443"
+            echo ""
+            echo "Test with:"
+            echo "  buck2 build --remote-only \\"
+            echo "    --config buck2_re_client.engine_address=grpcs://$PREFIX-scheduler.fly.dev:443 \\"
+            echo "    --config buck2_re_client.cas_address=grpcs://$PREFIX-cas.fly.dev:443 \\"
+            echo "    //..."
+          '';
+        };
+
+        deploy-scheduler = write-shell-application {
+          name = "nativelink-deploy-scheduler";
+          "runtimeInputs" = with pkgs; [ flyctl ];
+          text = ''
+            exec ${deploy-all}/bin/nativelink-deploy
+          '';
+        };
+
+        deploy-cas = write-shell-application {
+          name = "nativelink-deploy-cas";
+          "runtimeInputs" = with pkgs; [ flyctl ];
+          text = ''
+            exec ${deploy-all}/bin/nativelink-deploy
+          '';
+        };
+
+        deploy-worker = write-shell-application {
+          name = "nativelink-deploy-worker";
+          "runtimeInputs" = with pkgs; [ flyctl ];
+          text = ''
+            exec ${deploy-all}/bin/nativelink-deploy
           '';
         };
 
@@ -653,14 +1010,19 @@ in
             };
           };
 
-          # Worker container (full toolchain for hermetic builds)
-          # Includes all toolchain packages so Buck2 actions have access to compilers
+          # Worker container (minimal - toolchain fetched at runtime)
+          # Tools live on the volume at /data/nix, fetched from cache.nixos.org
+          # This keeps the image under Fly's 8GB limit
           nativelink-worker = {
             "systemPackages" = [
               nativelink
               worker-script
-            ]
-            ++ toolchain-packages;
+              worker-setup-script
+              pkgs.nix
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.cacert
+            ];
 
             services.worker = {
               imports = [ (mk-nativelink-service { script = worker-script; } { inherit lib pkgs; }) ];
@@ -670,6 +1032,32 @@ in
 
             "extraEnv" = {
               RUST_LOG = "info";
+              NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+            };
+          };
+
+          # Builder container - nix + git + skopeo for remote builds
+          nativelink-builder = {
+            "systemPackages" = with pkgs; [
+              nix
+              git
+              skopeo
+              openssh
+              coreutils
+              bash
+              gnugrep
+              gnutar
+              gzip
+              curl
+              jq
+              cacert
+            ];
+
+            registries = [ cfg.registry ];
+
+            "extraEnv" = {
+              NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
+              SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             };
           };
         };
@@ -679,10 +1067,16 @@ in
         # ────────────────────────────────────────────────────────────────────
 
         packages = {
-          # Configs (for debugging)
+          # NativeLink JSON configs (for debugging)
           nativelink-scheduler-config = scheduler-config;
           nativelink-cas-config = cas-config;
           nativelink-worker-config = worker-config;
+
+          # Fly.io TOML configs (generated from options)
+          nativelink-scheduler-fly-toml = scheduler-fly-toml;
+          nativelink-cas-fly-toml = cas-fly-toml;
+          nativelink-worker-fly-toml = worker-fly-toml;
+          nativelink-builder-fly-toml = builder-fly-toml;
 
           # Entrypoint scripts (used by containers)
           nativelink-scheduler-script = scheduler-script;
@@ -691,7 +1085,11 @@ in
           nativelink-worker-setup = worker-setup-script;
           nativelink-toolchain-manifest = toolchain-manifest;
 
-          # Deployment scripts (nix run .#nativelink-deploy-*)
+          # THE deploy script - does everything
+          # nix run .#nativelink-deploy
+          nativelink-deploy = deploy-all;
+
+          # Aliases for convenience
           nativelink-deploy-scheduler = deploy-scheduler;
           nativelink-deploy-cas = deploy-cas;
           nativelink-deploy-worker = deploy-worker;

@@ -4,7 +4,7 @@ severity: warning
 rule:
   kind: indented_string_expression
   regex: "(?s)(?:.*\\n){12,}"
-message: "WSN-W003: long inline string"
+message: "ALEPH-W003: long inline string"
 note: |
   ## What's wrong?
   A multi-line string exceeds 10 lines (nice try,

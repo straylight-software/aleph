@@ -9,7 +9,7 @@ ignores:
   - nix/lib/**/*.nix
 rule:
   kind: rec_attrset_expression
-message: "WSN-W001: recursive attrset"
+message: "ALEPH-W001: recursive attrset"
 note: |
   ## What's wrong?
   A recursive attrset (`rec { ... }`) was found.

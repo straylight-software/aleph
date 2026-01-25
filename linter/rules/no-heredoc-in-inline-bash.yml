@@ -6,7 +6,7 @@ rule:
   regex: "(?s).*\\bcat\\b[^\\n]*<<-?.*"
   inside:
     kind: indented_string_expression
-message: "WSN-E006: heredoc in inline bash string"
+message: "ALEPH-E006: heredoc in inline bash string"
 note: |
   ## What's wrong?
   Inline bash strings that use heredocs (e.g. `cat <<EOF`) are forbidden

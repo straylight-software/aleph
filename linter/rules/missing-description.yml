@@ -67,7 +67,7 @@ rule:
                         has:
                           kind: identifier
                           regex: ^description$
-message: "WSN-W005: missing description attribute"
+message: "ALEPH-W005: missing description attribute"
 note: |
   ## What's wrong?
   `mkOption` was called without a `description` attribute.

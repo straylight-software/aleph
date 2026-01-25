@@ -1,9 +1,9 @@
-# ℵ-002: wsn-lint
+# ℵ-002: aleph-lint
 
 | Field | Value |
 |-------|-------|
 | RFC | ℵ-002 |
-| Title | wsn-lint — Machine-Checkable Straylight Standard Nix |
+| Title | aleph-lint — Machine-Checkable Aleph Prelude |
 | Author | Straylight |
 | Status | Draft |
 | Created | 2025-01-05 |
@@ -11,14 +11,18 @@
 
 ## Abstract
 
-This RFC specifies `wsn-lint`, a static analysis tool that mechanically enforces
-Straylight Standard Nix. The tool uses hnix for parsing and AST analysis, enabling most
-ℵ-001 requirements to be checked without evaluation.
+This RFC specifies `aleph-lint`, a static analysis tool that mechanically enforces
+the Aleph Prelude conventions. The tool uses ast-grep for parsing and AST analysis,
+enabling most ℵ-001 requirements to be checked without evaluation.
 
 ## Motivation
 
 A specification without enforcement is a suggestion. ℵ-001 establishes normative
 requirements, but compliance currently depends on code review.
+
+The linter is doctrine, not guardrails. Each rule is a forcing function that drives
+code through the typed prelude boundary. Error messages are designed for both agents
+and humans, optimized to prevent vendor lock-in.
 
 ## Specification
 
@@ -32,7 +36,7 @@ requirements, but compliance currently depends on code review.
 
 ### AST Rules (No Evaluation Required)
 
-#### WSN-E001: with-statement
+#### ALEPH-E001: with-statement
 
 **Level:** ERROR
 
@@ -45,7 +49,7 @@ with lib;
 environment.systemPackages = with pkgs; [ vim git ];
 ```
 
-#### WSN-E002: rec-in-derivation
+#### ALEPH-E002: rec-in-derivation
 
 **Level:** ERROR
 
@@ -57,19 +61,19 @@ stdenv.mkDerivation rec { version = "1.0"; }
 stdenv.mkDerivation (finalAttrs: { version = "1.0"; })
 ```
 
-#### WSN-E003: non-lisp-case
+#### ALEPH-E003: non-lisp-case
 
 **Level:** ERROR
 
-Identifiers in `straylight.*` namespaces using camelCase or snake_case.
+Identifiers in `aleph.*` namespaces using camelCase or snake_case.
 
-#### WSN-E004: missing-class
+#### ALEPH-E004: missing-class
 
 **Level:** ERROR
 
 Files in `nix/modules/(nixos|darwin|home)/` without `_class` attribute.
 
-#### WSN-E005: default-nix-in-packages
+#### ALEPH-E005: default-nix-in-packages
 
 **Level:** ERROR
 
@@ -81,72 +85,97 @@ nix/packages/my-tool/default.nix
 nix/packages/my-tool.nix
 ```
 
+#### ALEPH-E006: heredoc-in-inline-bash
+
+**Level:** ERROR
+
+Heredocs inside Nix inline strings are forbidden.
+
+#### ALEPH-E007: substitute-all
+
+**Level:** ERROR
+
+`substituteAll`, `replaceVars`, and `substitute` are forbidden.
+All text generation must use Dhall templates.
+
+#### ALEPH-E010: raw-mkderivation
+
+**Level:** ERROR
+
+Direct `mkDerivation` calls bypass the typed prelude boundary.
+Use `aleph.stdenv.*` instead.
+
+#### ALEPH-E011: raw-runcommand
+
+**Level:** ERROR
+
+Direct `runCommand` calls bypass the typed prelude boundary.
+Use `aleph.run-command` instead.
+
+#### ALEPH-E012: raw-writeshellapplication
+
+**Level:** ERROR
+
+Direct `writeShellApplication` calls bypass the typed prelude boundary.
+Use `aleph.write-shell-application` instead.
+
+#### ALEPH-E013: translate-attrs-outside-prelude
+
+**Level:** ERROR
+
+`translate-attrs` is the prelude's internal translation layer.
+Using it directly means you're bypassing the typed interface.
+
 ### Warnings
 
-#### WSN-W001: rec-anywhere
+#### ALEPH-W001: rec-anywhere
 
 **Level:** WARNING
 
 Flag all `rec` attrsets for review.
 
-#### WSN-W002: if-in-module-config
-
-**Level:** WARNING
-
-`if/then/else` inside module `config` blocks.
-
-#### WSN-W003: long-inline-string
+#### ALEPH-W003: long-inline-string
 
 **Level:** WARNING
 
 Multi-line strings exceeding 10 lines.
 
-#### WSN-W004: missing-meta
+#### ALEPH-W004: or-null-fallback
 
 **Level:** WARNING
 
-Derivation builder calls without `meta` attribute.
+Using `x or null` hides errors instead of failing fast.
 
-#### WSN-W005: missing-description
+#### ALEPH-W005: missing-description
 
 **Level:** WARNING
 
 `mkOption` calls without `description` attribute.
 
-### Import Graph Rules (Requires Resolution)
-
-#### WSN-E010: external-nixpkgs-config
+#### ALEPH-W006: prefer-write-shell-application
 
 **Level:** ERROR
 
-```nix
-# ERROR
-pkgs = import inputs.nixpkgs { config.cudaSupport = true; };
+`writeShellScript` and `writeShellScriptBin` are deprecated.
+Use `writeShellApplication` (which runs shellcheck).
 
-# OK
-pkgs = inputs.aleph.nixpkgs.${system};
-```
+#### ALEPH-W007: missing-meta
 
-#### WSN-E011: nixpkgs-config-in-nixos
+**Level:** WARNING
 
-**Level:** ERROR
-
-Assignment to `nixpkgs.config.*` in NixOS configuration files.
+Derivation builder calls without `meta` attribute.
 
 ## Usage
 
 ```bash
 # Check current directory
-wsn-lint check .
+aleph-lint .
 
-# Check flake
-wsn-lint check --flake .
-
-# Auto-fix where possible
-wsn-lint fix .
+# Check specific files
+aleph-lint nix/packages/*.nix
 
 # JSON output for CI
-wsn-lint check --format json .
+aleph-lint --json .
 ```
 
 ## Exit Codes
@@ -159,25 +188,30 @@ wsn-lint check --format json .
 
 ## Implementation
 
-wsn-lint uses hnix for parsing:
+aleph-lint uses ast-grep for parsing:
 
-```haskell
-import Nix.Parser (parseNixFileLoc)
-import Nix.Expr.Types
-
-checkWithStatement :: NExprLoc -> [Diagnostic]
-checkWithStatement expr = case expr of
-  NWith _ _ body -> [Error "WSN-E001" (spanOf expr) "with statement"]
-  _ -> []
+```yaml
+id: with-lib
+language: nix
+severity: error
+rule:
+  kind: with_expression
+  has:
+    field: environment
+    kind: variable_expression
+    has:
+      kind: identifier
+      regex: ^lib$
+message: "ALEPH-E001: `with lib;` statement"
 ```
 
 ## CI Integration
 
 ```yaml
 # .github/workflows/lint.yml
-- name: wsn-lint
+- name: aleph-lint
   run: |
-    nix run github:straylight-software/aleph -- check --flake .
+    nix run github:straylight-software/aleph#aleph-lint -- .
 ```
 
 ## Future Work

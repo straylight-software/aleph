@@ -19,7 +19,7 @@ rule:
         has:
           kind: identifier
           regex: ^(writeShellScript|writeShellScriptBin)$
-message: "WSN-W006: prefer writeShellApplication"
+message: "ALEPH-W006: prefer writeShellApplication"
 note: |
   ## What's wrong?
   `writeShellScript` and `writeShellScriptBin` are deprecated in this codebase.

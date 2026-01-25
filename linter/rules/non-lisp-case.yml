@@ -23,7 +23,7 @@ rule:
         - kind: attrpath
           inside:
             kind: select_expression
-message: "WSN-E003: non-lisp-case identifier"
+message: "ALEPH-E003: non-lisp-case identifier"
 note: |
   ## What's wrong?
   All identifiers must use lisp-case (kebab-case): `foo-bar`, not `fooBar` or `foo_bar`.

@@ -13,7 +13,7 @@ rule:
     has:
       kind: identifier
       regex: ^null$
-message: "WSN-W004: defensive `or null` fallback"
+message: "ALEPH-W004: defensive `or null` fallback"
 note: |
   ## What's wrong?
   Using `x or null` as a fallback hides errors instead of failing fast.

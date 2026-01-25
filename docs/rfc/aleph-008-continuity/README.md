@@ -51,24 +51,34 @@ Redundant things eliminated in favor of superior alternatives:
 | Globs | Explicit file lists | "I'll know what I'm building or I'll know the reason why" |
 | String-typed configs | Real triples, real compilers, real flags | Type safety |
 | nix remote builders | isospin | Build hook is a Superfund site |
+| nix daemon | armitage | Witness proxy, coeffect-aware |
+| "purity" boolean | coeffect algebra | Graded resources, not pure/impure |
 
 ### The Stack
 
 ```
 straylight (CLI)
-    |
-    +-- nix compat (delegate, training wheels)
-    |
-    +-- DICE (real builds)
-            |
-            +-- Dhall (BUILD files, System Fomega, total)
-            |
-            +-- Buck2 core (action graph, RE, TSET, incremental)
-            |
-            +-- Executor (wasm sandbox / firecracker)
-            |
-            +-- Store (r2 + git)
+    │
+    ├── armitage (nix shim)
+    │       │
+    │       ├── witness proxy (fetches → R2)
+    │       ├── coeffect checker (Lean4)
+    │       └── attestation (ed25519 + git)
+    │
+    ├── DICE (real builds)
+    │       │
+    │       ├── Dhall (BUILD files, System Fω, total)
+    │       ├── Buck2 core (action graph, RE, TSET)
+    │       └── Executor (wasm sandbox / isospin)
+    │
+    └── Store
+            │
+            ├── R2 (bytes, content-addressed)
+            ├── git (attestations, refs)
+            └── ed25519 (identity, signing)
 ```
+
+See [armitage.md](armitage.md) for the nix compatibility layer design.
 
 ## Component 1: Dhall Build Language
 
@@ -698,13 +708,24 @@ What's left of "Nix" as we know it?
 | 1 | CA derivations always-on | Complete (RFC-007) |
 | 2 | builtins.wasm | Complete (RFC-007) |
 | 3 | Typed package DSL | Complete (RFC-007) |
-| 4 | Dhall rule schemas | Draft |
-| 5 | DICE (Buck2 fork) | Planned |
-| 6 | R2 store backend | Planned |
-| 7 | git attestation | Planned |
-| 8 | stochastic_omega tactic | Research |
-| 9 | isospin microvm | Research |
-| 10 | nvidia.ko in Lean | Research |
+| 4 | **Armitage witness proxy** | **Next** |
+| 5 | **Armitage coeffect checker** | Planned |
+| 6 | Dhall rule schemas | Draft |
+| 7 | R2 store backend | Planned |
+| 8 | git attestation | Planned |
+| 9 | DICE (Buck2 fork) | Planned |
+| 10 | stochastic_omega tactic | Research |
+| 11 | isospin microvm | Research |
+| 12 | nvidia.ko in Lean | Research |
+
+## Component Index
+
+| Document | Description |
+|----------|-------------|
+| [README.md](README.md) | This document - overview |
+| [armitage.md](armitage.md) | Nix compatibility layer, coeffects, attestation |
+| [dhall-bridge.md](dhall-bridge.md) | Dhall → Buck2 translation options |
+| [ROADMAP.md](ROADMAP.md) | Timeline and milestones |
 
 ## References
 
@@ -715,3 +736,5 @@ What's left of "Nix" as we know it?
 - [Cloudflare R2](https://developers.cloudflare.com/r2/)
 - [Lean4](https://lean-lang.org/)
 - [libgit2](https://libgit2.org/)
+- Petricek et al., "Coeffects: A calculus of context-dependent computation"
+- Orchard et al., "Quantitative Type Theory"

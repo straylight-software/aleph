@@ -1,5 +1,8 @@
 # fly.toml for aleph-scheduler
 # NativeLink scheduler - coordinates work distribution
+#
+# The scheduler is stateless - just routes work to workers.
+# Keep it minimal but responsive.
 
 app = "aleph-scheduler"
 primary_region = "iad"
@@ -8,8 +11,9 @@ primary_region = "iad"
   image = "registry.fly.io/aleph-scheduler:latest"
 
 [env]
-  RUST_LOG = "info"
+  RUST_LOG = "info,nativelink=debug"
 
+# gRPC over HTTPS (Fly terminates TLS, forwards to internal port)
 [http_service]
   internal_port = 50051
   force_https = true
@@ -19,22 +23,17 @@ primary_region = "iad"
 
   [http_service.concurrency]
     type = "connections"
-    hard_limit = 1000
-    soft_limit = 800
+    hard_limit = 10000
+    soft_limit = 8000
 
-[[services]]
-  protocol = "tcp"
-  internal_port = 50051
-
-  [[services.ports]]
-    port = 50051
-    handlers = ["tls"]
-
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
+  # Health check via gRPC health endpoint
+  [http_service.checks]
+    [http_service.checks.health]
+      interval = "10s"
+      timeout = "2s"
+      grace_period = "5s"
 
 [[vm]]
-  memory = "1gb"
+  memory = "2gb"
   cpu_kind = "shared"
-  cpus = 1
+  cpus = 2

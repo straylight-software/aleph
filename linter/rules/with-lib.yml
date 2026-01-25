@@ -9,7 +9,7 @@ rule:
     has:
       kind: identifier
       regex: ^lib$
-message: Use of `with lib;` detected
+message: "ALEPH-E001: `with lib;` statement"
 note: |
   ## What's wrong?
   Usage of the `with lib;` construct was detected.

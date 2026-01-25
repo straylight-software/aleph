@@ -111,7 +111,7 @@
         actual = cond;
       };
 
-      # Test report formatting - broken into parts to comply with WSN-W003
+      # Test report formatting - broken into parts to comply with ALEPH-W003
       mk-report-header = suite-name: ''
         ╔════════════════════════════════════════════════════════════════════════════╗
         ║  ${suite-name}

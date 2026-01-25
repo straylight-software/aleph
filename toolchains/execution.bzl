@@ -21,9 +21,10 @@ def _lre_execution_platform_impl(ctx: AnalysisContext) -> list[Provider]:
             remote_enabled = True,
             use_windows_path_separators = False,
             # RE properties - platform capabilities for worker matching
+            # nix-worker matches both local NixOS workers and Fly.io workers
             remote_execution_properties = {
                 "OSFamily": "linux",
-                "container-image": "nix-lre-worker",
+                "container-image": "nix-worker",
             },
             remote_execution_use_case = "buck2-default",
             remote_output_paths = "output_paths",

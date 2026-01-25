@@ -5,7 +5,7 @@ files:
   - nix/packages/**/default.nix
 rule:
   kind: source_code
-message: "WSN-E005: default.nix under nix/packages"
+message: "ALEPH-E005: default.nix under nix/packages"
 note: |
   ## What's wrong?
   `nix/packages/*/default.nix` is forbidden.

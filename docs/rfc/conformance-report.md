@@ -20,7 +20,7 @@
 | ℵ-003 Implementation | ✓ Conformant |
 | Violations Found | 0 |
 
-All code in aleph adheres to the naming conventions, directory structure, forbidden pattern restrictions, module system requirements, and package patterns specified in ℵ-001. The prelude implementation (ℵ-003) is complete and conformant. The codebase is ready for mechanical enforcement via wsn-lint (ℵ-002).
+All code in aleph adheres to the naming conventions, directory structure, forbidden pattern restrictions, module system requirements, and package patterns specified in ℵ-001. The prelude implementation (ℵ-003) is complete and conformant. The codebase is ready for mechanical enforcement via aleph-lint (ℵ-002).
 
 ## Conformance Matrix
 
@@ -47,18 +47,18 @@ All code in aleph adheres to the naming conventions, directory structure, forbid
 | **§6.10 `meta` required in packages** | ✓ | All packages have complete metadata |
 | **§7 Package Requirements** | ✓ | All packages callable, use finalAttrs, have meta |
 | **§8 Documentation** | ✓ | Module options documented for ndg |
-| **§9 Mechanical Enforcement** | ✓ | Ready for wsn-lint integration |
+| **§9 Mechanical Enforcement** | ✓ | Ready for aleph-lint integration |
 
-### ℵ-002: wsn-lint
+### ℵ-002: aleph-lint
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
 | **AST Rules Compliance** | ✓ | Zero errors when checked |
-| **WSN-E001: with-statement** | ✓ | No `with` statements in config |
-| **WSN-E002: rec-in-derivation** | ✓ | All derivations use `finalAttrs` |
-| **WSN-E003: non-lisp-case** | ✓ | Consistent lisp-case throughout |
-| **WSN-E004: missing-class** | ✓ | All modules properly marked |
-| **WSN-E005: default-nix-in-packages** | ✓ | No default.nix antipattern |
+| **ALEPH-E001: with-statement** | ✓ | No `with` statements in config |
+| **ALEPH-E002: rec-in-derivation** | ✓ | All derivations use `finalAttrs` |
+| **ALEPH-E003: non-lisp-case** | ✓ | Consistent lisp-case throughout |
+| **ALEPH-E004: missing-class** | ✓ | All modules properly marked |
+| **ALEPH-E005: default-nix-in-packages** | ✓ | No default.nix antipattern |
 | **Warning Compliance** | ✓ | Zero warnings |
 
 ### ℵ-003: The Straylight Prelude
@@ -184,9 +184,9 @@ nix flake check    # ✓ Pass
 
 ## Mechanical Enforcement Readiness
 
-**Status**: Ready for wsn-lint integration
+**Status**: Ready for aleph-lint integration
 
-When ℵ-002 (wsn-lint) is implemented, aleph is expected to achieve:
+When ℵ-002 (aleph-lint) is implemented, aleph is expected to achieve:
 
 - Exit code 0 (fully conformant)
 - Zero errors
@@ -231,8 +231,8 @@ find nix/packages -name "default.nix" 2>/dev/null # Should find none
 # 5. Run flake checks
 nix flake check                                   # Must pass
 
-# 6. Future: Run wsn-lint
-# wsn-lint check --flake .                        # When available
+# 6. Run aleph-lint
+# aleph-lint .                                    # Mechanical enforcement
 ```
 
 ### Responsibility
@@ -249,7 +249,7 @@ nix flake check                                   # Must pass
 
 Areas for future enhancement:
 
-1. **wsn-lint integration** — Automate conformance checking in CI
+1. **aleph-lint integration** — Automate conformance checking in CI
 1. **IDE tooling** — LSP support for real-time conformance feedback
 1. **Auto-fixing** — Automated remediation of common violations
 1. **Documentation generation** — Automated extraction of module options
@@ -260,7 +260,7 @@ Areas for future enhancement:
 ### Referenced RFCs
 
 - [ℵ-001: Straylight Standard Nix](aleph-001-standard-nix.md) — Core specification
-- [ℵ-002: wsn-lint](aleph-002-lint.md) — Mechanical enforcement (Draft)
+- [ℵ-002: aleph-lint](aleph-002-lint.md) — Mechanical enforcement (Draft)
 - [ℵ-003: The Straylight Prelude](aleph-003-prelude.md) — Functional infrastructure (Draft)
 
 ### Referenced Code Sections
