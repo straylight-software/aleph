@@ -3,7 +3,7 @@
 # straylight nix overlay - provides builtins.wasm-enabled nix binary
 #
 # Usage in devshell:
-#   pkgs.straylight.nix  # The nix binary with builtins.wasm
+#   pkgs.aleph.nix  # The nix binary with builtins.wasm
 #
 # The wrapper adds --no-eval-cache by default to avoid stale derivation
 # path issues during development.

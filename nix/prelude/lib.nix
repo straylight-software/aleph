@@ -1,7 +1,7 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
 # ║                    NIXPKGS LIB REIMPLEMENTED VIA WEYL PRELUDE              ║
 # ║                                                                            ║
-# ║  A drop-in replacement for nixpkgs/lib that uses the Weyl Prelude          ║
+# ║  A drop-in replacement for nixpkgs/lib that uses the Aleph Prelude          ║
 # ║  for all core functional primitives.                                       ║
 # ║                                                                            ║
 # ║  The legacy lib is a sprawling mess of inconsistent naming:                ║
@@ -10,7 +10,7 @@
 # ║    - lib.foldl' vs lib.foldr (prime? really?)                              ║
 # ║    - lib.mapAttrs vs lib.concatMapStrings (Attrs vs Strings suffix)        ║
 # ║                                                                            ║
-# ║  The Weyl Prelude brings Haskell-style consistency:                        ║
+# ║  The Aleph Prelude brings Haskell-style consistency:                        ║
 # ║    - Lisp-case naming (map-attrs, fold-right, starts-with)                 ║
 # ║    - Predictable argument order (data last for currying)                   ║
 # ║    - Type signatures in comments                                           ║
@@ -27,7 +27,7 @@ let
   # TRIVIAL - Core combinators and primitives
   # ════════════════════════════════════════════════════════════════════════════
   trivial = {
-    # The Weyl Prelude provides these directly
+    # The Aleph Prelude provides these directly
     inherit (P) id;
     inherit (P) const;
     inherit (P) flip;

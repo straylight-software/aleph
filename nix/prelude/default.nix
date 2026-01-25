@@ -16,7 +16,7 @@
 #
 #                                                         — Neuromancer
 #
-# The Weyl Prelude as an overlay. A membrane between your code and the
+# The Aleph Prelude as an overlay. A membrane between your code and the
 # nixpkgs substrate. You write lisp-case, structured, version-pinned.
 # The membrane translates.
 #

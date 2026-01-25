@@ -1,5 +1,5 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║                        ALEPH-NAUGHT PACKAGE TESTS                          ║
+# ║                        ALEPH PACKAGE TESTS                          ║
 # ║                                                                            ║
 # ║  Tests for packages exposed by aleph.                               ║
 # ║  Ensures packages are properly built and usable.                           ║

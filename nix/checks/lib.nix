@@ -1,5 +1,5 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║                        ALEPH-NAUGHT LIBRARY TESTS                          ║
+# ║                        ALEPH LIBRARY TESTS                          ║
 # ║                                                                            ║
 # ║  Tests for pure library functions in nix/lib/default.nix.                  ║
 # ║  These test NVIDIA GPU utilities and stdenv utilities.                     ║

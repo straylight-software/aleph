@@ -1,4 +1,4 @@
-# aleph-naught ruff.toml - The Law
+# aleph ruff.toml - The Law
 line-length = 100
 indent-width = 2
 target-version = "py313"

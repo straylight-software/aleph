@@ -9,7 +9,7 @@ ignores:
   # flake-parts modules (TODO: wrap these too)
   - "nix/modules/flake/**"
   # nvidia-sdk overlays use translate-attrs directly to avoid circular deps
-  # with straylight.stdenv (which queries final.nvidia-sdk in toolchain.nix)
+  # with aleph.stdenv (which queries final.nvidia-sdk in toolchain.nix)
   - "nix/overlays/nvidia-sdk/**"
   - "nix/overlays/nixpkgs-nvidia-sdk.nix"
 rule:
@@ -34,7 +34,7 @@ note: |
   Using it directly means you're bypassing the typed interface.
   
   ## What can I do to fix this?
-  Use `straylight.stdenv.default` or `prelude.mk-package` instead.
+  Use `aleph.stdenv.default` or `prelude.mk-package` instead.
   These call `translate-attrs` internally.
   
   ```nix
@@ -44,7 +44,7 @@ note: |
   })
   
   # RIGHT - typed boundary handles translation
-  straylight.stdenv.default {
+  aleph.stdenv.default {
     native-build-inputs = [ cmake ];
   }
   ```

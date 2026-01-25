@@ -1,15 +1,15 @@
-# ndg.toml — NDG configuration for aleph-naught option docs
+# ndg.toml — NDG configuration for aleph option docs
 
 [project]
 name = "Weyl Standard Nix Options"
-description = "Generated option documentation for aleph-naught modules"
+description = "Generated option documentation for aleph modules"
 version = "0.1.0"
 
 [build]
 output = "result"
 
 [options]
-prefix = "aleph-naught"
+prefix = "aleph"
 
 [theme]
 stylesheet = "theme/ono-sendai.css"

@@ -137,7 +137,7 @@ in
               mkdir -p $out
               nixdoc \
                 --category prelude \
-                --description "Weyl Prelude API Reference" \
+                --description "Aleph Prelude API Reference" \
                 --file ${prelude-functions-src} \
                 --prefix "" \
                 > $out/prelude-api.md

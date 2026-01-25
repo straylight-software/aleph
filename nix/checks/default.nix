@@ -1,5 +1,5 @@
 # ╔════════════════════════════════════════════════════════════════════════════╗
-# ║                         ALEPH-NAUGHT TEST SUITE                            ║
+# ║                         ALEPH TEST SUITE                            ║
 # ║                                                                            ║
 # ║  Aggregator for all checks in aleph.                                ║
 # ║  Run with: nix flake check                                                 ║

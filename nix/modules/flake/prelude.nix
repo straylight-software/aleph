@@ -9,7 +9,7 @@
 #
 #                                                         — Neuromancer
 #
-# A flake-parts module that exposes the Weyl Prelude from the overlay.
+# A flake-parts module that exposes the Aleph Prelude from the overlay.
 #
 # The prelude overlay (nix/overlays/prelude.nix) provides:
 #   - aleph.prelude: functional library
@@ -51,7 +51,7 @@ in
         options.aleph = {
           prelude = lib.mkOption {
             type = lib.types.raw;
-            description = "The instantiated Weyl Prelude for this system";
+            description = "The instantiated Aleph Prelude for this system";
           };
         };
       }
