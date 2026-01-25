@@ -69,6 +69,8 @@ SCRIPTS = [
     # NVIDIA SDK extraction
     "nvidia-sdk",
     "nvidia-sdk-extract",
+    # Archive utilities
+    "combine-archive",
 ]
 
 # Generate haskell_script targets for all scripts

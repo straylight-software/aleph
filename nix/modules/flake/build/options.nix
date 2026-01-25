@@ -142,11 +142,32 @@ in
 
         packages = lib.mkOption {
           type = lib.types.functionTo (lib.types.listOf lib.types.package);
-          # Note: Core packages (text, bytestring, containers) ship with GHC 9.8+
-          default = hp: [
-            hp.aeson
-            hp.optparse-applicative
-          ];
+          # Full Aleph.Script dependencies - matches src/tools/scripts/BUCK SCRIPT_PACKAGES
+          # and nix/overlays/script.nix hsDeps
+          default =
+            hp: with hp; [
+              megaparsec
+              text
+              shelly
+              foldl
+              aeson
+              dhall
+              directory
+              filepath
+              crypton
+              memory
+              unordered-containers
+              vector
+              unix
+              async
+              bytestring
+              process
+              containers
+              transformers
+              mtl
+              time
+              optparse-applicative
+            ];
           description = "Haskell packages for Buck2 toolchain (receives haskellPackages)";
         };
       };

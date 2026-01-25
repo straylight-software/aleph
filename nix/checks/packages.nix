@@ -11,6 +11,25 @@
   ...
 }:
 let
+  # Render Dhall template with environment variables
+  renderDhall =
+    name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
+
   # ══════════════════════════════════════════════════════════════════════════
   # TEST: mdspan-installation
   # ══════════════════════════════════════════════════════════════════════════
@@ -56,15 +75,18 @@ let
   # Verify that the NVIDIA SDK has the expected structure and critical headers
 
   test-nvidia-sdk-structure =
+    let
+      script = renderDhall "test-nvidia-sdk-structure.bash" ./scripts/test-nvidia-sdk-structure.dhall {
+        nvidia_sdk = pkgs.nvidia-sdk;
+      };
+    in
     pkgs.runCommand "test-nvidia-sdk-structure"
       {
         nativeBuildInputs = [ pkgs.nvidia-sdk ];
       }
-      (
-        pkgs.replaceVars ./scripts/test-nvidia-sdk-structure.bash {
-          nvidiaSdk = pkgs.nvidia-sdk;
-        }
-      );
+      ''
+        bash ${script}
+      '';
 
 in
 {

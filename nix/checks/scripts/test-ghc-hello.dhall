@@ -1,6 +1,6 @@
 -- nix/checks/scripts/test-ghc-hello.dhall
 --
--- Test script for GHC Hello World compilation
+-- Test GHC Hello World compilation
 -- Environment variables are injected by render.dhall-with-vars
 
 let ghcHello : Text = env:GHC_HELLO as Text

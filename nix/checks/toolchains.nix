@@ -18,7 +18,26 @@
   prelude,
 }:
 let
-  inherit (pkgs) runCommand;
+  inherit (pkgs) runCommand lib;
+
+  # Render Dhall template with environment variables
+  renderDhall =
+    name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
 
   # ─────────────────────────────────────────────────────────────────────────
   # Helper: create a smoke test derivation
@@ -67,9 +86,13 @@ in
     name = "ghc-hello-world";
     description = "GHC can compile and run Hello World";
     nativeBuildInputs = [ prelude.ghc.pkg ];
-    testScript = pkgs.replaceVars ./scripts/test-ghc-hello.bash {
-      ghcHello = ./test-sources/ghc-hello.hs;
-    };
+    testScript = ''
+      bash ${
+        renderDhall "test-ghc-hello.bash" ./scripts/test-ghc-hello.dhall {
+          ghc_hello = ./test-sources/ghc-hello.hs;
+        }
+      }
+    '';
   };
 
   ghc-with-packages = mkSmokeTest {
@@ -83,9 +106,13 @@ in
         ]
       ))
     ];
-    testScript = pkgs.replaceVars ./scripts/test-ghc-packages.bash {
-      ghcText = ./test-sources/ghc-text.hs;
-    };
+    testScript = ''
+      bash ${
+        renderDhall "test-ghc-packages.bash" ./scripts/test-ghc-packages.dhall {
+          ghc_text = ./test-sources/ghc-text.hs;
+        }
+      }
+    '';
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -107,9 +134,13 @@ in
     name = "rust-version";
     description = "Rust compiler reports version";
     nativeBuildInputs = [ prelude.rust.pkg ];
-    testScript = pkgs.replaceVars ./scripts/test-rust-hello.bash {
-      rustHello = ./test-sources/rust-hello.rs;
-    };
+    testScript = ''
+      bash ${
+        renderDhall "test-rust-hello.bash" ./scripts/test-rust-hello.dhall {
+          rust_hello = ./test-sources/rust-hello.rs;
+        }
+      }
+    '';
   };
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -131,8 +162,12 @@ in
     name = "cpp-hello-world";
     description = "C++ compiler can compile Hello World";
     nativeBuildInputs = [ pkgs.stdenv.cc ];
-    testScript = pkgs.replaceVars ./scripts/test-cpp-hello.bash {
-      cppHello = ./test-sources/cpp-hello.cpp;
-    };
+    testScript = ''
+      bash ${
+        renderDhall "test-cpp-hello.bash" ./scripts/test-cpp-hello.dhall {
+          cpp_hello = ./test-sources/cpp-hello.cpp;
+        }
+      }
+    '';
   };
 }

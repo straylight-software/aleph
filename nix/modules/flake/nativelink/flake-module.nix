@@ -356,15 +356,9 @@ in
         nvidia-sdk = pkgs.nvidia-sdk or null;
         gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
 
-        # Haskell toolchain
-        hsPkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
-        ghcWithPackages = hsPkgs.ghcWithPackages (hp: [
-          hp.text
-          hp.bytestring
-          hp.containers
-          hp.aeson
-          hp.optparse-applicative
-        ]);
+        # Haskell toolchain - use straylight.script.ghc for full Aleph.Script support
+        # This ensures NativeLink workers can build all Haskell scripts via Buck2
+        ghcWithPackages = pkgs.straylight.script.ghc;
 
         # Python with nanobind/pybind11 for Buck2 python_cxx rules
         pythonEnv = pkgs.python312.withPackages (ps: [
@@ -647,11 +641,13 @@ in
           };
 
           # Worker container (full toolchain for hermetic builds)
+          # Includes all toolchain packages so Buck2 actions have access to compilers
           nativelink-worker = {
             systemPackages = [
               nativelink
               workerScript
-            ];
+            ]
+            ++ toolchainPackages;
 
             services.worker = {
               imports = [ (mkNativelinkService { script = workerScript; } { inherit lib pkgs; }) ];

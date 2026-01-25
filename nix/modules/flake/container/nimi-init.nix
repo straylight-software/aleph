@@ -36,6 +36,25 @@ let
   networkSetupScript = builtins.readFile ../scripts/vm-init-network.bash;
   gpuSetupScript = builtins.readFile ../scripts/vm-init-gpu.bash;
 
+  # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
+  renderDhall =
+    name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
+
   mkVmInit =
     {
       hostname,
@@ -44,7 +63,7 @@ let
       execInto, # Final command to exec into
     }:
     let
-      script = pkgs.replaceVars ../scripts/vm-init.bash {
+      script = renderDhall "vm-init-${hostname}" ../scripts/vm-init.dhall {
         inherit hostname execInto;
         networkSetup = lib.optionalString enableNetwork networkSetupScript;
         gpuSetup = lib.optionalString waitForGpu gpuSetupScript;
@@ -62,7 +81,9 @@ let
           busybox # for cttyhack
         ]
         ++ lib.optional waitForGpu kmod;
-      text = builtins.readFile script;
+      text = ''
+        source ${script}
+      '';
     };
 
   # ────────────────────────────────────────────────────────────────────────────

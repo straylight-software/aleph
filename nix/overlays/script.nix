@@ -37,7 +37,12 @@ let
   scriptSrc = ../../src/tools/scripts;
   corpusSrc = ../../src/tools/corpus;
 
+  # Use GHC 9.12 consistently across the codebase
+  # This matches nix/prelude/versions.nix and aligns with Buck2 toolchain
+  hsPkgs = final.haskell.packages.ghc912;
+
   # Haskell dependencies for Aleph.Script
+  # These must match SCRIPT_PACKAGES in src/tools/scripts/BUCK
   hsDeps =
     p: with p; [
       megaparsec
@@ -47,6 +52,7 @@ let
       aeson
       dhall # Dhall config parsing
       directory
+      filepath
       # For unshare-gpu and typed wrappers
       # Note: dhall brings in crypton, so we use that instead of cryptonite
       # (they have the same Crypto.Hash API)
@@ -57,10 +63,15 @@ let
       unix # executeFile
       async # concurrency
       bytestring
+      process
+      containers
+      transformers
+      mtl
+      time
     ];
 
   # GHC with Aleph.Script dependencies
-  ghcWithScript = final.haskellPackages.ghcWithPackages hsDeps;
+  ghcWithScript = hsPkgs.ghcWithPackages hsDeps;
 
   # QuickCheck deps for property tests
   testDeps =
@@ -70,14 +81,21 @@ let
       p.QuickCheck
       p.deepseq
     ];
-  ghcWithTests = final.haskellPackages.ghcWithPackages testDeps;
+  ghcWithTests = hsPkgs.ghcWithPackages testDeps;
 
   # ────────────────────────────────────────────────────────────────────────────
   # // compiled script builder //
   # ────────────────────────────────────────────────────────────────────────────
   #
-  # Compiles a Haskell script from nix/scripts/ to a binary, wrapping it
+  # Compiles a Haskell script from src/tools/scripts/ to a binary, wrapping it
   # with runtime dependencies as needed.
+  #
+  # Build paths:
+  #   - Nix:   mkCompiledScript uses ghc912 from nixpkgs (this builder)
+  #   - Buck2: haskell_script in src/tools/scripts/BUCK (via NativeLink)
+  #
+  # Both use identical GHC version (9.12) and package sets (hsDeps/SCRIPT_PACKAGES).
+  # For iteration, use runghc with ghcWithScript in the devshell.
   #
   # If configExpr is provided, it generates a Dhall config file that the
   # script reads at startup via CONFIG_FILE environment variable.
@@ -440,6 +458,13 @@ in
             final.file # ELF detection
             final.findutils # find for patchelf
           ];
+        };
+
+        # combine-archive - Combines multiple .a files into one
+        # Used by libmodern overlay for static library aggregation
+        combine-archive = mkCompiledScript {
+          name = "combine-archive";
+          deps = [ ]; # No runtime deps, uses ar from stdenv
         };
       };
 

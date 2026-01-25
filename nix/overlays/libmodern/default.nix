@@ -23,50 +23,43 @@ let
   # HASKELL DEPENDENCIES
   # ══════════════════════════════════════════════════════════════════════════════
 
-  # GHC with dependencies for combine-archive script
-  ghcWithDeps = final.haskellPackages.ghcWithPackages (
-    ps: with ps; [
-      shelly
-      text
-      aeson
-      containers
-      async
-      foldl
-    ]
-  );
+  # Use the consolidated GHC 9.12 from straylight.script
+  # This ensures all Haskell code uses the same GHC version
+  ghcWithDeps = final.straylight.script.ghc;
 
   # ══════════════════════════════════════════════════════════════════════════════
   # HELPER SCRIPTS
   # ══════════════════════════════════════════════════════════════════════════════
 
-  # combine-archive: Combines multiple .a files into one using ar
-  # Written in Haskell (no bash logic) per ℵ-006
-  combine-archive = final.stdenv.mkDerivation {
-    name = "combine-archive";
-    src = ../../../src/tools/scripts;
-    dontUnpack = true;
+  # combine-archive: Use Buck2-built version from straylight.script.compiled
+  # Falls back to local build if Buck2 output not available yet
+  combine-archive =
+    final.straylight.script.compiled.combine-archive or (final.stdenv.mkDerivation {
+      name = "combine-archive";
+      src = ../../../src/tools/scripts;
+      dontUnpack = true;
 
-    nativeBuildInputs = [ ghcWithDeps ];
+      nativeBuildInputs = [ ghcWithDeps ];
 
-    buildPhase = ''
-      runHook preBuild
-      ghc -O2 -Wall -Wno-unused-imports \
-        -hidir . -odir . \
-        -i$src -o combine-archive $src/combine-archive.hs
-      runHook postBuild
-    '';
+      buildPhase = ''
+        runHook preBuild
+        ghc -O2 -Wall -Wno-unused-imports \
+          -hidir . -odir . \
+          -i$src -o combine-archive $src/combine-archive.hs
+        runHook postBuild
+      '';
 
-    installPhase = ''
-      runHook preInstall
-      mkdir -p $out/bin
-      cp combine-archive $out/bin/
-      runHook postInstall
-    '';
+      installPhase = ''
+        runHook preInstall
+        mkdir -p $out/bin
+        cp combine-archive $out/bin/
+        runHook postInstall
+      '';
 
-    meta = {
-      description = "Combine multiple static archives into a single .a file";
-    };
-  };
+      meta = {
+        description = "Combine multiple static archives into a single .a file";
+      };
+    });
 
   # ══════════════════════════════════════════════════════════════════════════════
   # BUILDER HELPER

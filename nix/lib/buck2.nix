@@ -14,13 +14,32 @@ let
   # Scripts directory
   scriptsDir = ./scripts;
 
-  # Generate .buckconfig.local file using replaceVars
+  # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
+  renderDhall =
+    pkgs: name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
+
+  # Generate .buckconfig.local file using Dhall templates
   mkBuckconfigFile =
     pkgs:
     let
       llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
     in
-    pkgs.replaceVars (scriptsDir + "/buckconfig.template") {
+    renderDhall pkgs "buckconfig-local" (scriptsDir + "/buckconfig.dhall") {
       cc = "${llvm.clang}/bin/clang";
       cxx = "${llvm.clang}/bin/clang++";
       cpp = "${llvm.clang}/bin/clang-cpp";

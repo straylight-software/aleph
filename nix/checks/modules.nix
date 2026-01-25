@@ -16,6 +16,25 @@ let
   # Get script source and GHC from the overlay
   inherit (pkgs.straylight.script) src ghc;
 
+  # Render Dhall template with environment variables
+  renderDhall =
+    name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
+
   # ==============================================================================
   # TEST: aleph-modules
   # ==============================================================================
@@ -76,11 +95,17 @@ let
     echo "    ${pkgs.straylight.script.compiled.${name}}/bin/${name}"
   '') scriptNames;
 
-  test-aleph-compiled-scripts = pkgs.runCommand "test-aleph-compiled-scripts" { } (
-    pkgs.replaceVars ./scripts/test-aleph-compiled-scripts.bash {
-      inherit scriptChecks;
-    }
-  );
+  test-aleph-compiled-scripts =
+    let
+      script =
+        renderDhall "test-aleph-compiled-scripts.bash" ./scripts/test-aleph-compiled-scripts.dhall
+          {
+            script_checks = scriptChecks;
+          };
+    in
+    pkgs.runCommand "test-aleph-compiled-scripts" { } ''
+      bash ${script}
+    '';
 
 in
 # Only run on Linux (Aleph.Nix has FFI bindings that may need Linux)

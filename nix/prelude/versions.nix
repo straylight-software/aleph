@@ -19,7 +19,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 _: {
   python = "3.12";
-  ghc = "9.10";
+  ghc = "9.12"; # GHC 9.12 - latest stable before 9.14's doctest/HLS breakage
   lean = "4.15.0";
   rust = "1.92.0";
   clang = "20"; # Required for Blackwell (sm_120)

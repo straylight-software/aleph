@@ -541,6 +541,25 @@ let
     in
     header + passedSection + failedSection + summary;
 
+  # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
+  renderDhall =
+    name: src: vars:
+    let
+      envVars = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] k)) (toString v)
+      ) vars;
+    in
+    pkgs.runCommand name
+      (
+        {
+          nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+        }
+        // envVars
+      )
+      ''
+        dhall text --file ${src} > $out
+      '';
+
 in
 {
   inherit
@@ -563,13 +582,14 @@ in
     prelude:
     let
       results = runProperties prelude;
-    in
-    pkgs.runCommand "prelude-properties" { } (
-      pkgs.replaceVars ./scripts/test-properties.bash {
+      script = renderDhall "test-properties-script" ./scripts/test-properties.dhall {
         report = formatReport results;
         resultMessage =
           if results.summary.pass then "All property tests passed." else "Property tests failed!";
         touchOut = if results.summary.pass then "touch $out" else "exit 1";
-      }
-    );
+      };
+    in
+    pkgs.runCommand "prelude-properties" { } ''
+      bash ${script}
+    '';
 }
