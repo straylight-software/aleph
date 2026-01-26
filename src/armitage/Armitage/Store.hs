@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 
 {- |
 Module      : Armitage.Store
@@ -55,7 +56,8 @@ module Armitage.Store
   , restoreNar
   ) where
 
-import Control.Exception (bracket)
+import Control.Exception (bracket, try)
+import System.IO.Error (IOError)
 import Control.Monad (unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
@@ -339,6 +341,8 @@ withUserNamespace store action = do
 userNamespacesAvailable :: IO Bool
 userNamespacesAvailable = do
   -- Check /proc/sys/kernel/unprivileged_userns_clone
-  -- or try to create one
-  content <- readFile "/proc/sys/kernel/unprivileged_userns_clone"
-  pure $ content == "1\n"
+  -- File may not exist on non-Linux or older kernels
+  result <- try @IOError $ readFile "/proc/sys/kernel/unprivileged_userns_clone"
+  pure $ case result of
+    Right content -> content == "1\n"
+    Left _ -> False  -- Assume unavailable if we can't check

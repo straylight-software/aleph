@@ -29,6 +29,8 @@ module Main where
 import Control.Exception (try, SomeException)
 import Control.Monad (when, forM_, unless)
 import Data.List (isPrefixOf)
+import Data.Maybe (fromMaybe)
+import Text.Read (readMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -41,7 +43,11 @@ import System.Exit (ExitCode(..), exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
 import System.Process (readProcessWithExitCode)
 
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BC
+
 import qualified Armitage.Builder as Builder
+import qualified Armitage.CAS as CAS
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.DICE as DICE
 import qualified Armitage.Trace as Trace
@@ -173,18 +179,98 @@ cmdCAS args = case args of
     hPutStrLn stderr "Usage: armitage cas <command>"
     hPutStrLn stderr "Commands:"
     hPutStrLn stderr "  upload <file>    Upload blob to CAS"
-    hPutStrLn stderr "  download <hash>  Download blob from CAS"
-    hPutStrLn stderr "  exists <hash>    Check if blob exists"
+    hPutStrLn stderr "  download <hash> <size>  Download blob from CAS"
+    hPutStrLn stderr "  exists <hash> <size>    Check if blob exists"
+    hPutStrLn stderr "  test             Run CAS integration test"
     exitFailure
   ("upload" : path : _) -> do
     putStrLn $ "Uploading to CAS: " <> path
-    putStrLn "TODO: Implement CAS upload"
-  ("download" : hash : _) -> do
+    content <- BS.readFile path
+    let digest = CAS.digestFromBytes content
+    putStrLn $ "  hash: " <> T.unpack (CAS.digestHash digest)
+    putStrLn $ "  size: " <> show (CAS.digestSize digest)
+    CAS.withCASClient CAS.defaultConfig $ \client -> do
+      CAS.uploadBlob client digest content
+      putStrLn "Upload complete"
+  ("download" : hash : sizeStr : rest) -> do
+    let size = fromMaybe 0 (readMaybe sizeStr)
+        digest = CAS.Digest (T.pack hash) size
+        outPath = case rest of
+          (p:_) -> p
+          [] -> hash <> ".blob"
     putStrLn $ "Downloading from CAS: " <> hash
-    putStrLn "TODO: Implement CAS download"
-  ("exists" : hash : _) -> do
+    CAS.withCASClient CAS.defaultConfig $ \client -> do
+      result <- CAS.downloadBlob client digest
+      case result of
+        Nothing -> do
+          hPutStrLn stderr "Blob not found"
+          exitFailure
+        Just content -> do
+          BS.writeFile outPath content
+          putStrLn $ "Downloaded " <> show (BS.length content) <> " bytes to " <> outPath
+  ("exists" : hash : sizeStr : _) -> do
+    let size = fromMaybe 0 (readMaybe sizeStr)
+        digest = CAS.Digest (T.pack hash) size
     putStrLn $ "Checking CAS: " <> hash
-    putStrLn "TODO: Implement CAS exists"
+    CAS.withCASClient CAS.defaultConfig $ \client -> do
+      exists <- CAS.blobExists client digest
+      if exists
+        then putStrLn "Blob exists"
+        else putStrLn "Blob NOT found"
+  ("test" : _) -> do
+    putStrLn "Running CAS integration test..."
+    putStrLn ""
+    CAS.withCASClient CAS.defaultConfig $ \client -> do
+      -- 1. Create test blob
+      let testContent = "Hello from Armitage CAS test! " <> BC.pack (show (12345 :: Int))
+          digest = CAS.digestFromBytes testContent
+      putStrLn $ "1. Test blob:"
+      putStrLn $ "   content: " <> show testContent
+      putStrLn $ "   hash:    " <> T.unpack (CAS.digestHash digest)
+      putStrLn $ "   size:    " <> show (CAS.digestSize digest)
+      putStrLn ""
+      
+      -- 2. Check if exists (should not)
+      putStrLn "2. Checking if blob exists (expect: no)..."
+      exists1 <- CAS.blobExists client digest
+      putStrLn $ "   exists: " <> show exists1
+      putStrLn ""
+      
+      -- 3. Upload
+      putStrLn "3. Uploading blob..."
+      CAS.uploadBlob client digest testContent
+      putStrLn "   done"
+      putStrLn ""
+      
+      -- 4. Check again (should exist now)
+      putStrLn "4. Checking if blob exists (expect: yes)..."
+      exists2 <- CAS.blobExists client digest
+      putStrLn $ "   exists: " <> show exists2
+      putStrLn ""
+      
+      -- 5. Download and verify
+      putStrLn "5. Downloading blob..."
+      result <- CAS.downloadBlob client digest
+      case result of
+        Nothing -> putStrLn "   ERROR: Download failed"
+        Just downloaded -> do
+          putStrLn $ "   downloaded: " <> show downloaded
+          if downloaded == testContent
+            then putStrLn "   VERIFIED: Content matches!"
+            else putStrLn "   ERROR: Content mismatch!"
+      putStrLn ""
+      
+      -- 6. FindMissingBlobs test
+      putStrLn "6. Testing FindMissingBlobs..."
+      let missingDigest = CAS.Digest "0000000000000000000000000000000000000000000000000000000000000000" 1
+      missing <- CAS.findMissingBlobs client [digest, missingDigest]
+      putStrLn $ "   queried: 2 blobs"
+      putStrLn $ "   missing: " <> show (length missing)
+      forM_ missing $ \d ->
+        putStrLn $ "     - " <> T.unpack (CAS.digestHash d)
+      putStrLn ""
+      
+      putStrLn "CAS test complete!"
   (cmd : _) -> do
     hPutStrLn stderr $ "Unknown CAS command: " <> cmd
     exitFailure
@@ -197,8 +283,8 @@ parsePort :: [String] -> Int
 parsePort = go 8080
  where
   go def [] = def
-  go def ("--port" : p : _) = read p
-  go def ("-p" : p : _) = read p
+  go def ("--port" : p : rest) = fromMaybe (go def rest) (readMaybe p)
+  go def ("-p" : p : rest) = fromMaybe (go def rest) (readMaybe p)
   go def (_ : rest) = go def rest
 
 -- | Analyze command - resolve deps and build action graph
@@ -432,7 +518,7 @@ cmdUnroll args = case args of
     parseOutDir (_:rest) = parseOutDir rest
     
     parseDepth [] = 10
-    parseDepth ("-d":n:_) = read n
+    parseDepth ("-d":n:rest) = fromMaybe (parseDepth rest) (readMaybe n)
     parseDepth (_:rest) = parseDepth rest
     
     createDirectoryIfMissing _ _ = pure ()  -- TODO: use System.Directory

@@ -81,7 +81,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
-import System.Directory (doesFileExist, createDirectoryIfMissing)
+import System.Directory (doesFileExist, doesPathExist, createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
 import System.Process (readProcess, readProcessWithExitCode)
@@ -95,7 +95,7 @@ import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnvironment)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName)
 import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 -- -----------------------------------------------------------------------------
@@ -610,8 +610,8 @@ executeActionWitnessed :: WitnessConfig -> Action -> Map ActionKey [Text] -> IO 
 executeActionWitnessed wc action@Action {..} _depOutputs = do
   startTime <- getCurrentTime
   
-  -- Check coeffects
-  coeffectResult <- checkCoeffects aCoeffects
+  -- Check coeffects (witnessed mode can satisfy Network)
+  coeffectResult <- checkCoeffectsWitnessed wc aCoeffects
   case coeffectResult of
     Left missing -> pure $ Left $ "Missing coeffect: " <> T.pack (show missing)
     Right () -> do
@@ -789,15 +789,60 @@ executeActionRemote client action@Action {..} _depOutputs = do
 -- | Upload inputs to CAS and return input root digest
 uploadInputs :: RE.REClient -> [ResolvedInput] -> IO CAS.Digest
 uploadInputs client inputs = do
-  -- For now, just create empty input root
-  -- Real impl would:
-  -- 1. For Resolved_File: read file, upload to CAS, add to directory
-  -- 2. For Resolved_Store: reference existing store paths (need to upload or assume present)
-  -- 3. For Resolved_Action: get outputs from previous action
-  let emptyDir = TE.encodeUtf8 "{}"
-      emptyDigest = CAS.digestFromBytes emptyDir
-  CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
-  pure emptyDigest
+  -- Collect file inputs with their contents
+  fileInputs <- fmap catMaybes $ forM inputs $ \case
+    Resolved_File path -> do
+      exists <- doesFileExist path
+      if exists
+        then do
+          content <- BS.readFile path
+          pure $ Just (takeFileName path, content)
+        else pure Nothing
+    Resolved_Store storePath -> do
+      -- For store paths, we assume they're already in the worker's store
+      -- or we'd need to upload the entire closure (expensive)
+      -- For now, just skip - the worker should have nix store mounted
+      pure Nothing
+    Resolved_Action _ -> do
+      -- Action outputs should have been uploaded by previous execution
+      pure Nothing
+  
+  -- Build input root from collected files
+  if null fileInputs
+    then do
+      -- Empty directory
+      let emptyDir = RE.serializeDirectory RE.Directory
+            { RE.dirFiles = []
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          emptyDigest = CAS.digestFromBytes emptyDir
+      CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
+      pure emptyDigest
+    else do
+      -- Upload each file and build directory
+      fileNodes <- forM fileInputs $ \(name, content) -> do
+        let digest = CAS.digestFromBytes content
+        CAS.uploadBlob (RE.recCAS client) digest content
+        -- Check if file is executable (heuristic: .sh files)
+        let isExec = ".sh" `T.isSuffixOf` T.pack name
+        pure RE.FileNode
+          { RE.fnName = T.pack name
+          , RE.fnDigest = digest
+          , RE.fnIsExecutable = isExec
+          }
+      
+      -- Create root directory
+      let rootDir = RE.Directory
+            { RE.dirFiles = fileNodes
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          dirBytes = RE.serializeDirectory rootDir
+          dirDigest = CAS.digestFromBytes dirBytes
+      
+      CAS.uploadBlob (RE.recCAS client) dirDigest dirBytes
+      pure dirDigest
 
 -- | Convert Dhall Resource to Builder Coeffect  
 resourceToCoeffect :: Dhall.Resource -> Builder.Coeffect
@@ -808,16 +853,123 @@ resourceToCoeffect = \case
   Dhall.Resource_Sandbox t -> Builder.Sandbox t
   Dhall.Resource_Filesystem t -> Builder.Filesystem (T.unpack t)
 
--- | Check if coeffects can be satisfied
+-- | Check if coeffects can be satisfied (non-witnessed execution)
+-- 
+-- For non-witnessed execution, we can only satisfy:
+-- - Pure: always ok
+-- - Filesystem: check path exists
+-- 
+-- Network/Auth/Sandbox require witnessed execution to be provable.
 checkCoeffects :: [Dhall.Resource] -> IO (Either Dhall.Resource ())
-checkCoeffects _ = pure $ Right ()  -- TODO: actually check
+checkCoeffects = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network -> 
+        -- Network without witness is allowed but unattested
+        -- The build will work but no proof of what was fetched
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        -- Check for auth token in environment
+        -- Convention: PROVIDER_TOKEN (e.g., GITHUB_TOKEN, DOCKER_TOKEN)
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        -- Sandbox requires explicit setup, can't auto-satisfy
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        -- Check filesystem path exists
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
+
+-- | Check coeffects for witnessed execution
+-- 
+-- With witness proxy running, we can satisfy Network coeffect
+-- and produce attestations for it.
+checkCoeffectsWitnessed :: WitnessConfig -> [Dhall.Resource] -> IO (Either Dhall.Resource ())
+checkCoeffectsWitnessed _wc = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network ->
+        -- Witnessed mode: network access will be logged by proxy
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
 
 -- -----------------------------------------------------------------------------
--- CAS Stubs (would use Armitage.CAS)
+-- Local Action Cache (file-based for simplicity)
 -- -----------------------------------------------------------------------------
 
+-- | Cache directory for action results
+-- Uses XDG_CACHE_HOME or ~/.cache/armitage
+actionCacheDir :: IO FilePath
+actionCacheDir = do
+  env <- getEnvironment
+  let home = fromMaybe (error "HOME not set") (lookup "HOME" env)
+      cacheBase = fromMaybe (home </> ".cache") (lookup "XDG_CACHE_HOME" env)
+  pure $ cacheBase </> "armitage" </> "actions"
+
+-- | Check local cache for action result
 checkCAS :: ActionKey -> IO (Maybe [Text])
-checkCAS _ = pure Nothing  -- TODO: implement
+checkCAS (ActionKey key) = do
+  cacheDir <- actionCacheDir
+  let cachePath = cacheDir </> T.unpack key
+  exists <- doesFileExist cachePath
+  if exists
+    then do
+      content <- TIO.readFile cachePath
+      let paths = filter (not . T.null) $ T.lines content
+      if null paths
+        then pure Nothing
+        else pure $ Just paths
+    else pure Nothing
 
+-- | Store action result in local cache
 storeCAS :: ActionKey -> [Text] -> IO ()
-storeCAS _ _ = pure ()  -- TODO: implement
+storeCAS (ActionKey key) paths = do
+  cacheDir <- actionCacheDir
+  createDirectoryIfMissing True cacheDir
+  let cachePath = cacheDir </> T.unpack key
+      content = T.unlines paths
+  TIO.writeFile cachePath content

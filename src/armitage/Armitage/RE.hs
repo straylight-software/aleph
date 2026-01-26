@@ -3,6 +3,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 {- |
 Module      : Armitage.RE
@@ -50,27 +52,31 @@ module Armitage.RE
   , Directory (..)
   , FileNode (..)
   , DirectoryNode (..)
+  , SymlinkNode (..)
   , uploadDirectory
   , computeInputRoot
+  , serializeDirectory
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
-import Control.Monad (forM, forM_, when)
+import Control.Monad (forM, forM_, when, foldM)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as LBS
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import Network.Socket (PortNumber)
-import System.Directory (doesFileExist, getFileSize)
-import System.FilePath (takeFileName)
+import System.Directory (doesFileExist, doesDirectoryExist, getFileSize, listDirectory, getPermissions, executable)
+import System.FilePath (takeFileName, (</>))
 
 import Network.GRPC.Client
   ( Connection
@@ -80,10 +86,19 @@ import Network.GRPC.Client
   , ServerValidation (..)
   , certStoreFromSystem
   , withConnection
+  , withRPC
+  , sendFinalInput
+  , recvFinalOutput
+  , recvNextOutputElem
   )
-import Network.GRPC.Common (def)
+import Network.GRPC.Common (def, NextElem(..))
+import Data.Proxy (Proxy (..))
+import Data.Int (Int64)
+import Data.Word (Word64)
+import qualified Data.Bits
 
 import qualified Armitage.CAS as CAS
+import qualified Armitage.Proto as Proto
 
 -- -----------------------------------------------------------------------------
 -- Configuration
@@ -314,17 +329,59 @@ withREClient config action = do
 -- -----------------------------------------------------------------------------
 
 -- | Execute an action (non-blocking, returns operation)
+-- Uses Execution.Execute RPC which is server-streaming (returns Operations)
 execute :: REClient -> ExecuteRequest -> IO ExecuteResponse
 execute client req = do
-  -- TODO: actual gRPC call to Execution.Execute
-  -- This is a streaming RPC that returns Operation updates
-  putStrLn $ "RE: execute action " <> T.unpack (CAS.digestHash $ actionCommandDigest $ erAction req)
-  pure ExecuteResponse
-    { exResult = Nothing
-    , exOperationName = "operations/pending-" <> CAS.digestHash (actionCommandDigest $ erAction req)
-    , exDone = False
-    , exError = Nothing
-    }
+  let action = erAction req
+      -- Convert to proto types
+      protoActionDigest = Proto.ProtoDigest
+        { Proto.pdHash = CAS.digestHash (actionCommandDigest action)
+        , Proto.pdSizeBytes = fromIntegral (CAS.digestSize (actionCommandDigest action))
+        }
+      protoReq = Proto.ExecuteRequest
+        { Proto.exrInstanceName = reInstanceName (recConfig client)
+        , Proto.exrActionDigest = protoActionDigest
+        , Proto.exrSkipCacheLookup = erSkipCacheLookup req
+        }
+  
+  -- Server-streaming RPC: send request, receive stream of Operations
+  withRPC (recConn client) def (Proxy @Proto.ExecutionExecute) $ \call -> do
+    sendFinalInput call (Proto.encodeExecuteRequest protoReq)
+    
+    -- Collect operations until we get done=true or stream ends
+    let collectOps = do
+          elem <- recvNextOutputElem call
+          case elem of
+            NoNextElem -> pure ExecuteResponse
+              { exResult = Nothing
+              , exOperationName = ""
+              , exDone = False
+              , exError = Just "Stream ended without completion"
+              }
+            NextElem opBytes -> case Proto.decodeOperation opBytes of
+              Nothing -> pure ExecuteResponse
+                { exResult = Nothing
+                , exOperationName = ""
+                , exDone = False
+                , exError = Just "Failed to decode Operation"
+                }
+              Just op -> do
+                if Proto.opDone op
+                  then do
+                    -- Extract ActionResult from the response if present
+                    let result = Proto.opResponse op >>= decodeExecuteResponseResult
+                        errMsg = if Proto.opErrorCode op /= 0
+                                 then Proto.opErrorMessage op
+                                 else Nothing
+                    pure ExecuteResponse
+                      { exResult = result
+                      , exOperationName = Proto.opName op
+                      , exDone = True
+                      , exError = errMsg
+                      }
+                  else collectOps  -- Keep reading until done
+    
+    collectOps
 
 -- | Execute and wait for completion (blocking)
 executeAndWait :: REClient -> ExecuteRequest -> IO (Either Text ActionResult)
@@ -364,27 +421,87 @@ executeAndWait client req = do
       Just result -> pure $ Right result
       Nothing -> pure $ Left $ fromMaybe "Unknown error" (exError response)
     else poll (exOperationName response)
-  where
-    fromMaybe d Nothing = d
-    fromMaybe _ (Just x) = x
 
 -- | Get cached action result (if exists)
+-- Uses ActionCache.GetActionResult RPC (non-streaming)
 getActionResult :: REClient -> CAS.Digest -> IO (Maybe ActionResult)
 getActionResult client actionDigest = do
-  -- TODO: call ActionCache.GetActionResult
-  putStrLn $ "RE: getActionResult " <> T.unpack (CAS.digestHash actionDigest)
-  pure Nothing
+  let protoDigest = Proto.ProtoDigest
+        { Proto.pdHash = CAS.digestHash actionDigest
+        , Proto.pdSizeBytes = fromIntegral (CAS.digestSize actionDigest)
+        }
+      protoReq = Proto.GetActionResultRequest
+        { Proto.garrInstanceName = reInstanceName (recConfig client)
+        , Proto.garrActionDigest = protoDigest
+        }
+  
+  result <- withRPC (recConn client) def (Proxy @Proto.ActionCacheGetActionResult) $ \call -> do
+    sendFinalInput call (Proto.encodeGetActionResultRequest protoReq)
+    (respBytes, _trailers) <- recvFinalOutput call
+    pure $ Proto.decodeActionResult (LBS.toStrict respBytes) >>= protoToActionResult
+  pure result
 
 -- -----------------------------------------------------------------------------
 -- Directory operations
 -- -----------------------------------------------------------------------------
 
 -- | Upload a directory tree to CAS, return root digest
+-- Walks the directory recursively, uploads all files, builds Merkle tree
 uploadDirectory :: REClient -> FilePath -> IO CAS.Digest
-uploadDirectory client path = do
-  -- TODO: walk directory, build Merkle tree, upload all blobs
-  putStrLn $ "RE: uploadDirectory " <> path
-  pure $ CAS.Digest "stubhash" 0
+uploadDirectory client rootPath = do
+  uploadDirRecursive client rootPath
+  where
+    uploadDirRecursive :: REClient -> FilePath -> IO CAS.Digest
+    uploadDirRecursive cli dirPath = do
+      entries <- listDirectory dirPath
+      
+      -- Separate files and directories
+      (files, dirs) <- foldM (categorize dirPath) ([], []) entries
+      
+      -- Upload files and create FileNodes
+      fileNodes <- forM files $ \filePath -> do
+        content <- BS.readFile filePath
+        let digest = CAS.digestFromBytes content
+        CAS.uploadBlob (recCAS cli) digest content
+        isExec <- isExecutable filePath
+        pure FileNode
+          { fnName = T.pack (takeFileName filePath)
+          , fnDigest = digest
+          , fnIsExecutable = isExec
+          }
+      
+      -- Recursively upload subdirectories and create DirectoryNodes
+      dirNodes <- forM dirs $ \subDirPath -> do
+        subDigest <- uploadDirRecursive cli subDirPath
+        pure DirectoryNode
+          { dnName = T.pack (takeFileName subDirPath)
+          , dnDigest = subDigest
+          }
+      
+      -- Create and upload this directory
+      let dir = Directory
+            { dirFiles = fileNodes
+            , dirDirectories = dirNodes
+            , dirSymlinks = []  -- TODO: handle symlinks
+            }
+          dirBytes = serializeDirectory dir
+          dirDigest = CAS.digestFromBytes dirBytes
+      
+      CAS.uploadBlob (recCAS cli) dirDigest dirBytes
+      pure dirDigest
+    
+    categorize :: FilePath -> ([FilePath], [FilePath]) -> FilePath -> IO ([FilePath], [FilePath])
+    categorize parent (fs, ds) name = do
+      let fullPath = parent </> name
+      isDir <- doesDirectoryExist fullPath
+      if isDir
+        then pure (fs, fullPath : ds)
+        else pure (fullPath : fs, ds)
+    
+    isExecutable :: FilePath -> IO Bool
+    isExecutable fp = do
+      perms <- getPermissions fp
+      pure $ executable perms
 
 -- | Compute input root from list of files
 computeInputRoot :: REClient -> [(FilePath, ByteString)] -> IO CAS.Digest
@@ -414,8 +531,133 @@ computeInputRoot client files = do
   
   pure dirDigest
 
--- | Serialize a Directory (stub - would use protobuf)
+-- | Serialize a Directory to protobuf wire format
 serializeDirectory :: Directory -> ByteString
-serializeDirectory dir = 
-  -- TODO: proper protobuf serialization
-  BC.pack $ show dir
+serializeDirectory dir = Proto.encodeDirectory protoDir
+  where
+    protoDir = Proto.ProtoDirectory
+      { Proto.pdFiles = map toProtoFileNode (dirFiles dir)
+      , Proto.pdDirectories = map toProtoDirectoryNode (dirDirectories dir)
+      , Proto.pdSymlinks = map toProtoSymlinkNode (dirSymlinks dir)
+      }
+    
+    toProtoFileNode fn = Proto.ProtoFileNode
+      { Proto.pfnName = fnName fn
+      , Proto.pfnDigest = toProtoDigest (fnDigest fn)
+      , Proto.pfnIsExecutable = fnIsExecutable fn
+      }
+    
+    toProtoDirectoryNode dn = Proto.ProtoDirectoryNode
+      { Proto.pdnName = dnName dn
+      , Proto.pdnDigest = toProtoDigest (dnDigest dn)
+      }
+    
+    toProtoSymlinkNode sn = Proto.ProtoSymlinkNode
+      { Proto.psnName = snName sn
+      , Proto.psnTarget = snTarget sn
+      }
+    
+    toProtoDigest d = Proto.ProtoDigest
+      { Proto.pdHash = CAS.digestHash d
+      , Proto.pdSizeBytes = fromIntegral (CAS.digestSize d)
+      }
+
+-- -----------------------------------------------------------------------------
+-- Proto to domain type conversions
+-- -----------------------------------------------------------------------------
+
+-- | Convert ProtoDigest to CAS.Digest
+fromProtoDigest :: Proto.ProtoDigest -> CAS.Digest
+fromProtoDigest pd = CAS.Digest
+  { CAS.digestHash = Proto.pdHash pd
+  , CAS.digestSize = fromIntegral (Proto.pdSizeBytes pd)
+  }
+
+-- | Convert ProtoActionResult to ActionResult
+protoToActionResult :: Proto.ProtoActionResult -> Maybe ActionResult
+protoToActionResult par = Just ActionResult
+  { arOutputFiles = map toOutputFile (Proto.parOutputFiles par)
+  , arOutputDirectories = []  -- Not decoded yet
+  , arExitCode = Proto.parExitCode par
+  , arStdoutDigest = fromProtoDigest <$> Proto.parStdoutDigest par
+  , arStderrDigest = fromProtoDigest <$> Proto.parStderrDigest par
+  , arExecutionMetadata = emptyMetadata
+  }
+  where
+    toOutputFile (path, digest, executable) = OutputFile
+      { ofPath = path
+      , ofDigest = fromProtoDigest digest
+      , ofIsExecutable = executable
+      }
+    emptyMetadata = ExecutionMetadata
+      { emWorker = ""
+      , emQueuedTime = Nothing
+      , emWorkerStartTime = Nothing
+      , emWorkerCompletedTime = Nothing
+      , emInputFetchStartTime = Nothing
+      , emInputFetchCompletedTime = Nothing
+      , emExecutionStartTime = Nothing
+      , emExecutionCompletedTime = Nothing
+      , emOutputUploadStartTime = Nothing
+      , emOutputUploadCompletedTime = Nothing
+      }
+
+-- | Decode ActionResult from ExecuteResponse's Any field
+-- The Any message has type_url (field 1) and value (field 2)
+-- For ExecuteResponse, the value contains an ActionResult
+decodeExecuteResponseResult :: ByteString -> Maybe ActionResult
+decodeExecuteResponseResult anyBytes = do
+  -- Parse the Any message to extract the value field
+  let fields = parseAnyFields anyBytes
+  valueField <- lookup 2 fields  -- field 2 is the serialized message
+  -- The value contains an ExecuteResponse, which has result in field 1
+  let execRespFields = parseAnyFields valueField
+  resultField <- lookup 1 execRespFields  -- field 1 is ActionResult
+  Proto.decodeActionResult resultField >>= protoToActionResult
+  where
+    -- Simple field parser (reusing Proto's wire format)
+    parseAnyFields :: ByteString -> [(Int, ByteString)]
+    parseAnyFields bs
+      | BS.null bs = []
+      | otherwise = case parseField bs of
+          Nothing -> []
+          Just (fieldNum, content, rest) ->
+            (fieldNum, content) : parseAnyFields rest
+    
+    parseField :: ByteString -> Maybe (Int, ByteString, ByteString)
+    parseField bs = do
+      (key, rest1) <- decodeVarint bs
+      let fieldNum = fromIntegral (key `Data.Bits.shiftR` 3)
+          wireType = key Data.Bits..&. 0x07
+      case wireType of
+        0 -> do  -- varint - encode it back for lookup
+          (val, rest2) <- decodeVarint rest1
+          Just (fieldNum, encodeVarint val, rest2)
+        2 -> do  -- length-delimited
+          (len, rest2) <- decodeVarint rest1
+          let (content, rest3) = BS.splitAt (fromIntegral len) rest2
+          Just (fieldNum, content, rest3)
+        _ -> Nothing
+    
+    decodeVarint :: ByteString -> Maybe (Word64, ByteString)
+    decodeVarint bs = go bs (0 :: Word64) (0 :: Int)
+      where
+        go :: ByteString -> Word64 -> Int -> Maybe (Word64, ByteString)
+        go remaining acc shift
+          | BS.null remaining = Nothing
+          | otherwise =
+              let byte = BS.head remaining
+                  rest = BS.tail remaining
+                  val  = fromIntegral (byte Data.Bits..&. 0x7F) `Data.Bits.shiftL` shift
+                  acc' = acc Data.Bits..|. val
+              in if byte Data.Bits..&. 0x80 == 0
+                 then Just (acc', rest)
+                 else if shift >= 63
+                      then Nothing
+                      else go rest acc' (shift + 7)
+    
+    encodeVarint :: Word64 -> ByteString
+    encodeVarint n
+      | n < 128   = BS.singleton (fromIntegral n)
+      | otherwise = BS.cons (fromIntegral (n Data.Bits..&. 0x7F) Data.Bits..|. 0x80)
+                            (encodeVarint (n `Data.Bits.shiftR` 7))
