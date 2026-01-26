@@ -50,8 +50,11 @@ module Armitage.DICE
   
     -- * Execution
   , ExecutionResult (..)
+  , ExecutionMode (..)
   , executeGraph
+  , executeGraphRemote
   , executeAction
+  , executeActionRemote
   
     -- * Analysis
   , analyze
@@ -80,6 +83,8 @@ import System.Process (readProcess, readProcessWithExitCode)
 
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.Builder as Builder
+import qualified Armitage.CAS as CAS
+import qualified Armitage.RE as RE
 
 -- -----------------------------------------------------------------------------
 -- Action Keys
@@ -364,6 +369,12 @@ flagsToArgs = map Dhall.renderCFlag
 -- Execution
 -- -----------------------------------------------------------------------------
 
+-- | Execution mode - local or remote
+data ExecutionMode
+  = ExecLocal                    -- Local execution (readProcessWithExitCode)
+  | ExecRemote RE.REConfig       -- Remote execution via NativeLink
+  deriving stock (Show, Generic)
+
 -- | Result of executing the graph
 data ExecutionResult = ExecutionResult
   { erOutputs   :: Map ActionKey [Text]     -- action -> output paths
@@ -374,28 +385,48 @@ data ExecutionResult = ExecutionResult
   }
   deriving stock (Show, Generic)
 
--- | Execute the action graph
+-- | Execute the action graph (local)
 executeGraph :: ActionGraph -> IO ExecutionResult
-executeGraph graph = do
+executeGraph = executeGraphWith ExecLocal
+
+-- | Execute the action graph (remote via NativeLink)
+executeGraphRemote :: RE.REConfig -> ActionGraph -> IO ExecutionResult
+executeGraphRemote config = executeGraphWith (ExecRemote config)
+
+-- | Execute with specified mode
+executeGraphWith :: ExecutionMode -> ActionGraph -> IO ExecutionResult
+executeGraphWith mode graph = do
   let sorted = topoSort graph
   
-  (outputs, hits, executed, failed, proofs) <- 
-    foldM (executeOne graph) (Map.empty, 0, 0, [], Map.empty) sorted
-  
-  pure ExecutionResult
-    { erOutputs = outputs
-    , erCacheHits = hits
-    , erExecuted = executed
-    , erFailed = failed
-    , erProofs = proofs
-    }
+  case mode of
+    ExecLocal -> do
+      (outputs, hits, executed, failed, proofs) <- 
+        foldM (executeOneLocal graph) (Map.empty, 0, 0, [], Map.empty) sorted
+      pure ExecutionResult
+        { erOutputs = outputs
+        , erCacheHits = hits
+        , erExecuted = executed
+        , erFailed = failed
+        , erProofs = proofs
+        }
+    
+    ExecRemote config -> RE.withREClient config $ \client -> do
+      (outputs, hits, executed, failed, proofs) <- 
+        foldM (executeOneRemote client graph) (Map.empty, 0, 0, [], Map.empty) sorted
+      pure ExecutionResult
+        { erOutputs = outputs
+        , erCacheHits = hits
+        , erExecuted = executed
+        , erFailed = failed
+        , erProofs = proofs
+        }
 
-executeOne 
+executeOneLocal 
   :: ActionGraph 
   -> (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
   -> ActionKey
   -> IO (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
-executeOne graph (outputs, hits, executed, failed, proofs) key = do
+executeOneLocal graph (outputs, hits, executed, failed, proofs) key = do
   let action = agActions graph Map.! key
   
   -- Check CAS for cached output
@@ -406,7 +437,7 @@ executeOne graph (outputs, hits, executed, failed, proofs) key = do
       pure (Map.insert key paths outputs, hits + 1, executed, failed, proofs)
     
     Nothing -> do
-      -- Cache miss - execute
+      -- Cache miss - execute locally
       result <- executeAction action outputs
       case result of
         Left err -> 
@@ -414,6 +445,33 @@ executeOne graph (outputs, hits, executed, failed, proofs) key = do
         Right (paths, proof) -> do
           -- Store in CAS
           storeCAS key paths
+          pure (Map.insert key paths outputs, hits, executed + 1, failed, Map.insert key proof proofs)
+
+executeOneRemote 
+  :: RE.REClient
+  -> ActionGraph 
+  -> (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
+  -> ActionKey
+  -> IO (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
+executeOneRemote client graph (outputs, hits, executed, failed, proofs) key = do
+  let action = agActions graph Map.! key
+  
+  -- Check action cache first
+  let actionDigest = CAS.digestFromBytes $ TE.encodeUtf8 $ T.pack $ show action
+  cached <- RE.getActionResult client actionDigest
+  case cached of
+    Just result -> do
+      -- Cache hit - extract output paths from result
+      let paths = map RE.ofPath (RE.arOutputFiles result)
+      pure (Map.insert key paths outputs, hits + 1, executed, failed, proofs)
+    
+    Nothing -> do
+      -- Cache miss - execute remotely
+      result <- executeActionRemote client action outputs
+      case result of
+        Left err -> 
+          pure (outputs, hits, executed, (key, err) : failed, proofs)
+        Right (paths, proof) -> 
           pure (Map.insert key paths outputs, hits, executed + 1, failed, Map.insert key proof proofs)
 
 -- | Execute a single action
@@ -466,6 +524,91 @@ executeAction action@Action {..} _depOutputs = do
               unless (null stderr) $
                 TIO.putStrLn $ T.pack stderr
               pure $ Left $ "Exit code " <> T.pack (show code)
+
+-- | Execute a single action remotely via NativeLink
+executeActionRemote :: RE.REClient -> Action -> Map ActionKey [Text] -> IO (Either Text ([Text], Builder.DischargeProof))
+executeActionRemote client action@Action {..} _depOutputs = do
+  startTime <- getCurrentTime
+  
+  -- 1. Build Command proto
+  let command = RE.Command
+        { RE.cmdArguments = aCommand
+        , RE.cmdEnvironmentVariables = Map.toList aEnv
+        , RE.cmdOutputFiles = aOutputs
+        , RE.cmdOutputDirectories = []
+        , RE.cmdWorkingDirectory = ""
+        , RE.cmdOutputPaths = aOutputs
+        }
+  
+  -- 2. Serialize and upload Command to CAS
+  let commandBytes = TE.encodeUtf8 $ T.pack $ show command  -- TODO: proper proto serialization
+      commandDigest = CAS.digestFromBytes commandBytes
+  CAS.uploadBlob (RE.recCAS client) commandDigest commandBytes
+  
+  -- 3. Upload input files and build input root
+  inputRootDigest <- uploadInputs client aInputs
+  
+  -- 4. Build Action
+  let reAction = RE.Action
+        { RE.actionCommandDigest = commandDigest
+        , RE.actionInputRootDigest = inputRootDigest
+        , RE.actionTimeout = Just 3600  -- 1 hour default
+        , RE.actionDoNotCache = False
+        , RE.actionPlatform = RE.Platform
+            { RE.platformProperties = 
+                [ RE.PlatformProperty "OSFamily" "Linux"
+                , RE.PlatformProperty "container-image" "docker://ghcr.io/straylight-software/nix-worker:latest"
+                ]
+            }
+        }
+  
+  -- 5. Execute remotely
+  let request = RE.ExecuteRequest
+        { RE.erInstanceName = RE.reInstanceName (RE.recConfig client)
+        , RE.erAction = reAction
+        , RE.erSkipCacheLookup = False
+        }
+  
+  TIO.putStrLn $ "  >> RE: " <> T.intercalate " " (take 3 aCommand) <> " ..."
+  result <- RE.executeAndWait client request
+  endTime <- getCurrentTime
+  
+  case result of
+    Left err -> pure $ Left err
+    Right actionResult -> do
+      -- 6. Extract outputs
+      let outputPaths = map RE.ofPath (RE.arOutputFiles actionResult)
+          exitCode = RE.arExitCode actionResult
+      
+      if exitCode == 0
+        then do
+          let proof = Builder.DischargeProof
+                { Builder.dpCoeffects = map resourceToCoeffect aCoeffects
+                , Builder.dpNetworkAccess = []
+                , Builder.dpFilesystemAccess = []
+                , Builder.dpAuthUsage = []
+                , Builder.dpBuildId = unActionKey $ actionKey action
+                , Builder.dpDerivationHash = unActionKey $ actionKey action
+                , Builder.dpOutputHashes = []  
+                , Builder.dpStartTime = startTime
+                , Builder.dpEndTime = endTime
+                }
+          pure $ Right (outputPaths, proof)
+        else 
+          pure $ Left $ "Remote execution failed with exit code " <> T.pack (show exitCode)
+
+-- | Upload inputs to CAS and return input root digest
+uploadInputs :: RE.REClient -> [ResolvedInput] -> IO CAS.Digest
+uploadInputs client inputs = do
+  -- For now, just create empty input root
+  -- Real impl would:
+  -- 1. For Resolved_File: read file, upload to CAS, add to directory
+  -- 2. For Resolved_Store: reference existing store paths (need to upload or assume present)
+  -- 3. For Resolved_Action: get outputs from previous action
+  let emptyDir = TE.encodeUtf8 "{}"
+      emptyDigest = CAS.digestFromBytes emptyDir
+  CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
+  pure emptyDigest
 
 -- | Convert Dhall Resource to Builder Coeffect  
 resourceToCoeffect :: Dhall.Resource -> Builder.Coeffect
