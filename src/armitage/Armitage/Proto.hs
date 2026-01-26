@@ -77,12 +77,44 @@ module Armitage.Proto
   , encodeWriteRequest
   , decodeWriteResponse
 
+    -- * Execution: Execute
+  , ExecuteRequest (..)
+  , encodeExecuteRequest
+  , Operation (..)
+  , decodeOperation
+  , ProtoActionResult (..)
+  , decodeActionResult
+
+    -- * ActionCache: GetActionResult
+  , GetActionResultRequest (..)
+  , encodeGetActionResultRequest
+
+    -- * Directory serialization
+  , ProtoDirectory (..)
+  , ProtoFileNode (..)
+  , ProtoDirectoryNode (..)
+  , ProtoSymlinkNode (..)
+  , encodeDirectory
+
+    -- * Command serialization
+  , ProtoCommand (..)
+  , ProtoEnvironmentVariable (..)
+  , encodeCommand
+
+    -- * Action serialization
+  , ProtoAction (..)
+  , ProtoPlatform (..)
+  , ProtoPlatformProperty (..)
+  , encodeAction
+
     -- * gRPC RPC type aliases
   , CASFindMissingBlobs
   , CASBatchUpdateBlobs
   , CASBatchReadBlobs
   , ByteStreamRead
   , ByteStreamWrite
+  , ExecutionExecute
+  , ActionCacheGetActionResult
   ) where
 
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
@@ -526,6 +558,318 @@ decodeWriteResponse lbs = do
   Just WriteResponse { wrCommittedSize = committed }
 
 -- =============================================================================
+-- Command (for execution)
+-- =============================================================================
+
+-- | Environment variable
+data ProtoEnvironmentVariable = ProtoEnvironmentVariable
+  { pevName :: Text
+  , pevValue :: Text
+  }
+  deriving (Show, Eq, Generic)
+
+encodeEnvironmentVariable :: ProtoEnvironmentVariable -> ByteString
+encodeEnvironmentVariable ProtoEnvironmentVariable{..} =
+  encodeString 1 pevName
+  <> encodeString 2 pevValue
+
+-- | Command message
+-- message Command {
+--   repeated string arguments = 1;
+--   repeated EnvironmentVariable environment_variables = 2;
+--   repeated string output_files = 3;
+--   repeated string output_directories = 4;
+--   string working_directory = 5;
+--   repeated string output_paths = 7;
+-- }
+data ProtoCommand = ProtoCommand
+  { pcArguments :: [Text]
+  , pcEnvironmentVariables :: [ProtoEnvironmentVariable]
+  , pcOutputFiles :: [Text]
+  , pcOutputDirectories :: [Text]
+  , pcWorkingDirectory :: Text
+  , pcOutputPaths :: [Text]
+  }
+  deriving (Show, Eq, Generic)
+
+encodeCommand :: ProtoCommand -> ByteString
+encodeCommand ProtoCommand{..} =
+  mconcat [encodeString 1 arg | arg <- pcArguments]
+  <> mconcat [encodeMessage 2 (encodeEnvironmentVariable ev) | ev <- pcEnvironmentVariables]
+  <> mconcat [encodeString 3 f | f <- pcOutputFiles]
+  <> mconcat [encodeString 4 d | d <- pcOutputDirectories]
+  <> (if T.null pcWorkingDirectory then mempty else encodeString 5 pcWorkingDirectory)
+  <> mconcat [encodeString 7 p | p <- pcOutputPaths]
+
+-- =============================================================================
+-- Platform (for execution)
+-- =============================================================================
+
+-- | Platform property
+data ProtoPlatformProperty = ProtoPlatformProperty
+  { pppName :: Text
+  , pppValue :: Text
+  }
+  deriving (Show, Eq, Generic)
+
+encodePlatformProperty :: ProtoPlatformProperty -> ByteString
+encodePlatformProperty ProtoPlatformProperty{..} =
+  encodeString 1 pppName
+  <> encodeString 2 pppValue
+
+-- | Platform message
+data ProtoPlatform = ProtoPlatform
+  { ppProperties :: [ProtoPlatformProperty]
+  }
+  deriving (Show, Eq, Generic)
+
+encodePlatform :: ProtoPlatform -> ByteString
+encodePlatform ProtoPlatform{..} =
+  mconcat [encodeMessage 1 (encodePlatformProperty p) | p <- ppProperties]
+
+-- =============================================================================
+-- Action (for execution)
+-- =============================================================================
+
+-- | Action message
+-- message Action {
+--   Digest command_digest = 1;
+--   Digest input_root_digest = 2;
+--   google.protobuf.Duration timeout = 6;
+--   bool do_not_cache = 7;
+--   Platform platform = 10;
+-- }
+data ProtoAction = ProtoAction
+  { paCommandDigest :: ProtoDigest
+  , paInputRootDigest :: ProtoDigest
+  , paTimeoutSeconds :: Maybe Int64
+  , paDoNotCache :: Bool
+  , paPlatform :: Maybe ProtoPlatform
+  }
+  deriving (Show, Eq, Generic)
+
+encodeAction :: ProtoAction -> ByteString
+encodeAction ProtoAction{..} =
+  encodeMessage 1 (encodeDigest paCommandDigest)
+  <> encodeMessage 2 (encodeDigest paInputRootDigest)
+  <> maybe mempty (\t -> encodeMessage 6 (encodeDuration t)) paTimeoutSeconds
+  <> (if paDoNotCache then encodeBoolField 7 True else mempty)
+  <> maybe mempty (\p -> encodeMessage 10 (encodePlatform p)) paPlatform
+
+-- | Encode a Duration (simplified - just seconds)
+encodeDuration :: Int64 -> ByteString
+encodeDuration secs = encodeInt64Field 1 secs
+
+-- =============================================================================
+-- Directory (for input tree)
+-- =============================================================================
+
+-- | File node in a directory
+data ProtoFileNode = ProtoFileNode
+  { pfnName :: Text
+  , pfnDigest :: ProtoDigest
+  , pfnIsExecutable :: Bool
+  }
+  deriving (Show, Eq, Generic)
+
+encodeFileNode :: ProtoFileNode -> ByteString
+encodeFileNode ProtoFileNode{..} =
+  encodeString 1 pfnName
+  <> encodeMessage 2 (encodeDigest pfnDigest)
+  <> (if pfnIsExecutable then encodeBoolField 4 True else mempty)
+
+-- | Directory node reference
+data ProtoDirectoryNode = ProtoDirectoryNode
+  { pdnName :: Text
+  , pdnDigest :: ProtoDigest
+  }
+  deriving (Show, Eq, Generic)
+
+encodeDirectoryNode :: ProtoDirectoryNode -> ByteString
+encodeDirectoryNode ProtoDirectoryNode{..} =
+  encodeString 1 pdnName
+  <> encodeMessage 2 (encodeDigest pdnDigest)
+
+-- | Symlink node
+data ProtoSymlinkNode = ProtoSymlinkNode
+  { psnName :: Text
+  , psnTarget :: Text
+  }
+  deriving (Show, Eq, Generic)
+
+encodeSymlinkNode :: ProtoSymlinkNode -> ByteString
+encodeSymlinkNode ProtoSymlinkNode{..} =
+  encodeString 1 psnName
+  <> encodeString 2 psnTarget
+
+-- | Directory message
+-- message Directory {
+--   repeated FileNode files = 1;
+--   repeated DirectoryNode directories = 2;
+--   repeated SymlinkNode symlinks = 3;
+-- }
+data ProtoDirectory = ProtoDirectory
+  { pdFiles :: [ProtoFileNode]
+  , pdDirectories :: [ProtoDirectoryNode]
+  , pdSymlinks :: [ProtoSymlinkNode]
+  }
+  deriving (Show, Eq, Generic)
+
+encodeDirectory :: ProtoDirectory -> ByteString
+encodeDirectory ProtoDirectory{..} =
+  mconcat [encodeMessage 1 (encodeFileNode f) | f <- pdFiles]
+  <> mconcat [encodeMessage 2 (encodeDirectoryNode d) | d <- pdDirectories]
+  <> mconcat [encodeMessage 3 (encodeSymlinkNode s) | s <- pdSymlinks]
+
+-- =============================================================================
+-- Execute RPC
+-- =============================================================================
+
+-- | ExecuteRequest message
+-- message ExecuteRequest {
+--   string instance_name = 1;
+--   Digest action_digest = 3;
+--   bool skip_cache_lookup = 4;
+-- }
+data ExecuteRequest = ExecuteRequest
+  { exrInstanceName :: Text
+  , exrActionDigest :: ProtoDigest
+  , exrSkipCacheLookup :: Bool
+  }
+  deriving (Show, Eq, Generic)
+
+encodeExecuteRequest :: ExecuteRequest -> LBS.ByteString
+encodeExecuteRequest ExecuteRequest{..} =
+  LBS.fromStrict $
+    encodeString 1 exrInstanceName
+    <> encodeMessage 3 (encodeDigest exrActionDigest)
+    <> (if exrSkipCacheLookup then encodeBoolField 4 True else mempty)
+
+-- | Operation message (google.longrunning.Operation)
+-- message Operation {
+--   string name = 1;
+--   bool done = 3;
+--   google.protobuf.Any response = 5;  // ExecuteResponse when done
+--   google.rpc.Status error = 4;
+-- }
+data Operation = Operation
+  { opName :: Text
+  , opDone :: Bool
+  , opResponse :: Maybe ByteString  -- Unpacked Any
+  , opErrorCode :: Int
+  , opErrorMessage :: Maybe Text
+  }
+  deriving (Show, Eq, Generic)
+
+decodeOperation :: LBS.ByteString -> Maybe Operation
+decodeOperation lbs = do
+  let bs = LBS.toStrict lbs
+      fields = parseAllFields bs
+  let name = maybe "" decodeText (getField 1 fields)
+      done = case getField 3 fields of
+        Nothing -> False
+        Just f -> decodeInt64 f /= 0
+      -- Response is in field 5 (Any type)
+      response = getField 5 fields
+      -- Error is in field 4 (Status type)
+      (errCode, errMsg) = case getField 4 fields of
+        Nothing -> (0, Nothing)
+        Just statusBs ->
+          let statusFields = parseAllFields statusBs
+              code = case getField 1 statusFields of
+                Nothing -> 0
+                Just c -> fromIntegral $ decodeInt64 c
+              msg = fmap decodeText (getField 2 statusFields)
+          in (code, msg)
+  Just Operation
+    { opName = name
+    , opDone = done
+    , opResponse = response
+    , opErrorCode = errCode
+    , opErrorMessage = errMsg
+    }
+
+-- | ActionResult message
+-- message ActionResult {
+--   repeated OutputFile output_files = 2;
+--   repeated OutputDirectory output_directories = 3;
+--   int32 exit_code = 4;
+--   Digest stdout_digest = 6;
+--   Digest stderr_digest = 7;
+-- }
+data ProtoActionResult = ProtoActionResult
+  { parOutputFiles :: [(Text, ProtoDigest, Bool)]  -- (path, digest, executable)
+  , parExitCode :: Int
+  , parStdoutDigest :: Maybe ProtoDigest
+  , parStderrDigest :: Maybe ProtoDigest
+  }
+  deriving (Show, Eq, Generic)
+
+decodeActionResult :: ByteString -> Maybe ProtoActionResult
+decodeActionResult bs = do
+  let fields = parseAllFields bs
+      -- Decode output files (field 2, repeated)
+      outputFileFields = getRepeatedFields 2 fields
+      outputFiles = flip map outputFileFields $ \ofBs ->
+        let ofFields = parseAllFields ofBs
+            path = maybe "" decodeText (getField 1 ofFields)
+            digest = case getField 2 ofFields of
+              Nothing -> ProtoDigest "" 0
+              Just d -> case decodeDigest d of
+                Nothing -> ProtoDigest "" 0
+                Just dig -> dig
+            executable = case getField 4 ofFields of
+              Nothing -> False
+              Just f -> decodeInt64 f /= 0
+        in (path, digest, executable)
+      exitCode = case getField 4 fields of
+        Nothing -> 0
+        Just f -> fromIntegral $ decodeInt64 f
+      stdoutDigest = getField 6 fields >>= decodeDigest
+      stderrDigest = getField 7 fields >>= decodeDigest
+  Just ProtoActionResult
+    { parOutputFiles = outputFiles
+    , parExitCode = exitCode
+    , parStdoutDigest = stdoutDigest
+    , parStderrDigest = stderrDigest
+    }
+
+-- =============================================================================
+-- ActionCache: GetActionResult
+-- =============================================================================
+
+-- | GetActionResultRequest message
+-- message GetActionResultRequest {
+--   string instance_name = 1;
+--   Digest action_digest = 2;
+-- }
+data GetActionResultRequest = GetActionResultRequest
+  { garrInstanceName :: Text
+  , garrActionDigest :: ProtoDigest
+  }
+  deriving (Show, Eq, Generic)
+
+encodeGetActionResultRequest :: GetActionResultRequest -> LBS.ByteString
+encodeGetActionResultRequest GetActionResultRequest{..} =
+  LBS.fromStrict $
+    encodeString 1 garrInstanceName
+    <> encodeMessage 2 (encodeDigest garrActionDigest)
+
+-- =============================================================================
+-- RPC type aliases for Execution and ActionCache
+-- =============================================================================
+
+-- | Execution.Execute: Server-streaming RPC (returns stream of Operations)
+type ExecutionExecute = RawRpc
+  "build.bazel.remote.execution.v2.Execution"
+  "Execute"
+
+-- | ActionCache.GetActionResult: Non-streaming RPC
+type ActionCacheGetActionResult = RawRpc
+  "build.bazel.remote.execution.v2.ActionCache"
+  "GetActionResult"
+
+-- =============================================================================
 -- gRPC Metadata type instances
 -- =============================================================================
 -- RawRpc needs these type family instances to work with grapesy
@@ -554,3 +898,13 @@ type instance ResponseTrailingMetadata ByteStreamRead = NoMetadata
 type instance RequestMetadata ByteStreamWrite = NoMetadata
 type instance ResponseInitialMetadata ByteStreamWrite = NoMetadata
 type instance ResponseTrailingMetadata ByteStreamWrite = NoMetadata
+
+-- ExecutionExecute
+type instance RequestMetadata ExecutionExecute = NoMetadata
+type instance ResponseInitialMetadata ExecutionExecute = NoMetadata
+type instance ResponseTrailingMetadata ExecutionExecute = NoMetadata
+
+-- ActionCacheGetActionResult
+type instance RequestMetadata ActionCacheGetActionResult = NoMetadata
+type instance ResponseInitialMetadata ActionCacheGetActionResult = NoMetadata
+type instance ResponseTrailingMetadata ActionCacheGetActionResult = NoMetadata
