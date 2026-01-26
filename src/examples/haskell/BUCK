@@ -3,9 +3,10 @@
 # Haskell examples for Buck2
 #
 # Demonstrates:
-#   - haskell_binary: standalone executable
+#   - haskell_binary: standalone executable (prelude rule)
+#   - haskell_binary with packages/extensions (toolchains rule)
 
-# Simple hello world binary
+# Simple hello world binary (uses prelude rule)
 haskell_binary(
     name = "hello",
     srcs = ["Main.hs"],
@@ -14,5 +15,28 @@ haskell_binary(
     visibility = ["PUBLIC"],
 )
 
-# NOTE: haskell_c_library (FFI exports) requires the Mercury prelude
-# See //src/examples/haskell/FFIExport.hs for the pattern
+# Load our enhanced haskell rules
+load("@toolchains//:haskell.bzl", 
+    toolchains_haskell_binary = "haskell_binary",
+    "haskell_library",
+)
+
+# Example with packages and extensions (uses toolchains rule)
+toolchains_haskell_binary(
+    name = "json_demo",
+    srcs = ["JsonDemo.hs"],
+    packages = [
+        "base",
+        "aeson",
+        "text",
+        "bytestring",
+    ],
+    language_extensions = [
+        "DeriveGeneric",
+        "OverloadedStrings",
+    ],
+    ghc_options = ["-O2", "-Wall"],
+    visibility = ["PUBLIC"],
+)
+
+# NOTE: haskell_c_library (FFI exports) - see toolchains/haskell.bzl

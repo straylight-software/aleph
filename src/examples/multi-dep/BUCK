@@ -1,0 +1,33 @@
+# Multiple nix dependencies test
+#
+# Shows the generality: zlib, openssl, curl
+# curl itself depends on openssl and zlib, so we're testing
+# that multiple deps with overlapping transitive deps work.
+
+load("@toolchains//:nix_analyze.bzl", "nix_library", "nix_cxx_binary")
+
+nix_library(
+    name = "zlib",
+    flake_ref = "nixpkgs#zlib",
+)
+
+nix_library(
+    name = "openssl",
+    flake_ref = "nixpkgs#openssl",
+)
+
+nix_library(
+    name = "curl",
+    flake_ref = "nixpkgs#curl",
+)
+
+nix_cxx_binary(
+    name = "multi-dep",
+    srcs = ["main.cpp"],
+    deps = [
+        ":zlib",
+        ":openssl",
+        ":curl",
+    ],
+    cflags = ["-O2", "-Wall"],
+)

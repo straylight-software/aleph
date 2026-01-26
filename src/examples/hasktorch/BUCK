@@ -1,0 +1,37 @@
+# Hasktorch examples - tensor operations with libtorch
+#
+# Demonstrates:
+#   - haskell_binary with packages attr
+#   - Language extensions
+#   - Hasktorch tensor API
+
+load("@toolchains//:haskell.bzl", "haskell_binary")
+
+haskell_binary(
+    name = "hasktorch_demo",
+    srcs = ["Main.hs"],
+    packages = [
+        "base",
+        "hasktorch",
+    ],
+    language_extensions = [
+        "DataKinds",
+        "ExtendedDefaultRules",
+        "OverloadedStrings",
+        "TypeApplications",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+haskell_binary(
+    name = "linear_regression",
+    srcs = ["LinearRegression.hs"],
+    packages = [
+        "base",
+        "hasktorch",
+    ],
+    language_extensions = [
+        "RecordWildCards",
+    ],
+    visibility = ["PUBLIC"],
+)

@@ -18,8 +18,9 @@ load(":rust.bzl", "rust_toolchain")
 load(":lean.bzl", "lean_toolchain")
 load(":execution.bzl", "lre_execution_platform", "host_configuration")
 load(":shortlist.bzl", "shortlist_all")
-load("@prelude//toolchains:python.bzl", "system_python_bootstrap_toolchain")
-load("@prelude//toolchains:genrule.bzl", "system_genrule_toolchain")
+# Use local aleph prelude extractions instead of upstream bloat
+load("@aleph//toolchains:python.bzl", "system_python_bootstrap_toolchain")
+load("@aleph//toolchains:genrule.bzl", "system_genrule_toolchain")
 
 # ════════════════════════════════════════════════════════════════════════════════
 # C++ (LLVM 22)

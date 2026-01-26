@@ -16,8 +16,18 @@
 { inputs }:
 final: prev:
 let
-  inherit (prev.haskell.lib) doJailbreak dontCheck appendPatch;
+  inherit (prev.haskell.lib)
+    doJailbreak
+    dontCheck
+    appendPatch
+    addBuildDepends
+    overrideCabal
+    ;
 
+  # CUDA libraries needed for libtorch at runtime
+  # Use nvidia-sdk (CUDA 13.0) which has SONAME 12 matching libtorch 2.9.0
+  nvidia-sdk = prev.nvidia-sdk or (throw "nvidia-sdk not available - enable aleph.nixpkgs.nv");
+  cuda-lib-path = "${nvidia-sdk}/lib";
   # Patch for proto-lens-setup to fix Cabal 3.14+ SymbolicPath API changes
   proto-lens-setup-patch = ./patches/proto-lens-setup-cabal-3.14.patch;
 
@@ -75,6 +85,33 @@ let
           sha256 = "sha256-oD2+Td4eKJyDNu1enFf91Mmi4hvh0QFrJluYw9IfnvA=";
         } { }
       );
+
+      # ────────────────────────────────────────────────────────────────────────
+      # Hasktorch - typed tensor bindings to libtorch
+      #
+      # libtorch-ffi-helper: Has ghc <9.12 constraint, jailbreak to allow 9.12.
+      # libtorch-ffi/hasktorch: Need nvidia-sdk (CUDA 13.0) because nixpkgs
+      #   libtorch 2.9.0 is a prebuilt binary from PyTorch built against CUDA
+      #   13.0 (SONAME .so.12). nixpkgs cudaPackages_12_8 provides SONAME .so.11.
+      #
+      # hasktorch: GHC loads libtorch-ffi at compile time, which dlopens
+      #   libtorch.so, which needs CUDA libs. We set LD_LIBRARY_PATH at the
+      #   derivation level to point to nvidia-sdk/lib.
+      # ────────────────────────────────────────────────────────────────────────
+      libtorch-ffi-helper = doJailbreak hsuper.libtorch-ffi-helper;
+
+      libtorch-ffi =
+        let
+          base = doJailbreak hsuper.libtorch-ffi;
+          with-deps = addBuildDepends base [ nvidia-sdk ];
+        in
+        dontCheck with-deps;
+
+      hasktorch =
+        (dontCheck (doJailbreak (addBuildDepends hsuper.hasktorch [ nvidia-sdk ]))).overrideAttrs
+          (old: {
+            LD_LIBRARY_PATH = cuda-lib-path;
+          });
     };
   };
 in

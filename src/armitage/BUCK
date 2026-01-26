@@ -68,6 +68,25 @@ haskell_script(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Nix Analyzer (for Buck2 integration)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Two modes:
+#   nix-analyze unroll nixpkgs#zlib  -> JSON with resolved paths, build commands
+#   nix-analyze deps nixpkgs#zlib    -> JSON with dependency graph
+#
+# Buck2 calls this to get information for its analysis phase.
+
+haskell_script(
+    name = "nix-analyze",
+    srcs = ["NixAnalyze.hs"],
+    include_paths = ["src/armitage"],
+    packages = ARMITAGE_PACKAGES,
+    compiler_flags = ["-O2", "-Wall"],
+    visibility = ["PUBLIC"],
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Witness Proxy
 # ─────────────────────────────────────────────────────────────────────────────
 

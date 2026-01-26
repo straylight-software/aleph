@@ -13,6 +13,7 @@
 #
 # No GCC. No nvcc. Ever.
 
+# Use prelude types directly - avoids nominal typing mismatch between cells
 load(
     "@prelude//cxx:cxx_toolchain_types.bzl",
     "BinaryUtilitiesInfo",

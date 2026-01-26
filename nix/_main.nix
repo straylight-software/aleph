@@ -448,6 +448,10 @@ in
           # gRPC for NativeLink CAS integration
           # proto-lens-setup patched for Cabal 3.14+ in haskell.nix
           hp.grapesy
+
+          # Hasktorch - typed tensor bindings to libtorch
+          # Requires nvidia-sdk (CUDA 13.0) for matching SONAME versions
+          hp.hasktorch
         ];
       };
       rust.enable = true;

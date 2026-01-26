@@ -1,0 +1,6 @@
+# prelude/BUCK
+#
+# Local prelude - minimal extractions from buck2-prelude.
+#
+# We're squeezing out the bloat one file at a time.
+# When a rule needs apple_zip_support, we nuke it instead of pulling it in.

@@ -7,6 +7,8 @@
 #   - rust_library: reusable library crate
 #   - Dependency chaining between targets
 
+load("@toolchains//:rust.bzl", "rust_binary", "rust_library")
+
 # Simple hello world binary
 rust_binary(
     name = "hello",

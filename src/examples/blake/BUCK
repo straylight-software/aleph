@@ -1,0 +1,22 @@
+# BLAKE2 hashing demo using crypton
+#
+# crypton is already in aleph's haskell package set
+
+load("@toolchains//:haskell.bzl", "haskell_binary")
+
+haskell_binary(
+    name = "blake",
+    srcs = ["Main.hs"],
+    packages = [
+        "base",
+        "bytestring",
+        "crypton",
+        "memory",
+    ],
+    language_extensions = [
+        "OverloadedStrings",
+        "DataKinds",
+    ],
+    ghc_options = ["-O2"],
+    visibility = ["PUBLIC"],
+)
