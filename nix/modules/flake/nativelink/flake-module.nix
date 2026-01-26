@@ -858,6 +858,13 @@ in
               hard_limit = 10000
               soft_limit = 8000
 
+            # gRPC requires HTTP/2 backend
+            [http_service.http_options]
+              h2_backend = true
+
+            [http_service.tls_options]
+              alpn = ["h2"]
+
           [[vm]]
             memory = "${cfg.scheduler.memory}"
             cpu_kind = "shared"
@@ -886,6 +893,13 @@ in
               type = "connections"
               hard_limit = 10000
               soft_limit = 8000
+
+            # gRPC requires HTTP/2 backend
+            [http_service.http_options]
+              h2_backend = true
+
+            [http_service.tls_options]
+              alpn = ["h2"]
 
           [mounts]
             source = "cas_data"
