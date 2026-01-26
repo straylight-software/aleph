@@ -124,6 +124,7 @@ data ActionCategory
   | CudaCompile       -- .cu -> .o
   | CudaLink          -- .o -> binary with device code
   | Archive           -- .o -> .a
+  | Shell             -- run a shell script
   | Custom Text       -- escape hatch
   deriving stock (Show, Eq, Generic)
 
@@ -297,7 +298,7 @@ buildGraph target flakes =
 -- | Convert a Dhall target to an Action
 targetToAction :: Dhall.Target -> Map Text ResolvedFlake -> Action
 targetToAction Dhall.Target {..} flakes = Action
-  { aCategory = CxxLink  -- TODO: infer from srcs
+  { aCategory = category
   , aIdentifier = targetName
   , aInputs = resolvedInputs
   , aToolchain = toolchain
@@ -326,7 +327,14 @@ targetToAction Dhall.Target {..} flakes = Action
       Dhall.Dep_PkgConfig _ -> []  -- handled via pkg-config at compile time
       Dhall.Dep_External {} -> []  -- TODO: CA fetch
     
-    buildCommand = 
+    -- Detect shell scripts vs C++ builds
+    (category, buildCommand) = case srcs of
+      Dhall.Src_Files [f] | ".sh" `T.isSuffixOf` f -> 
+        (Shell, ["bash", f])
+      _ -> 
+        (CxxLink, cxxCommand)
+    
+    cxxCommand = 
       [ compilerCmd
       , "-o", targetName
       ] ++ flagsToArgs (Dhall.cflags toolchain)
