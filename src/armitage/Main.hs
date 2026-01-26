@@ -27,15 +27,19 @@ Usage:
 module Main where
 
 import Control.Exception (try, SomeException)
-import Control.Monad (when, forM_)
+import Control.Monad (when, forM_, unless)
+import Data.List (isPrefixOf)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import System.Environment (getArgs, getProgName)
-import System.Exit (exitFailure, exitSuccess)
+import System.Exit (ExitCode(..), exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
+import System.Process (readProcessWithExitCode)
 
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.DICE as DICE
@@ -55,6 +59,7 @@ main = do
     ("analyze" : rest) -> cmdAnalyze rest
     ("run" : rest) -> cmdRun rest
     ("trace" : rest) -> cmdTrace rest
+    ("unroll" : rest) -> cmdUnroll rest
     ("proxy" : rest) -> cmdProxy rest
     ("store" : rest) -> cmdStore rest
     ("cas" : rest) -> cmdCAS rest
@@ -361,6 +366,179 @@ parseTraceArgs args =
   let (before, after) = break (== "--") args
   in (before, drop 1 after)  -- drop the "--"
 
+-- | Unroll command - recursively trace a flake ref and all its build deps
+cmdUnroll :: [String] -> IO ()
+cmdUnroll args = case args of
+  [] -> unrollUsage
+  ("--help" : _) -> unrollUsage
+  ("-h" : _) -> unrollUsage
+  (flakeRef : rest) | "-" `isPrefixOf` flakeRef -> unrollUsage
+  (flakeRef : rest) -> do
+    let outDir = parseOutDir rest
+        maxDepth = parseDepth rest
+        dryRun = "--dry-run" `elem` rest
+    
+    putStrLn $ "Unrolling: " <> flakeRef
+    putStrLn $ "Output:    " <> outDir
+    putStrLn $ "Max depth: " <> show maxDepth
+    when dryRun $ putStrLn "DRY RUN - not actually building"
+    putStrLn ""
+    
+    -- Get derivation info
+    putStrLn "Querying derivation..."
+    drvInfo <- getDrvInfo flakeRef
+    case drvInfo of
+      Left err -> do
+        hPutStrLn stderr $ "Failed to get derivation: " <> err
+        exitFailure
+      Right info -> do
+        putStrLn $ "Derivation: " <> diDrvPath info
+        putStrLn $ "Builder:    " <> diBuilder info
+        putStrLn $ "Inputs:     " <> show (length $ diInputs info)
+        putStrLn ""
+        
+        -- Recursively unroll
+        unless dryRun $ createDirectoryIfMissing True outDir
+        unrollRec outDir maxDepth 0 Set.empty dryRun info
+  where
+    parseOutDir [] = "./unrolled"
+    parseOutDir ("-o":d:_) = d
+    parseOutDir (_:rest) = parseOutDir rest
+    
+    parseDepth [] = 10
+    parseDepth ("-d":n:_) = read n
+    parseDepth (_:rest) = parseDepth rest
+    
+    createDirectoryIfMissing _ _ = pure ()  -- TODO: use System.Directory
+
+unrollUsage :: IO ()
+unrollUsage = do
+  hPutStrLn stderr "Usage: armitage unroll <flake-ref> [options]"
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Options:"
+  hPutStrLn stderr "  -o <dir>     Output directory (default: ./unrolled)"
+  hPutStrLn stderr "  -d <depth>   Max recursion depth (default: 10)"
+  hPutStrLn stderr "  --dry-run    Show what would be traced without building"
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Examples:"
+  hPutStrLn stderr "  armitage unroll nixpkgs#hello"
+  hPutStrLn stderr "  armitage unroll nixpkgs#protobuf -o ./traced"
+  hPutStrLn stderr "  armitage unroll .#mypackage --dry-run"
+  exitFailure
+
+-- | Derivation info
+data DrvInfo = DrvInfo
+  { diDrvPath :: String
+  , diBuilder :: String
+  , diInputs :: [String]  -- Input derivation paths
+  , diSrcs :: [String]    -- Source paths (for tracing)
+  } deriving Show
+
+-- | Get derivation info from flake ref or drv path
+getDrvInfo :: String -> IO (Either String DrvInfo)
+getDrvInfo ref = do
+  -- If it's already a .drv path, query it directly
+  if ".drv" `isSuffixOf` ref
+    then getDrvInfoFromPath ref
+    else do
+      -- It's a flake ref - resolve to drv path first
+      (code, out, err) <- readProcessWithExitCode "nix" 
+        ["path-info", "--derivation", ref] ""
+      case code of
+        ExitFailure _ -> pure $ Left err
+        ExitSuccess -> getDrvInfoFromPath (T.unpack $ T.strip $ T.pack out)
+  where
+    isSuffixOf suffix s = suffix == drop (length s - length suffix) s
+
+-- | Get derivation info from a .drv store path
+getDrvInfoFromPath :: String -> IO (Either String DrvInfo)
+getDrvInfoFromPath drvPath = do
+  (code, out, err) <- readProcessWithExitCode "nix"
+    ["derivation", "show", drvPath] ""
+  case code of
+    ExitFailure _ -> pure $ Left err
+    ExitSuccess -> pure $ parseDrvJson drvPath out
+
+-- | Parse derivation JSON (simplified)
+-- JSON format: {"derivations":{"<hash>-<name>.drv":{"inputs":{"drvs":{"<hash>-<name>.drv":{...}}}}}}
+parseDrvJson :: String -> String -> Either String DrvInfo
+parseDrvJson drvPath json = 
+  -- TODO: proper JSON parsing with Aeson
+  -- For now, extract info with string matching
+  Right DrvInfo
+    { diDrvPath = drvPath
+    , diBuilder = extractBuilder json
+    , diInputs = extractInputDrvs drvPath json
+    , diSrcs = []
+    }
+  where
+    extractBuilder s = 
+      case T.breakOn "\"builder\":" (T.pack s) of
+        (_, rest) -> 
+          let afterColon = T.drop 10 rest  -- drop '"builder":'
+              quoted = T.takeWhile (/= '"') $ T.drop 1 $ T.dropWhile (/= '"') afterColon
+          in T.unpack quoted
+    
+    -- Extract all drv hashes from JSON, excluding the top-level one
+    extractInputDrvs topDrv s = 
+      let txt = T.pack s
+          -- Split on ".drv" and look backwards for the hash-name
+          parts = T.splitOn ".drv\"" txt
+          -- Extract the hash-name before each ".drv"
+          drvNames = concatMap extractDrvName (init' parts)
+          -- Filter out the top-level derivation itself
+          topHash = takeBaseName topDrv
+      in map ("/nix/store/" <>) $ filter (/= topHash) drvNames
+    
+    extractDrvName part = 
+      -- The drv name is right before the .drv", quoted: "hash-name
+      let reversed = T.reverse part
+          -- Take until we hit a quote
+          beforeQuote = T.takeWhile (/= '"') reversed
+          drvName = T.unpack $ T.reverse beforeQuote
+      in if isValidDrvHash drvName then [drvName <> ".drv"] else []
+    
+    -- Check if it looks like a valid drv hash (32 chars of base32)
+    isValidDrvHash s = length s > 32 && all isBase32Char (take 32 s)
+    isBase32Char c = c `elem` ("0123456789abcdfghijklmnpqrsvwxyz" :: String)
+    
+    init' [] = []
+    init' xs = init xs
+    
+    takeBaseName p = reverse $ takeWhile (/= '/') $ reverse p
+
+-- | Recursively unroll derivation graph
+unrollRec :: FilePath -> Int -> Int -> Set String -> Bool -> DrvInfo -> IO ()
+unrollRec outDir maxDepth depth seen dryRun info
+  | depth >= maxDepth = putStrLn $ indent <> "[max depth]"
+  | diDrvPath info `Set.member` seen = putStrLn $ indent <> "(seen)"
+  | otherwise = do
+      let name = takeBaseName (diDrvPath info)
+      
+      -- Check if this is a fetch (no build to trace)
+      if isFetch (diBuilder info)
+        then putStrLn $ indent <> name <> " [fetch]"
+        else do
+          putStrLn $ indent <> name
+          unless dryRun $ do
+            -- TODO: Actually build and trace
+            -- 1. nix-store --realise <drv>
+            -- 2. armitage trace -- <builder> <args>
+            -- 3. Write Dhall to outDir/<name>.dhall
+            pure ()
+      
+      -- Recurse into inputs
+      let seen' = Set.insert (diDrvPath info) seen
+      forM_ (diInputs info) $ \inputDrv -> do
+        inputInfo <- getDrvInfo inputDrv
+        case inputInfo of
+          Left err -> putStrLn $ indent <> "  (failed: " <> takeBaseName inputDrv <> ")"
+          Right ii -> unrollRec outDir maxDepth (depth + 1) seen' dryRun ii
+  where
+    indent = replicate (depth * 2) ' '
+    takeBaseName p = reverse $ takeWhile (/= '/') $ reverse p
+    isFetch builder = any (`T.isInfixOf` T.pack builder) ["fetchurl", "curl", "fetch"]
+
 usage :: IO ()
 usage = do
   prog <- getProgName
@@ -374,6 +552,7 @@ usage = do
   putStrLn "  analyze <file>     Analyze deps and build action graph"
   putStrLn "  run <file>         Analyze and execute build"
   putStrLn "  trace -- <cmd>     Trace build, extract Dhall targets"
+  putStrLn "  unroll <ref>       Recursively trace flake ref and deps"
   putStrLn "  proxy              Run witness proxy"
   putStrLn "  store <cmd>        Store operations"
   putStrLn "  cas <cmd>          Content-addressed storage"
