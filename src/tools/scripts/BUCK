@@ -71,6 +71,9 @@ SCRIPTS = [
     "nvidia-sdk-extract",
     # Archive utilities
     "combine-archive",
+    # Lint tools (config file setup)
+    "lint-init",
+    "lint-link",
 ]
 
 # Generate haskell_script targets for all scripts

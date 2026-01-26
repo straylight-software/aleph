@@ -469,6 +469,18 @@ in
           name = "combine-archive";
           deps = [ ]; # No runtime deps, uses ar from stdenv
         };
+
+        # lint-init - Initialize lint configs in a project
+        lint-init = mk-compiled-script {
+          name = "lint-init";
+          deps = [ ]; # No runtime deps
+        };
+
+        # lint-link - Symlink lint configs from aleph
+        lint-link = mk-compiled-script {
+          name = "lint-link";
+          deps = [ ]; # No runtime deps
+        };
       };
 
       # Convenience: build all compiled scripts

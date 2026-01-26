@@ -12,8 +12,9 @@
 #
 # Lint config files. clang-format, clang-tidy, ruff, biome, stylua, etc.
 #
-# Typed Haskell scripts replace bash. The scripts take a configs directory
-# as an argument, which is baked in via a wrapper script at build time.
+# Typed Haskell scripts are built via Buck2 and exposed as packages.
+# The scripts take a configs directory as an argument, which is baked
+# in via a wrapper script.
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 _:
@@ -28,9 +29,6 @@ let
     rustfmt = ../../configs/.rustfmt.toml;
     taplo = ../../configs/taplo.toml;
   };
-
-  # Script source directory
-  script-src = ../../../src/tools/scripts;
 in
 { config, lib, ... }:
 let
@@ -83,68 +81,26 @@ in
           }
         ];
 
-        # Haskell dependencies for Weyl.Script
-        hs-deps =
-          p: with p; [
-            megaparsec
-            text
-            shelly
-            foldl
-            aeson
-            directory
-            cryptonite
-            memory
-            unordered-containers
-            vector
-            unix
-            async
-            bytestring
-          ];
+        # Pre-built scripts from overlay (compiled via GHC with Aleph.Script)
+        inherit (pkgs.aleph.script) compiled;
 
-        ghc-with-deps = pkgs.haskellPackages.ghcWithPackages hs-deps;
-
-        # Build a lint script
-        # The script takes configs-dir as first argument, which we bake in via wrapper
-        mk-lint-script =
+        # Wrap a pre-built script with configs directory baked in
+        wrap-lint-script =
           name:
-          pkgs.stdenv.mkDerivation {
-            inherit name;
-            src = script-src;
-            dontUnpack = true;
-
-            nativeBuildInputs = [
-              ghc-with-deps
-              pkgs.makeWrapper
-            ];
-
-            buildPhase = ''
-              runHook preBuild
-              # Use -hidir and -odir to avoid writing to read-only Nix store
-              ghc -O2 -Wall -Wno-unused-imports \
-                -hidir . -odir . \
-                -i$src -o ${name} $src/${name}.hs
-              runHook postBuild
-            '';
-
-            installPhase = ''
-              runHook preInstall
+          pkgs.runCommand name
+            {
+              nativeBuildInputs = [ pkgs.makeWrapper ];
+              meta.description = "Lint configuration script for code formatting and style checks";
+            }
+            ''
               mkdir -p $out/bin
-              cp ${name} $out/bin/${name}-unwrapped
-
-              # Wrap with configs directory baked in
-              makeWrapper $out/bin/${name}-unwrapped $out/bin/${name} \
+              makeWrapper ${compiled.${name}}/bin/${name} $out/bin/${name} \
                 --add-flags "${configs-dir}"
-              runHook postInstall
             '';
-
-            meta = {
-              description = "Lint configuration script for code formatting and style checks";
-            };
-          };
       in
       {
-        packages.lint-init = mk-lint-script "lint-init";
-        packages.lint-link = mk-lint-script "lint-link";
+        packages.lint-init = wrap-lint-script "lint-init";
+        packages.lint-link = wrap-lint-script "lint-link";
       };
   };
 }
