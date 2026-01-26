@@ -299,6 +299,39 @@ let
               '';
             };
 
+            # Witnessed build wrapper - runs command with attestation collection
+            # Usage: witnessed-build <output-dir> -- <command> [args...]
+            # After command completes, copies attestation log to <output-dir>/.attestations.jsonl
+            witnessed-build = pkgs.writeShellApplication {
+              name = "witnessed-build";
+              runtimeInputs = with pkgs; [
+                coreutils
+                jq
+              ];
+              text = ''
+                OUTPUT_DIR="$1"
+                shift
+                if [ "$1" = "--" ]; then shift; fi
+
+                # Clear attestation log before build
+                ATTESTATION_LOG="/var/log/armitage/fetches.jsonl"
+                : > "$ATTESTATION_LOG"
+
+                # Run the actual command
+                EXIT_CODE=0
+                "$@" || EXIT_CODE=$?
+
+                # Copy attestations to output directory
+                if [ -f "$ATTESTATION_LOG" ] && [ -s "$ATTESTATION_LOG" ]; then
+                  cp "$ATTESTATION_LOG" "$OUTPUT_DIR/.attestations.jsonl"
+                  FETCH_COUNT=$(wc -l < "$ATTESTATION_LOG")
+                  echo ":: Witnessed $FETCH_COUNT network fetch(es)"
+                fi
+
+                exit $EXIT_CODE
+              '';
+            };
+
             # Armitage service module for nimi (follows nativelink pattern)
             mk-armitage-service =
               { lib, pkgs, ... }:
@@ -407,9 +440,10 @@ let
                   jq
                   cacert
 
-                  # Armitage proxy and startup script
+                  # Armitage proxy and build wrapper
                   armitage-proxy
                   armitage-startup-script
+                  witnessed-build
 
                   # Process management
                   procps

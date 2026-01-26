@@ -51,9 +51,12 @@ module Armitage.DICE
     -- * Execution
   , ExecutionResult (..)
   , ExecutionMode (..)
+  , WitnessConfig (..)
   , executeGraph
+  , executeGraphWitnessed
   , executeGraphRemote
   , executeAction
+  , executeActionWitnessed
   , executeActionRemote
   
     -- * Analysis
@@ -87,6 +90,10 @@ import qualified Armitage.Dhall as Dhall
 import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
 import qualified Armitage.RE as RE
+
+import Data.Aeson (eitherDecodeFileStrict, FromJSON)
+import qualified Data.Aeson as Aeson
+import System.FilePath ((</>))
 
 -- -----------------------------------------------------------------------------
 -- Action Keys
@@ -389,6 +396,15 @@ data ExecutionMode
   | ExecRemote RE.REConfig       -- Remote execution via NativeLink
   deriving stock (Show, Generic)
 
+-- | Witness proxy configuration
+data WitnessConfig = WitnessConfig
+  { wcProxyHost :: String        -- Proxy host (e.g., "localhost")
+  , wcProxyPort :: Int           -- Proxy port (e.g., 8080)
+  , wcCertFile :: FilePath       -- CA cert for TLS MITM
+  , wcLogDir :: FilePath         -- Where proxy writes attestations
+  }
+  deriving stock (Show, Generic)
+
 -- | Result of executing the graph
 data ExecutionResult = ExecutionResult
   { erOutputs   :: Map ActionKey [Text]     -- action -> output paths
@@ -399,13 +415,17 @@ data ExecutionResult = ExecutionResult
   }
   deriving stock (Show, Generic)
 
--- | Execute the action graph (local)
+-- | Execute the action graph (local, no witness)
 executeGraph :: ActionGraph -> IO ExecutionResult
-executeGraph = executeGraphWith ExecLocal
+executeGraph = executeGraphWith ExecLocal Nothing
+
+-- | Execute the action graph (local, with witness proxy)
+executeGraphWitnessed :: WitnessConfig -> ActionGraph -> IO ExecutionResult
+executeGraphWitnessed wc = executeGraphWith ExecLocal (Just wc)
 
 -- | Execute the action graph (remote via NativeLink)
 executeGraphRemote :: RE.REConfig -> ActionGraph -> IO ExecutionResult
-executeGraphRemote config = executeGraphWith (ExecRemote config)
+executeGraphRemote config = executeGraphWith (ExecRemote config) Nothing
 
 -- | Execute with specified mode
 executeGraphWith :: ExecutionMode -> ActionGraph -> IO ExecutionResult
