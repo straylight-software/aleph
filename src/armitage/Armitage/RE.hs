@@ -52,13 +52,15 @@ module Armitage.RE
   , Directory (..)
   , FileNode (..)
   , DirectoryNode (..)
+  , SymlinkNode (..)
   , uploadDirectory
   , computeInputRoot
+  , serializeDirectory
   ) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
-import Control.Monad (forM, forM_, when)
+import Control.Monad (forM, forM_, when, foldM)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -86,9 +88,10 @@ import Network.GRPC.Client
   , withConnection
   , withRPC
   , sendFinalInput
+  , recvFinalOutput
   , recvNextOutputElem
   )
-import Network.GRPC.Common (def)
+import Network.GRPC.Common (def, NextElem(..))
 import Data.Proxy (Proxy (..))
 import Data.Int (Int64)
 import Data.Word (Word64)
@@ -349,13 +352,13 @@ execute client req = do
     let collectOps = do
           elem <- recvNextOutputElem call
           case elem of
-            Nothing -> pure ExecuteResponse
+            NoNextElem -> pure ExecuteResponse
               { exResult = Nothing
               , exOperationName = ""
               , exDone = False
               , exError = Just "Stream ended without completion"
               }
-            Just opBytes -> case Proto.decodeOperation opBytes of
+            NextElem opBytes -> case Proto.decodeOperation opBytes of
               Nothing -> pure ExecuteResponse
                 { exResult = Nothing
                 , exOperationName = ""
@@ -432,12 +435,11 @@ getActionResult client actionDigest = do
         , Proto.garrActionDigest = protoDigest
         }
   
-  withRPC (recConn client) def (Proxy @Proto.ActionCacheGetActionResult) $ \call -> do
+  result <- withRPC (recConn client) def (Proxy @Proto.ActionCacheGetActionResult) $ \call -> do
     sendFinalInput call (Proto.encodeGetActionResultRequest protoReq)
-    elem <- recvNextOutputElem call
-    case elem of
-      Nothing -> pure Nothing
-      Just respBytes -> pure $ Proto.decodeActionResult (LBS.toStrict respBytes) >>= protoToActionResult
+    (respBytes, _trailers) <- recvFinalOutput call
+    pure $ Proto.decodeActionResult (LBS.toStrict respBytes) >>= protoToActionResult
+  pure result
 
 -- -----------------------------------------------------------------------------
 -- Directory operations
@@ -625,8 +627,8 @@ decodeExecuteResponseResult anyBytes = do
     parseField :: ByteString -> Maybe (Int, ByteString, ByteString)
     parseField bs = do
       (key, rest1) <- decodeVarint bs
-      let fieldNum = fromIntegral (key `shiftR` 3)
-          wireType = key .&. 0x07
+      let fieldNum = fromIntegral (key `Data.Bits.shiftR` 3)
+          wireType = key Data.Bits..&. 0x07
       case wireType of
         0 -> do  -- varint - encode it back for lookup
           (val, rest2) <- decodeVarint rest1
@@ -638,16 +640,17 @@ decodeExecuteResponseResult anyBytes = do
         _ -> Nothing
     
     decodeVarint :: ByteString -> Maybe (Word64, ByteString)
-    decodeVarint bs = go bs 0 0
+    decodeVarint bs = go bs (0 :: Word64) (0 :: Int)
       where
+        go :: ByteString -> Word64 -> Int -> Maybe (Word64, ByteString)
         go remaining acc shift
           | BS.null remaining = Nothing
           | otherwise =
               let byte = BS.head remaining
                   rest = BS.tail remaining
-                  val  = fromIntegral (byte .&. 0x7F) `shiftL` shift
-                  acc' = acc .|. val
-              in if byte .&. 0x80 == 0
+                  val  = fromIntegral (byte Data.Bits..&. 0x7F) `Data.Bits.shiftL` shift
+                  acc' = acc Data.Bits..|. val
+              in if byte Data.Bits..&. 0x80 == 0
                  then Just (acc', rest)
                  else if shift >= 63
                       then Nothing
@@ -656,10 +659,5 @@ decodeExecuteResponseResult anyBytes = do
     encodeVarint :: Word64 -> ByteString
     encodeVarint n
       | n < 128   = BS.singleton (fromIntegral n)
-      | otherwise = BS.cons (fromIntegral (n .&. 0x7F) .|. 0x80)
-                            (encodeVarint (n `shiftR` 7))
-    
-    shiftR = Data.Bits.shiftR
-    shiftL = Data.Bits.shiftL
-    (.&.) = (Data.Bits..&.)
-    (.|.) = (Data.Bits..|.)
+      | otherwise = BS.cons (fromIntegral (n Data.Bits..&. 0x7F) Data.Bits..|. 0x80)
+                            (encodeVarint (n `Data.Bits.shiftR` 7))

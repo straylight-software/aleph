@@ -48,6 +48,7 @@ module Armitage.CAS
   ) where
 
 import Control.Exception (try, SomeException)
+import System.IO (hPutStrLn, hFlush, stderr)
 import Control.Monad (forM_)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
@@ -97,11 +98,12 @@ data CASConfig = CASConfig
   deriving (Show, Eq, Generic)
 
 -- | Default configuration for local NativeLink
+-- NativeLink runs all services (CAS, Execution, ActionCache) on the same port
 defaultConfig :: CASConfig
 defaultConfig =
   CASConfig
     { casHost = "localhost"
-    , casPort = 50052
+    , casPort = 50051
     , casUseTLS = False
     , casInstanceName = "main"
     }
@@ -186,6 +188,8 @@ data CASClient = CASClient
 --     uploadBlob client digest content
 withCASClient :: CASConfig -> (CASClient -> IO a) -> IO a
 withCASClient config action = do
+  hPutStrLn stderr $ "CAS: connecting to " <> casHost config <> ":" <> show (casPort config)
+  hFlush stderr
   let addr = Address
         { addressHost = casHost config
         , addressPort = casPort config
@@ -198,7 +202,11 @@ withCASClient config action = do
         then ServerSecure serverValidation def addr
         else ServerInsecure addr
       params = def
-  withConnection params server $ \conn ->
+  hPutStrLn stderr $ "CAS: server config = " <> show (casUseTLS config)
+  hFlush stderr
+  withConnection params server $ \conn -> do
+    hPutStrLn stderr "CAS: connection established"
+    hFlush stderr
     action CASClient
       { clientConfig = config
       , clientConn = conn

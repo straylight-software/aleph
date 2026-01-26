@@ -56,7 +56,8 @@ module Armitage.Store
   , restoreNar
   ) where
 
-import Control.Exception (bracket, try, IOError)
+import Control.Exception (bracket, try)
+import System.IO.Error (IOError)
 import Control.Monad (unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)

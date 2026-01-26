@@ -95,7 +95,7 @@ import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnvironment)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName)
 import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 -- -----------------------------------------------------------------------------
@@ -945,10 +945,10 @@ checkCoeffectsWitnessed _wc = go
 -- Uses XDG_CACHE_HOME or ~/.cache/armitage
 actionCacheDir :: IO FilePath
 actionCacheDir = do
-  home <- getEnvironment >>= \env -> 
-    pure $ fromMaybe (error "HOME not set") (lookup "HOME" env)
-  let cacheBase = fromMaybe (home </> ".cache") (lookup "XDG_CACHE_HOME" =<< Just <$> getEnvironment)
-  pure $ home </> ".cache" </> "armitage" </> "actions"
+  env <- getEnvironment
+  let home = fromMaybe (error "HOME not set") (lookup "HOME" env)
+      cacheBase = fromMaybe (home </> ".cache") (lookup "XDG_CACHE_HOME" env)
+  pure $ cacheBase </> "armitage" </> "actions"
 
 -- | Check local cache for action result
 checkCAS :: ActionKey -> IO (Maybe [Text])
