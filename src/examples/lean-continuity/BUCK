@@ -6,18 +6,26 @@
 # across content-addressed derivations, typed toolchains, and isolation
 # boundaries.
 #
-# This example requires Mathlib, so we use Lake (Lean's package manager)
-# rather than the raw lean_binary rule.
+# STATUS: This target requires Mathlib which is managed by Lake.
+#         Lake builds are non-hermetic and disabled in Buck2.
 #
-# Build: buck2 build //src/examples/lean-continuity:continuity
-# Check: buck2 build //src/examples/lean-continuity:continuity
+# To build this project, use Lake directly:
+#
+#     cd src/examples/lean-continuity
+#     lake build
+#
+# Or manage Mathlib via Nix overlay for hermetic builds.
+# See: nix/overlays/ for examples.
 
-load("@toolchains//:lean.bzl", "lean_lake_build")
-
-lean_lake_build(
+# Placeholder target that documents the situation
+genrule(
     name = "continuity",
-    srcs = ["Continuity.lean", "DhallEmbed.lean"],
-    lakefile = "lakefile.lean",
-    toolchain_file = "lean-toolchain",
+    out = "README.txt",
+    cmd = """
+        echo "This target requires Mathlib (Lake dependency)." > $OUT
+        echo "Lake builds are non-hermetic and disabled in Buck2." >> $OUT
+        echo "" >> $OUT
+        echo "Build with: cd src/examples/lean-continuity && lake build" >> $OUT
+    """,
     visibility = ["PUBLIC"],
 )
