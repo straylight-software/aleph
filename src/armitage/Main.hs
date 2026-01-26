@@ -256,7 +256,7 @@ cmdRun args = case args of
   [] -> do
     hPutStrLn stderr "Usage: armitage run <BUILD.dhall>"
     exitFailure
-  (dhallPath : _) -> do
+  (dhallPath : rest) -> do
     putStrLn $ "Loading: " <> dhallPath
     target <- Dhall.loadTarget dhallPath
     
@@ -274,9 +274,8 @@ cmdRun args = case args of
         putStrLn $ "Executing " <> show (length $ DICE.agActions graph) <> " action(s)..."
         putStrLn ""
         
-
-        
-        execResult <- DICE.executeGraph graph
+        -- All execution is witnessed
+        execResult <- DICE.executeGraphWitnessed defaultWitnessConfig graph
         
         putStrLn $ "Cache hits: " <> show (DICE.erCacheHits execResult)
         putStrLn $ "Executed:   " <> show (DICE.erExecuted execResult)
@@ -598,3 +597,14 @@ renderCoeffects cs = unwords $ map renderOne cs
       Builder.Sandbox t -> "sandbox:" <> T.unpack t
       Builder.Filesystem p -> "fs:" <> p
       Builder.Combined xs -> "(" <> unwords (map renderOne xs) <> ")"
+
+-- | Default witness proxy configuration
+-- The proxy runs on the same host, these are constants.
+-- In container: /var/log/armitage, locally: /tmp/armitage
+defaultWitnessConfig :: DICE.WitnessConfig
+defaultWitnessConfig = DICE.WitnessConfig
+  { DICE.wcProxyHost = "127.0.0.1"
+  , DICE.wcProxyPort = 8888
+  , DICE.wcCertFile = "/tmp/armitage/certs/ca.pem"
+  , DICE.wcLogDir = "/tmp/armitage/log"
+  }

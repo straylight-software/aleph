@@ -1,17 +1,11 @@
--- BUILD.dhall - zlib test target
--- 
--- Demonstrates building against nixpkgs dependencies.
--- DICE will resolve nixpkgs#zlib, get the store path,
--- and wire up -I and -L flags automatically.
-
-let Build = ../../../src/armitage/dhall/Build.dhall
-let Toolchain = ../../../src/armitage/dhall/Toolchain.dhall
-let Resource = ../../../src/armitage/dhall/Resource.dhall
+let Build = /home/b7r6/src/straylight/aleph/src/armitage/dhall/Build.dhall
+let Toolchain = /home/b7r6/src/straylight/aleph/src/armitage/dhall/Toolchain.dhall
+let Resource = /home/b7r6/src/straylight/aleph/src/armitage/dhall/Resource.dhall
 
 in  Build.cxx-binary
-      { name = "zlib-test"
-      , srcs = [ "main.cpp" ]
-      , deps = [ Build.dep.nixpkgs "zlib" ]
+      { name = "test-fetch"
+      , srcs = [ "test-fetch.cpp" ]
+      , deps = [] : List Build.Dep
       , toolchain = Toolchain.presets.clang-18-glibc-dynamic
       , requires = Resource.pure
       }

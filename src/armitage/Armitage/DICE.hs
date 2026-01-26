@@ -66,7 +66,7 @@ module Armitage.DICE
 
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (try, SomeException)
-import Control.Monad (forM, foldM, unless)
+import Control.Monad (forM, foldM, unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -81,7 +81,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
 import System.Process (readProcess, readProcessWithExitCode)
@@ -91,9 +91,12 @@ import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
 import qualified Armitage.RE as RE
 
-import Data.Aeson (eitherDecodeFileStrict, FromJSON)
+import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
+import Data.Maybe (catMaybes, fromMaybe)
+import System.Environment (getEnvironment)
 import System.FilePath ((</>))
+import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 -- -----------------------------------------------------------------------------
 -- Action Keys
@@ -428,14 +431,14 @@ executeGraphRemote :: RE.REConfig -> ActionGraph -> IO ExecutionResult
 executeGraphRemote config = executeGraphWith (ExecRemote config) Nothing
 
 -- | Execute with specified mode
-executeGraphWith :: ExecutionMode -> ActionGraph -> IO ExecutionResult
-executeGraphWith mode graph = do
+executeGraphWith :: ExecutionMode -> Maybe WitnessConfig -> ActionGraph -> IO ExecutionResult
+executeGraphWith mode mWitness graph = do
   let sorted = topoSort graph
   
   case mode of
     ExecLocal -> do
       (outputs, hits, executed, failed, proofs) <- 
-        foldM (executeOneLocal graph) (Map.empty, 0, 0, [], Map.empty) sorted
+        foldM (executeOneLocal mWitness graph) (Map.empty, 0, 0, [], Map.empty) sorted
       pure ExecutionResult
         { erOutputs = outputs
         , erCacheHits = hits
@@ -456,11 +459,12 @@ executeGraphWith mode graph = do
         }
 
 executeOneLocal 
-  :: ActionGraph 
+  :: Maybe WitnessConfig
+  -> ActionGraph 
   -> (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
   -> ActionKey
   -> IO (Map ActionKey [Text], Int, Int, [(ActionKey, Text)], Map ActionKey Builder.DischargeProof)
-executeOneLocal graph (outputs, hits, executed, failed, proofs) key = do
+executeOneLocal mWitness graph (outputs, hits, executed, failed, proofs) key = do
   let action = agActions graph Map.! key
   
   -- Check CAS for cached output
@@ -471,8 +475,10 @@ executeOneLocal graph (outputs, hits, executed, failed, proofs) key = do
       pure (Map.insert key paths outputs, hits + 1, executed, failed, proofs)
     
     Nothing -> do
-      -- Cache miss - execute locally
-      result <- executeAction action outputs
+      -- Cache miss - execute (with or without witness)
+      result <- case mWitness of
+        Just wc -> executeActionWitnessed wc action outputs
+        Nothing -> executeAction action outputs
       case result of
         Left err -> 
           pure (outputs, hits, executed, (key, err) : failed, proofs)
@@ -569,6 +575,136 @@ executeAction action@Action {..} _depOutputs = do
               unless (null stderr) $
                 TIO.putStrLn $ T.pack stderr
               pure $ Left $ "Exit code " <> T.pack (show code)
+
+-- | Network attestation from witness proxy log
+data WitnessAttestation = WitnessAttestation
+  { waUrl :: Text
+  , waHost :: Text
+  , waSha256 :: Maybe Text
+  , waSize :: Int
+  , waTimestamp :: Text
+  , waMethod :: Text
+  , waCached :: Bool
+  } deriving (Show, Generic)
+
+instance FromJSON WitnessAttestation where
+  parseJSON = Aeson.withObject "WitnessAttestation" $ \v -> WitnessAttestation
+    <$> v Aeson..: "url"
+    <*> v Aeson..: "host"
+    <*> v Aeson..:? "sha256"
+    <*> v Aeson..: "size"
+    <*> v Aeson..: "timestamp"
+    <*> v Aeson..: "method"
+    <*> v Aeson..: "cached"
+
+-- | Execute action with witness proxy (collects network attestations)
+executeActionWitnessed :: WitnessConfig -> Action -> Map ActionKey [Text] -> IO (Either Text ([Text], Builder.DischargeProof))
+executeActionWitnessed wc action@Action {..} _depOutputs = do
+  startTime <- getCurrentTime
+  
+  -- Check coeffects
+  coeffectResult <- checkCoeffects aCoeffects
+  case coeffectResult of
+    Left missing -> pure $ Left $ "Missing coeffect: " <> T.pack (show missing)
+    Right () -> do
+      let cmd = map T.unpack aCommand
+      
+      case cmd of
+        [] -> pure $ Left "Empty command"
+        (exe:args) -> do
+          -- Ensure log dir exists and clear attestation log
+          let attestationLog = wcLogDir wc </> "fetches.jsonl"
+          createDirectoryIfMissing True (wcLogDir wc)
+          writeFile attestationLog ""
+          
+          -- Set up proxy environment
+          let proxyUrl = "http://" <> wcProxyHost wc <> ":" <> show (wcProxyPort wc)
+              proxyEnv = [ ("HTTP_PROXY", proxyUrl)
+                        , ("HTTPS_PROXY", proxyUrl)
+                        , ("http_proxy", proxyUrl)
+                        , ("https_proxy", proxyUrl)
+                        , ("SSL_CERT_FILE", wcCertFile wc)
+                        , ("NIX_SSL_CERT_FILE", wcCertFile wc)
+                        ]
+          
+          -- Print what we're running
+          TIO.putStrLn $ "  $ " <> T.pack exe <> " \\"
+          mapM_ (\a -> TIO.putStrLn $ "      " <> T.pack a) args
+          TIO.putStrLn $ "  [via witness proxy " <> T.pack proxyUrl <> "]"
+          hFlush stdout
+          
+          -- Get current env and merge with proxy env
+          currentEnv <- getEnvironment
+          let fullEnv = proxyEnv ++ currentEnv
+          
+          -- Execute with proxy env
+          let proc = (System.Process.proc exe args) { env = Just fullEnv }
+          (exitCode, _stdout, stderr) <- readCreateProcessWithExitCode proc ""
+          endTime <- getCurrentTime
+          
+          case exitCode of
+            ExitSuccess -> do
+              let outputPaths = aOutputs
+              
+              -- Hash outputs
+              outputHashes <- forM outputPaths $ \out -> do
+                let outPath = T.unpack out
+                exists <- doesFileExist outPath
+                if exists
+                  then do
+                    content <- BS.readFile outPath
+                    let hash = T.pack $ show $ hashWith SHA256 content
+                    pure (out, hash)
+                  else pure (out, "missing")
+              
+              -- Read attestations from proxy log
+              networkAccess <- readAttestations attestationLog
+              
+              -- Check for coeffect violations
+              let declaredPure = null aCoeffects || all (== Dhall.Resource_Pure) aCoeffects
+                  hasNetwork = not (null networkAccess)
+              when (declaredPure && hasNetwork) $
+                TIO.putStrLn $ "  ⚠ COEFFECT VIOLATION: declared pure but made " 
+                             <> T.pack (show (length networkAccess)) <> " network request(s)"
+              
+              let proof = Builder.DischargeProof
+                    { Builder.dpCoeffects = map resourceToCoeffect aCoeffects
+                    , Builder.dpNetworkAccess = networkAccess
+                    , Builder.dpFilesystemAccess = []
+                    , Builder.dpAuthUsage = []
+                    , Builder.dpBuildId = unActionKey $ actionKey action
+                    , Builder.dpDerivationHash = unActionKey $ actionKey action
+                    , Builder.dpOutputHashes = outputHashes
+                    , Builder.dpStartTime = startTime
+                    , Builder.dpEndTime = endTime
+                    }
+              pure $ Right (outputPaths, proof)
+            
+            ExitFailure code -> do
+              unless (null stderr) $ TIO.putStrLn $ T.pack stderr
+              pure $ Left $ "Exit code " <> T.pack (show code)
+
+-- | Read attestations from witness proxy log
+readAttestations :: FilePath -> IO [Builder.NetworkAccess]
+readAttestations logPath = do
+  exists <- doesFileExist logPath
+  if not exists
+    then pure []
+    else do
+      content <- TIO.readFile logPath
+      let lines' = filter (not . T.null) $ T.lines content
+      attestations <- forM lines' $ \line -> do
+        case Aeson.eitherDecodeStrict (TE.encodeUtf8 line) of
+          Left _ -> pure Nothing
+          Right (wa :: WitnessAttestation) -> do
+            now <- getCurrentTime
+            pure $ Just Builder.NetworkAccess
+              { Builder.naUrl = waUrl wa
+              , Builder.naMethod = waMethod wa
+              , Builder.naContentHash = fromMaybe "" (waSha256 wa)
+              , Builder.naTimestamp = now  -- TODO: parse waTimestamp
+              }
+      pure $ catMaybes attestations
 
 -- | Execute a single action remotely via NativeLink
 executeActionRemote :: RE.REClient -> Action -> Map ActionKey [Text] -> IO (Either Text ([Text], Builder.DischargeProof))
