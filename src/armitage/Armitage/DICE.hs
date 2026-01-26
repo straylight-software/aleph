@@ -66,6 +66,7 @@ import Control.Exception (try, SomeException)
 import Control.Monad (forM, foldM, unless)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -77,6 +78,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
+import System.Directory (doesFileExist)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
 import System.Process (readProcess, readProcessWithExitCode)
@@ -337,16 +339,28 @@ targetToAction Dhall.Target {..} flakes = Action
       _ -> "cc"
     
     -- Extract library names from flake deps (heuristic: use package name)
+    -- Some packages have different lib names than package names
     linkLibs = concatMap extractLibFlag deps
     extractLibFlag = \case
       Dhall.Dep_Flake ref -> 
         -- Extract lib name from "nixpkgs#foo" -> "foo"
         let name = T.takeWhileEnd (/= '#') ref
+            libName = mapLibName name
         -- Skip header-only libs
         in if name `elem` ["nlohmann_json"]
            then []
-           else ["-l" <> name]
+           else ["-l" <> libName]
       _ -> []
+    
+    -- Map package names to actual library names
+    mapLibName n = case n of
+      "zlib" -> "z"
+      "openssl" -> "ssl"
+      "libpng" -> "png"
+      "libjpeg" -> "jpeg"
+      "sqlite" -> "sqlite3"
+      "curl" -> "curl"
+      _ -> n  -- default: same as package name
     
     sourceArgs = case srcs of
       Dhall.Src_Files fs -> fs
@@ -505,6 +519,17 @@ executeAction action@Action {..} _depOutputs = do
               -- Real impl would put in store
               let outputPaths = aOutputs
               
+              -- Hash outputs for attestation
+              outputHashes <- forM outputPaths $ \out -> do
+                let outPath = T.unpack out
+                exists <- doesFileExist outPath
+                if exists
+                  then do
+                    content <- BS.readFile outPath
+                    let hash = T.pack $ show $ hashWith SHA256 content
+                    pure (out, hash)
+                  else pure (out, "missing")
+              
               -- Create discharge proof
               let proof = Builder.DischargeProof
                     { Builder.dpCoeffects = map resourceToCoeffect aCoeffects
@@ -513,7 +538,7 @@ executeAction action@Action {..} _depOutputs = do
                     , Builder.dpAuthUsage = []
                     , Builder.dpBuildId = unActionKey $ actionKey action
                     , Builder.dpDerivationHash = unActionKey $ actionKey action
-                    , Builder.dpOutputHashes = []  -- TODO: hash outputs
+                    , Builder.dpOutputHashes = outputHashes
                     , Builder.dpStartTime = startTime
                     , Builder.dpEndTime = endTime
                     }

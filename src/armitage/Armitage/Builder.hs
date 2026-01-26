@@ -42,6 +42,10 @@ module Armitage.Builder
     -- * Coeffects
   , Coeffect (..)
   , DischargeProof (..)
+  , NetworkAccess (..)
+  , FilesystemAccess (..)
+  , AccessMode (..)
+  , AuthUsage (..)
   , checkCoeffects
 
     -- * Isolation

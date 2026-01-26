@@ -28,7 +28,7 @@ module Armitage.RE
   , nativeLinkConfig
   
     -- * Client
-  , REClient
+  , REClient (..)
   , withREClient
   
     -- * Types
@@ -56,7 +56,7 @@ module Armitage.RE
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (bracket)
-import Control.Monad (forM, when)
+import Control.Monad (forM, forM_, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

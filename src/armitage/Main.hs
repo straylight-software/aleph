@@ -41,6 +41,7 @@ import System.Exit (ExitCode(..), exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
 import System.Process (readProcessWithExitCode)
 
+import qualified Armitage.Builder as Builder
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.DICE as DICE
 import qualified Armitage.Trace as Trace
@@ -287,6 +288,32 @@ cmdRun args = case args of
             forM_ (Map.toList $ DICE.erOutputs execResult) $ \(key, paths) ->
               forM_ paths $ \p ->
                 putStrLn $ "  " <> T.unpack p
+            
+            -- Print attestations
+            putStrLn ""
+            putStrLn "━━━ Attestations ━━━"
+            forM_ (Map.toList $ DICE.erProofs execResult) $ \(key, proof) -> do
+              putStrLn ""
+              putStrLn $ "Action: " <> T.unpack (DICE.unActionKey key)
+              putStrLn $ "  build-id:    " <> T.unpack (Builder.dpBuildId proof)
+              putStrLn $ "  drv-hash:    " <> T.unpack (Builder.dpDerivationHash proof)
+              putStrLn $ "  started:     " <> show (Builder.dpStartTime proof)
+              putStrLn $ "  completed:   " <> show (Builder.dpEndTime proof)
+              putStrLn $ "  coeffects:   " <> renderCoeffects (Builder.dpCoeffects proof)
+              unless (null $ Builder.dpNetworkAccess proof) $ do
+                putStrLn "  network:"
+                forM_ (Builder.dpNetworkAccess proof) $ \na ->
+                  putStrLn $ "    - " <> T.unpack (Builder.naMethod na) <> " " 
+                           <> T.unpack (Builder.naUrl na) <> " [" 
+                           <> T.unpack (Builder.naContentHash na) <> "]"
+              unless (null $ Builder.dpFilesystemAccess proof) $ do
+                putStrLn "  filesystem:"
+                forM_ (Builder.dpFilesystemAccess proof) $ \fa ->
+                  putStrLn $ "    - " <> show (Builder.faMode fa) <> " " <> Builder.faPath fa
+              let outHashes = Builder.dpOutputHashes proof
+              putStrLn $ "  outputs:     " <> show (length outHashes)
+              forM_ outHashes $ \(name, hash) ->
+                putStrLn $ "    " <> T.unpack name <> ": " <> T.unpack hash
           else do
             hPutStrLn stderr ""
             hPutStrLn stderr "Failures:"
@@ -558,3 +585,16 @@ usage = do
   putStrLn "  cas <cmd>          Content-addressed storage"
   putStrLn ""
   putStrLn "The daemon is hostile infrastructure. armitage routes around it."
+
+-- | Render coeffects list to readable string
+renderCoeffects :: [Builder.Coeffect] -> String
+renderCoeffects [] = "pure"
+renderCoeffects cs = unwords $ map renderOne cs
+  where
+    renderOne = \case
+      Builder.Pure -> "pure"
+      Builder.Network -> "network"
+      Builder.Auth t -> "auth:" <> T.unpack t
+      Builder.Sandbox t -> "sandbox:" <> T.unpack t
+      Builder.Filesystem p -> "fs:" <> p
+      Builder.Combined xs -> "(" <> unwords (map renderOne xs) <> ")"
