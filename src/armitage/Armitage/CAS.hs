@@ -99,13 +99,15 @@ data CASConfig = CASConfig
 
 -- | Default configuration for local NativeLink
 -- NativeLink runs all services (CAS, Execution, ActionCache) on the same port
+-- Use 127.0.0.1 explicitly because localhost may resolve to IPv6 (::1)
+-- and NativeLink typically only listens on IPv4
 defaultConfig :: CASConfig
 defaultConfig =
   CASConfig
-    { casHost = "localhost"
+    { casHost = "127.0.0.1"
     , casPort = 50051
     , casUseTLS = False
-    , casInstanceName = "main"
+    , casInstanceName = ""  -- Empty works with default NativeLink config
     }
 
 -- | Configuration for Fly.io deployment
@@ -188,8 +190,6 @@ data CASClient = CASClient
 --     uploadBlob client digest content
 withCASClient :: CASConfig -> (CASClient -> IO a) -> IO a
 withCASClient config action = do
-  hPutStrLn stderr $ "CAS: connecting to " <> casHost config <> ":" <> show (casPort config)
-  hFlush stderr
   let addr = Address
         { addressHost = casHost config
         , addressPort = casPort config
@@ -202,11 +202,7 @@ withCASClient config action = do
         then ServerSecure serverValidation def addr
         else ServerInsecure addr
       params = def
-  hPutStrLn stderr $ "CAS: server config = " <> show (casUseTLS config)
-  hFlush stderr
-  withConnection params server $ \conn -> do
-    hPutStrLn stderr "CAS: connection established"
-    hFlush stderr
+  withConnection params server $ \conn ->
     action CASClient
       { clientConfig = config
       , clientConn = conn
