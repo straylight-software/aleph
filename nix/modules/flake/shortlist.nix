@@ -27,6 +27,7 @@
 #   - rapidjson   : Fast JSON parser/generator (header-only)
 #   - nlohmann-json : JSON for Modern C++ (header-only)
 #   - libsodium   : Modern cryptography library
+#   - simdjson    : SIMD-accelerated JSON parser (4+ GB/s)
 #
 # USAGE:
 #
@@ -118,6 +119,9 @@ in
     libsodium = mk-enable-option "libsodium cryptography library" // {
       default = true;
     };
+    simdjson = mk-enable-option "simdjson SIMD-accelerated JSON parser" // {
+      default = true;
+    };
   };
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -149,6 +153,7 @@ in
           nlohmann-json = pkgs.nlohmann_json;
           inherit (pkgs) libsodium;
           libsodium-dev = pkgs.libsodium.dev or pkgs.libsodium;
+          inherit (pkgs) simdjson;
         };
 
         # Generate buckconfig section
@@ -170,6 +175,7 @@ in
           ${optional-string' cfg.nlohmann-json "nlohmann_json = ${libraries.nlohmann-json}"}
           ${optional-string' cfg.libsodium "libsodium = ${libraries.libsodium}"}
           ${optional-string' cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}"}
+          ${optional-string' cfg.simdjson "simdjson = ${libraries.simdjson}"}
         '';
 
         # Shortlist section as a file in the store

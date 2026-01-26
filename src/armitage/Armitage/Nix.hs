@@ -184,6 +184,12 @@ libNameMap = Map.fromList
   , ("libuv", ["uv"])
   , ("libgit2", ["git2"])
   , ("jq", ["jq"])
+  , ("simdjson", ["simdjson"])
+  , ("fmt", ["fmt"])
+  , ("spdlog", ["spdlog"])
+  , ("catch2", ["Catch2Main", "Catch2"])
+  , ("nlohmann_json", [])  -- header-only
+  , ("rapidjson", [])      -- header-only
   ]
 
 -- -----------------------------------------------------------------------------

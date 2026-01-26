@@ -1,0 +1,20 @@
+# src/examples/simdjson/BUCK
+#
+# simdjson demo - SIMD-accelerated JSON parsing at 4+ GB/s
+#
+# Demonstrates the Nix-Buck2 contract:
+#   - deps = ["nixpkgs#simdjson"] - any derivation is valid
+#   - nix_resolve rule calls nix-analyze at execution time  
+#   - nix_binary uses the resolved flags
+#   - DICE tracks the dep graph for incrementality
+
+load("@toolchains//:nix_genrule.bzl", "nix_cxx_binary")
+
+nix_cxx_binary(
+    name = "twitter",
+    srcs = ["twitter.cpp"],
+    deps = ["nixpkgs#simdjson"],
+    std = "c++20",
+    extra_cflags = ["-O2"],
+    visibility = ["PUBLIC"],
+)

@@ -39,8 +39,8 @@ ghc = bin/ghc
 ghc_pkg = bin/ghc-pkg
 haddock = bin/haddock
 ghc_version = 9.12.2
-ghc_lib_dir = /nix/store/mrhqnilhv3rw8p2qkaa1fsz1j670dkhn-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
-global_package_db = /nix/store/mrhqnilhv3rw8p2qkaa1fsz1j670dkhn-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
+ghc_lib_dir = /nix/store/5bki5zd2byqp8j5yjw2l928vpgsra235-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib
+global_package_db = /nix/store/5bki5zd2byqp8j5yjw2l928vpgsra235-ghc-9.12.2-with-packages/lib/ghc-9.12.2/lib/package.conf.d
 
 [python]
 interpreter = /nix/store/rh1y4ljz684dxjxz1w01rm1q0h4w3qvf-python3-3.12.12-env/bin/python3
@@ -163,6 +163,10 @@ grapesy = /nix/store/8r4w3xbjm2ih5f87kdxr73nrcq0ca5k0-grapesy-1.0.0
 grapesy.db = /nix/store/8r4w3xbjm2ih5f87kdxr73nrcq0ca5k0-grapesy-1.0.0/lib/ghc-9.12.2/lib/package.conf.d
 grapesy.libdir = /nix/store/8r4w3xbjm2ih5f87kdxr73nrcq0ca5k0-grapesy-1.0.0/lib/ghc-9.12.2/lib
 grapesy.id = grapesy-1.0.0-GijgkGhbAOM479BYNkVgKf
+hasktorch = /nix/store/1ninb885kfznjyh9wfrxx8bj8sxfngg1-hasktorch-0.2.1.7
+hasktorch.db = /nix/store/1ninb885kfznjyh9wfrxx8bj8sxfngg1-hasktorch-0.2.1.7/lib/ghc-9.12.2/lib/package.conf.d
+hasktorch.libdir = /nix/store/1ninb885kfznjyh9wfrxx8bj8sxfngg1-hasktorch-0.2.1.7/lib/ghc-9.12.2/lib
+hasktorch.id = hasktorch-0.2.1.7-HKPMogiKzwjLXugMq2vFbV
 
 [shortlist]
 # Hermetic C++ libraries
@@ -179,6 +183,7 @@ rapidjson = /nix/store/0k7lqs1am14y5amcqlbdxhnlk8hf2xpg-rapidjson-1.1.0-unstable
 nlohmann_json = /nix/store/sd346f4fszi73jg949y77r9hpdipsxa6-nlohmann_json-3.12.0
 libsodium = /nix/store/n0jc1q20m3ar8q0vyi0mvz7cmvf0gwsh-libsodium-1.0.20
 libsodium_dev = /nix/store/vijkvg4k07mlrb9446yz3pmqh2x62ixj-libsodium-1.0.20-dev
+simdjson = /nix/store/hf1rkb0a4m2a7rn71cqw9bh6bc80qklm-simdjson-4.2.4
 
 # ────────────────────────────────────────────────────────────────────────
 # NativeLink Remote Execution (LRE)

@@ -1,292 +1,212 @@
 # toolchains/nix_genrule.bzl
 #
-# Genrule-based approach for Nix dependency resolution.
+# Nix-native build rules for Buck2.
 #
-# Instead of trying to wire nix paths into Buck2's prebuilt_cxx_library system
-# (which requires analysis-time resolution via .buckconfig.local), we use a
-# genrule that resolves nix flake refs at execution time.
-#
-# This keeps everything simple:
-# - No shell hooks to populate .buckconfig.local
-# - No custom providers that Buck2 prelude doesn't understand
-# - Nix resolution happens inside the build action (hermetic)
-# - Works with remote execution (NativeLink workers have nix)
-#
-# NOTE: The cmd string is written directly to a shell script.
-# $OUT, $SRCDIR, $SRCS, $TMP are environment variables set by Buck2.
-# Shell variables we create (NIX_DEP_0, etc.) just use normal $ syntax.
+# The contract:
+#   - Any derivation is a valid dep (nixpkgs#foo, /flake#bar, etc.)
+#   - nix-analyze resolves the derivation and extracts compiler flags
+#   - Buck2 runs the build action with resolved paths
+#   - DICE tracks the dep graph for incremental rebuilds
 #
 # Usage:
-#   load("@toolchains//:nix_genrule.bzl", "nix_cxx_binary")
+#   load("@toolchains//:nix_genrule.bzl", "nix_binary")
 #
-#   nix_cxx_binary(
-#       name = "zlib-test",
+#   nix_binary(
+#       name = "demo",
 #       srcs = ["main.cpp"],
-#       nix_deps = ["nixpkgs#zlib"],
-#       compiler = "clang++",
+#       deps = ["nixpkgs#simdjson", "nixpkgs#zlib"],
 #   )
 
-# Map package names to library names for -l flag
-_LIB_NAME_MAP = {
-    "zlib": "z",
-    "openssl": "ssl",
-    "libpng": "png",
-    "libjpeg": "jpeg",
-    "sqlite": "sqlite3",
-    "curl": "curl",
-    "boost": "boost_system",
-    "protobuf": "protobuf",
-}
+NixResolveInfo = provider(fields = ["flags"])
+
+def _nix_resolve_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Resolve nix flake refs to compiler flags.
+    
+    Calls nix-analyze at execution time to get -isystem, -L, -l flags.
+    """
+    out = ctx.actions.declare_output("flags.txt")
+    
+    # Build deps as space-separated list (no extra quotes needed - nix handles #)
+    deps_list = " ".join(ctx.attrs.deps)
+    
+    # Build shell script as a single cmd_args with spaces
+    # Format: /path/to/nix-analyze resolve dep1 dep2 > /path/to/out
+    script = cmd_args(
+        ctx.attrs._analyzer[RunInfo],
+        "resolve",
+        deps_list,
+        ">",
+        out.as_output(),
+        delimiter = " ",
+    )
+    
+    ctx.actions.run(
+        cmd_args("sh", "-c", script),
+        category = "nix_resolve",
+        identifier = ctx.attrs.name,
+        local_only = True,
+    )
+    
+    return [
+        DefaultInfo(default_output = out),
+        NixResolveInfo(flags = out),
+    ]
+
+nix_resolve = rule(
+    impl = _nix_resolve_impl,
+    attrs = {
+        "deps": attrs.list(attrs.string(), default = [], doc = "Nix flake refs"),
+        "_analyzer": attrs.exec_dep(default = "root//src/armitage:nix-analyze"),
+    },
+)
+
+def _nix_binary_impl(ctx: AnalysisContext) -> list[Provider]:
+    """
+    Build a binary with Nix derivation dependencies.
+    """
+    out = ctx.actions.declare_output(ctx.attrs.name)
+    
+    # Get compiler from config
+    compiler = read_root_config("cxx", "cxx", "clang++")
+    
+    # Build toolchain include flags from config
+    toolchain_flags = []
+    
+    clang_resource_dir = read_root_config("cxx", "clang_resource_dir", None)
+    if clang_resource_dir:
+        toolchain_flags.append("-resource-dir=" + clang_resource_dir)
+        toolchain_flags.append("-isystem" + clang_resource_dir + "/include")
+    
+    gcc_include = read_root_config("cxx", "gcc_include", None)
+    if gcc_include:
+        toolchain_flags.append("-isystem" + gcc_include)
+    
+    gcc_include_arch = read_root_config("cxx", "gcc_include_arch", None)
+    if gcc_include_arch:
+        toolchain_flags.append("-isystem" + gcc_include_arch)
+    
+    glibc_include = read_root_config("cxx", "glibc_include", None)
+    if glibc_include:
+        toolchain_flags.append("-isystem" + glibc_include)
+    
+    # Build link flags from config
+    link_flags = ["-fuse-ld=lld"]
+    
+    glibc_lib = read_root_config("cxx", "glibc_lib", None)
+    if glibc_lib:
+        link_flags.extend(["-B" + glibc_lib, "-L" + glibc_lib, "-Wl,-rpath," + glibc_lib])
+    
+    gcc_lib = read_root_config("cxx", "gcc_lib", None)
+    if gcc_lib:
+        link_flags.extend(["-B" + gcc_lib, "-L" + gcc_lib, "-Wl,-rpath," + gcc_lib])
+    
+    gcc_lib_base = read_root_config("cxx", "gcc_lib_base", None)
+    if gcc_lib_base:
+        link_flags.extend(["-L" + gcc_lib_base, "-Wl,-rpath," + gcc_lib_base])
+    
+    # Build compiler flags
+    cflags = toolchain_flags[:]
+    if ctx.attrs.std != "":
+        cflags.append("-std=" + ctx.attrs.std)
+    cflags.extend(ctx.attrs.extra_cflags)
+    
+    # Build the compile command
+    cmd = cmd_args()
+    cmd.add(compiler)
+    cmd.add(cflags)
+    
+    # Combine all link flags
+    all_ldflags = link_flags + ctx.attrs.extra_ldflags
+    
+    # Add nix-resolved flags if we have deps
+    if ctx.attrs.nix_deps:
+        flags_file = ctx.attrs.nix_deps[NixResolveInfo].flags
+        # Read flags from file and pass to compiler
+        script = cmd_args(
+            "sh", "-c",
+            cmd_args(
+                compiler, " ",
+                " ".join(cflags), " ",
+                "$(cat ", flags_file, ") ",
+                cmd_args(ctx.attrs.srcs, delimiter = " "), " ",
+                "-o ", out.as_output(), " ",
+                " ".join(all_ldflags),
+                delimiter = "",
+            ),
+        )
+        ctx.actions.run(
+            script,
+            category = "nix_compile",
+            identifier = ctx.attrs.name,
+            local_only = True,
+        )
+    else:
+        cmd = cmd_args(compiler)
+        cmd.add(cflags)
+        cmd.add(ctx.attrs.srcs)
+        cmd.add("-o", out.as_output())
+        cmd.add(all_ldflags)
+        ctx.actions.run(cmd, category = "compile", identifier = ctx.attrs.name, local_only = True)
+    
+    return [
+        DefaultInfo(default_output = out),
+        RunInfo(args = cmd_args(out)),
+    ]
+
+nix_binary = rule(
+    impl = _nix_binary_impl,
+    attrs = {
+        "srcs": attrs.list(attrs.source(), default = []),
+        "nix_deps": attrs.option(attrs.dep(providers = [NixResolveInfo]), default = None),
+        "std": attrs.string(default = "c++20"),
+        "extra_cflags": attrs.list(attrs.string(), default = []),
+        "extra_ldflags": attrs.list(attrs.string(), default = []),
+    },
+)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# Macro wrapper for convenience
+# ════════════════════════════════════════════════════════════════════════════════
 
 def nix_cxx_binary(
         name,
         srcs,
-        nix_deps = [],
-        compiler = "clang++",
-        cflags = [],
-        ldflags = [],
-        **kwargs):
+        deps = [],
+        std = "c++20",
+        extra_cflags = [],
+        extra_ldflags = [],
+        visibility = None):
     """
-    Build a C++ binary with nix flake dependencies.
+    Convenience macro that creates both the resolver and binary.
     
-    Nix deps are resolved at build time via `nix build --print-out-paths`.
-    This works on any machine with nix installed, including NativeLink workers.
-    
-    Args:
-        name: Target name
-        srcs: Source files (relative to BUCK file)
-        nix_deps: List of nix flake refs (e.g. ["nixpkgs#zlib", "nixpkgs#openssl"])
-        compiler: Compiler to use (default: clang++)
-        cflags: Additional compiler flags
-        ldflags: Additional linker flags
+    Usage:
+        nix_cxx_binary(
+            name = "demo",
+            srcs = ["main.cpp"],
+            deps = ["nixpkgs#simdjson"],
+        )
     """
-    
-    # Map nix_deps to library names for linking
-    lib_names = []
-    for dep in nix_deps:
-        # Extract package name from flake ref
-        pkg = dep.split("#")[-1] if "#" in dep else dep
-        # Handle .dev suffix
-        if "." in pkg:
-            pkg = pkg.split(".")[0]
-        # Map to actual library name
-        lib_name = _LIB_NAME_MAP.get(pkg, pkg)
-        lib_names.append("-l" + lib_name)
-    
-    # Add library flags to ldflags
-    all_ldflags = list(ldflags) + lib_names
-    
-    # Generate the build script inline in the cmd
-    resolve_script = []
-    include_flags = []
-    lib_flags = []
-    
-    for i, dep in enumerate(nix_deps):
-        # Resolve main output
-        # Use $$ to escape $( for Buck2 macro expansion - becomes $ in shell
-        resolve_script.append(
-            'NIX_DEP_{i}=$$(nix build "{dep}" --print-out-paths --no-link 2>/dev/null)'.format(
-                i = i,
-                dep = dep,
-            )
+    if deps:
+        nix_resolve(
+            name = name + "_deps",
+            deps = deps,
         )
-        # Try dev output for headers
-        resolve_script.append(
-            'NIX_DEV_{i}=$$(nix build "{dep}.dev" --print-out-paths --no-link 2>/dev/null || echo "$$NIX_DEP_{i}")'.format(
-                i = i,
-                dep = dep,
-            )
+        nix_binary(
+            name = name,
+            srcs = srcs,
+            nix_deps = ":" + name + "_deps",
+            std = std,
+            extra_cflags = extra_cflags,
+            extra_ldflags = extra_ldflags,
+            visibility = visibility,
         )
-        # Reference shell variables - also need $$ to escape
-        include_flags.append('-isystem "$$NIX_DEV_{}"/include'.format(i))
-        lib_flags.append('-L"$$NIX_DEP_{}"/lib'.format(i))
-    
-    # Build sources reference - $SRCDIR is set by genrule
-    srcs_ref = " ".join(["$SRCDIR/{}".format(s) for s in srcs])
-    
-    # Assemble the command
-    cmd_parts = []
-    cmd_parts.extend(resolve_script)
-    # $OUT is set by genrule
-    cmd_parts.append("{compiler} {cflags} {includes} {srcs} -o $OUT {libs} {ldflags}".format(
-        compiler = compiler,
-        cflags = " ".join(cflags),
-        includes = " ".join(include_flags),
-        srcs = srcs_ref,
-        libs = " ".join(lib_flags),
-        ldflags = " ".join(all_ldflags),
-    ))
-    
-    cmd = " && ".join(cmd_parts) if cmd_parts else "true"
-    
-    native.genrule(
-        name = name,
-        srcs = srcs,
-        out = name,
-        bash = cmd,  # Use bash instead of cmd to avoid $(macro) expansion
-        executable = True,
-        **kwargs
-    )
-
-def nix_cxx_library(
-        name,
-        srcs,
-        hdrs = [],
-        nix_deps = [],
-        compiler = "clang++",
-        cflags = [],
-        **kwargs):
-    """
-    Build a C++ static library with nix flake dependencies.
-    
-    Similar to nix_cxx_binary but produces a .a archive.
-    """
-    
-    resolve_script = []
-    include_flags = []
-    
-    for i, dep in enumerate(nix_deps):
-        resolve_script.append(
-            'NIX_DEP_{i}=$$(nix build "{dep}" --print-out-paths --no-link 2>/dev/null)'.format(
-                i = i,
-                dep = dep,
-            )
+    else:
+        nix_binary(
+            name = name,
+            srcs = srcs,
+            std = std,
+            extra_cflags = extra_cflags,
+            extra_ldflags = extra_ldflags,
+            visibility = visibility,
         )
-        resolve_script.append(
-            'NIX_DEV_{i}=$$(nix build "{dep}.dev" --print-out-paths --no-link 2>/dev/null || echo "$$NIX_DEP_{i}")'.format(
-                i = i,
-                dep = dep,
-            )
-        )
-        include_flags.append('-isystem "$$NIX_DEV_{}"/include'.format(i))
-
-    # Compile to objects, then archive
-    obj_cmds = []
-    obj_names = []
-    for s in srcs:
-        obj = s.replace(".cpp", ".o").replace(".c", ".o").replace("/", "_")
-        obj_names.append(obj)
-        obj_cmds.append("{compiler} {cflags} {includes} -c $SRCDIR/{src} -o {obj}".format(
-            compiler = compiler,
-            cflags = " ".join(cflags + ["-fPIC"]),
-            includes = " ".join(include_flags),
-            src = s,
-            obj = obj,
-        ))
-    
-    cmd_parts = []
-    cmd_parts.extend(resolve_script)
-    cmd_parts.extend(obj_cmds)
-    cmd_parts.append("ar rcs $OUT {}".format(" ".join(obj_names)))
-    
-    cmd = " && ".join(cmd_parts)
-    
-    native.genrule(
-        name = name,
-        srcs = srcs + hdrs,
-        out = "lib" + name + ".a",
-        bash = cmd,  # Use bash instead of cmd to avoid $(macro) expansion
-        **kwargs
-    )
-
-# Witnessed variant - runs build through witness proxy for attestations
-def nix_cxx_binary_witnessed(
-        name,
-        srcs,
-        nix_deps = [],
-        compiler = "clang++",
-        cflags = [],
-        ldflags = [],
-        coeffects = "pure",
-        **kwargs):
-    """
-    Build a C++ binary with witnessed execution.
-    
-    Like nix_cxx_binary, but runs through the witness proxy to collect
-    attestations of any network fetches. Outputs both the binary and
-    an .attestations.jsonl file.
-    
-    Args:
-        coeffects: Declared coeffects ("pure", "network", etc.)
-                   Will warn if actual behavior violates declaration.
-    """
-    
-    lib_names = []
-    for dep in nix_deps:
-        pkg = dep.split("#")[-1] if "#" in dep else dep
-        if "." in pkg:
-            pkg = pkg.split(".")[0]
-        lib_name = _LIB_NAME_MAP.get(pkg, pkg)
-        lib_names.append("-l" + lib_name)
-    
-    all_ldflags = list(ldflags) + lib_names
-    
-    resolve_script = []
-    include_flags = []
-    lib_flags = []
-    
-    for i, dep in enumerate(nix_deps):
-        resolve_script.append(
-            'NIX_DEP_{i}=$$(nix build "{dep}" --print-out-paths --no-link 2>/dev/null)'.format(
-                i = i,
-                dep = dep,
-            )
-        )
-        resolve_script.append(
-            'NIX_DEV_{i}=$$(nix build "{dep}.dev" --print-out-paths --no-link 2>/dev/null || echo "$$NIX_DEP_{i}")'.format(
-                i = i,
-                dep = dep,
-            )
-        )
-        include_flags.append('-isystem "$$NIX_DEV_{}"/include'.format(i))
-        lib_flags.append('-L"$$NIX_DEP_{}"/lib'.format(i))
-
-    srcs_ref = " ".join(["$SRCDIR/{}".format(s) for s in srcs])
-
-    # Create output directory structure
-    # $OUT is a Buck2 env var, but shell vars need $$ escaping
-    cmd_parts = [
-        'mkdir -p "$OUT"',
-        'ATTESTATION_LOG="$OUT/.attestations.jsonl"',
-        ': > "$$ATTESTATION_LOG"',
-    ]
-    cmd_parts.extend(resolve_script)
-    
-    # Build command
-    build_cmd = "{compiler} {cflags} {includes} {srcs} -o $OUT/{name} {libs} {ldflags}".format(
-        compiler = compiler,
-        cflags = " ".join(cflags),
-        includes = " ".join(include_flags),
-        srcs = srcs_ref,
-        name = name,
-        libs = " ".join(lib_flags),
-        ldflags = " ".join(all_ldflags),
-    )
-    
-    # Wrap with witness proxy if available - HTTP_PROXY is shell var, needs $$
-    cmd_parts.append(
-        'if [ -n "$${HTTP_PROXY:-}" ]; then ' + build_cmd + '; else ' + build_cmd + '; fi'
-    )
-    
-    # Check attestations against declared coeffects - shell command substitution needs $$
-    cmd_parts.append(
-        'FETCH_COUNT=$$(wc -l < "$$ATTESTATION_LOG" 2>/dev/null || echo 0)'
-    )
-    if coeffects == "pure":
-        cmd_parts.append(
-            'if [ "$$FETCH_COUNT" -gt 0 ]; then echo "WARNING: declared pure but made $$FETCH_COUNT network request(s)" >&2; fi'
-        )
-    
-    cmd = " && ".join(cmd_parts)
-    
-    native.genrule(
-        name = name,
-        srcs = srcs,
-        outs = {
-            "binary": [name],
-            "attestations": [".attestations.jsonl"],
-        },
-        default_outs = ["binary"],
-        bash = cmd,  # Use bash instead of cmd to avoid $(macro) expansion
-        **kwargs
-    )

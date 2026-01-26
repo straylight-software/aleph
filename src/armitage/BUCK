@@ -87,6 +87,26 @@ haskell_script(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Toolchain Extractor (for Buck2 integration)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Extracts toolchain from Nix stdenv:
+#   nix-toolchain env nixpkgs#stdenv   -> CC=... CXX=... format
+#   nix-toolchain flags nixpkgs#stdenv -> compiler flags only
+#   nix-toolchain json nixpkgs#stdenv  -> full JSON
+#
+# Buck2 calls this instead of reimplementing stdenv logic in Starlark.
+
+haskell_script(
+    name = "nix-toolchain",
+    srcs = ["ToolchainMain.hs"],
+    include_paths = ["src/armitage"],
+    packages = ARMITAGE_PACKAGES,
+    compiler_flags = ["-O2", "-Wall"],
+    visibility = ["PUBLIC"],
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Witness Proxy
 # ─────────────────────────────────────────────────────────────────────────────
 
