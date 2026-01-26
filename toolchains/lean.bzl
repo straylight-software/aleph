@@ -228,6 +228,13 @@ def _lean_binary_impl(ctx: AnalysisContext) -> list[Provider]:
     Build a Lean executable.
     
     Compiles Lean sources and links into an executable using leanc.
+    
+    Supports hierarchical module structure via root_module attr:
+      - root_module = "Straylight" means files map to Straylight.Foo, Straylight.Bar
+      - Sources are copied preserving structure under $ROOT/Straylight/
+      - Main.lean is compiled last and linked
+    
+    For flat projects (no root_module), files compile as top-level modules.
     """
     lean = _get_lean()
     leanc = _get_leanc()
@@ -235,15 +242,6 @@ def _lean_binary_impl(ctx: AnalysisContext) -> list[Provider]:
     
     if not ctx.attrs.srcs:
         fail("lean_binary requires at least one source file")
-    
-    # Find main module (Main.lean or first source)
-    main_src = None
-    for src in ctx.attrs.srcs:
-        if src.basename == "Main.lean":
-            main_src = src
-            break
-    if main_src == None:
-        main_src = ctx.attrs.srcs[0]
     
     # Output
     exe = ctx.actions.declare_output(ctx.attrs.name)
@@ -261,14 +259,14 @@ def _lean_binary_impl(ctx: AnalysisContext) -> list[Provider]:
             if info.c_dir:
                 dep_c_dirs.append(info.c_dir)
     
-    # Build LEAN_PATH - use env var since olean_dir is output
-    lean_path_parts = ["$OLEAN_DIR"]
+    # Build LEAN_PATH - include scratch dir for local modules
+    lean_path_parts = ["$OLEAN_DIR", "$BUCK_SCRATCH_PATH"]
     if lean_lib_dir:
         lean_path_parts.append(lean_lib_dir)
     for dep_path in dep_paths:
         lean_path_parts.append(cmd_args(dep_path))
     
-    # Script: compile to C, then link
+    # Script: setup, compile to C, then link
     script_parts = ["set -e"]
     script_parts.append("mkdir -p $OLEAN_DIR $C_DIR")
     
@@ -278,24 +276,66 @@ def _lean_binary_impl(ctx: AnalysisContext) -> list[Provider]:
         delimiter = "",
     ))
     
-    # Compile each source to .olean and .c
-    # Lean requires sources to be in --root directory, so we copy to scratch
+    # Determine module structure
+    root_module = ctx.attrs.root_module
+    
+    # Copy sources to scratch with proper structure
+    # For hierarchical modules: Foo.lean -> $SCRATCH/RootModule/Foo.lean
+    # For flat modules: Foo.lean -> $SCRATCH/Foo.lean
     c_files = []
+    compile_order = []
+    main_src = None
+    
     for src in ctx.attrs.srcs:
+        if src.basename == "Main.lean":
+            main_src = src
+        else:
+            compile_order.append(src)
+    
+    # Main.lean must be compiled last
+    if main_src:
+        compile_order.append(main_src)
+    else:
+        # No Main.lean, use first source as main
+        main_src = ctx.attrs.srcs[0]
+    
+    # Setup scratch directory structure
+    if root_module:
+        script_parts.append("mkdir -p $BUCK_SCRATCH_PATH/{}".format(root_module))
+    
+    # Copy and compile each source
+    for src in compile_order:
         module_name = src.basename.removesuffix(".lean")
-        c_file = "$C_DIR/{}.c".format(module_name)
+        
+        if root_module and src.basename != "Main.lean":
+            # Hierarchical: copy to RootModule/Foo.lean
+            dest_path = "$BUCK_SCRATCH_PATH/{}/{}".format(root_module, src.basename)
+            full_module = "{}.{}".format(root_module, module_name)
+            c_file = "$C_DIR/{}.{}.c".format(root_module, module_name)
+            olean_file = "$OLEAN_DIR/{}/{}.olean".format(root_module, module_name)
+            script_parts.append("mkdir -p $OLEAN_DIR/{}".format(root_module))
+        else:
+            # Flat: copy to Foo.lean or Main.lean at root
+            dest_path = "$BUCK_SCRATCH_PATH/{}".format(src.basename)
+            full_module = module_name
+            c_file = "$C_DIR/{}.c".format(module_name)
+            olean_file = "$OLEAN_DIR/{}.olean".format(module_name)
+        
         c_files.append(c_file)
         
-        # Copy source to scratch dir (Lean's --root requirement)
-        script_parts.append(cmd_args("cp", src, "$BUCK_SCRATCH_PATH/", delimiter = " "))
+        # Copy source
+        script_parts.append(cmd_args("cp", src, dest_path, delimiter = " "))
         
+        # Compile
         compile_cmd = [
             lean,
             "--root=$BUCK_SCRATCH_PATH",
-            "-o", "$OLEAN_DIR/{}.olean".format(module_name),
+            "-o", olean_file,
             "--c={}".format(c_file),
-            "$BUCK_SCRATCH_PATH/{}".format(src.basename),
         ]
+        compile_cmd.extend(ctx.attrs.lean_flags)
+        compile_cmd.append(dest_path)
+        
         script_parts.append(cmd_args(compile_cmd, delimiter = " "))
     
     # Link with leanc
@@ -345,6 +385,7 @@ lean_binary = rule(
     attrs = {
         "srcs": attrs.list(attrs.source(), default = [], doc = "Lean source files (.lean)"),
         "deps": attrs.list(attrs.dep(), default = [], doc = "Lean library dependencies"),
+        "root_module": attrs.option(attrs.string(), default = None, doc = "Root module name for hierarchical imports (e.g., 'Straylight')"),
         "lean_flags": attrs.list(attrs.string(), default = [], doc = "Additional lean compiler flags"),
         "link_flags": attrs.list(attrs.string(), default = [], doc = "Additional linker flags"),
     },
