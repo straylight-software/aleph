@@ -63,6 +63,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -364,9 +365,6 @@ executeAndWait client req = do
       Just result -> pure $ Right result
       Nothing -> pure $ Left $ fromMaybe "Unknown error" (exError response)
     else poll (exOperationName response)
-  where
-    fromMaybe d Nothing = d
-    fromMaybe _ (Just x) = x
 
 -- | Get cached action result (if exists)
 getActionResult :: REClient -> CAS.Digest -> IO (Maybe ActionResult)
