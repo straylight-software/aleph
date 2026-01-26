@@ -176,12 +176,15 @@ cmdStore args = case args of
 cmdCAS :: [String] -> IO ()
 cmdCAS args = case args of
   [] -> do
-    hPutStrLn stderr "Usage: armitage cas <command>"
+    hPutStrLn stderr "Usage: armitage cas <command> [--fly]"
     hPutStrLn stderr "Commands:"
     hPutStrLn stderr "  upload <file>    Upload blob to CAS"
     hPutStrLn stderr "  download <hash> <size>  Download blob from CAS"
     hPutStrLn stderr "  exists <hash> <size>    Check if blob exists"
     hPutStrLn stderr "  test             Run CAS integration test"
+    hPutStrLn stderr ""
+    hPutStrLn stderr "Options:"
+    hPutStrLn stderr "  --fly            Use Fly.io deployment (aleph-cas.fly.dev)"
     exitFailure
   ("upload" : path : _) -> do
     putStrLn $ "Uploading to CAS: " <> path
@@ -217,10 +220,13 @@ cmdCAS args = case args of
       if exists
         then putStrLn "Blob exists"
         else putStrLn "Blob NOT found"
-  ("test" : _) -> do
-    putStrLn "Running CAS integration test..."
+  ("test" : rest) -> do
+    let useFly = "--fly" `elem` rest
+        config = if useFly then CAS.flyConfig else CAS.defaultConfig
+    putStrLn $ "Running CAS integration test" <> (if useFly then " (Fly.io)" else " (local)") <> "..."
+    putStrLn $ "  endpoint: " <> CAS.casHost config <> ":" <> show (CAS.casPort config)
     putStrLn ""
-    CAS.withCASClient CAS.defaultConfig $ \client -> do
+    CAS.withCASClient config $ \client -> do
       -- 1. Create test blob
       let testContent = "Hello from Armitage CAS test! " <> BC.pack (show (12345 :: Int))
           digest = CAS.digestFromBytes testContent
