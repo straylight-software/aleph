@@ -789,15 +789,60 @@ executeActionRemote client action@Action {..} _depOutputs = do
 -- | Upload inputs to CAS and return input root digest
 uploadInputs :: RE.REClient -> [ResolvedInput] -> IO CAS.Digest
 uploadInputs client inputs = do
-  -- For now, just create empty input root
-  -- Real impl would:
-  -- 1. For Resolved_File: read file, upload to CAS, add to directory
-  -- 2. For Resolved_Store: reference existing store paths (need to upload or assume present)
-  -- 3. For Resolved_Action: get outputs from previous action
-  let emptyDir = TE.encodeUtf8 "{}"
-      emptyDigest = CAS.digestFromBytes emptyDir
-  CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
-  pure emptyDigest
+  -- Collect file inputs with their contents
+  fileInputs <- fmap catMaybes $ forM inputs $ \case
+    Resolved_File path -> do
+      exists <- doesFileExist path
+      if exists
+        then do
+          content <- BS.readFile path
+          pure $ Just (takeFileName path, content)
+        else pure Nothing
+    Resolved_Store storePath -> do
+      -- For store paths, we assume they're already in the worker's store
+      -- or we'd need to upload the entire closure (expensive)
+      -- For now, just skip - the worker should have nix store mounted
+      pure Nothing
+    Resolved_Action _ -> do
+      -- Action outputs should have been uploaded by previous execution
+      pure Nothing
+  
+  -- Build input root from collected files
+  if null fileInputs
+    then do
+      -- Empty directory
+      let emptyDir = RE.serializeDirectory RE.Directory
+            { RE.dirFiles = []
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          emptyDigest = CAS.digestFromBytes emptyDir
+      CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
+      pure emptyDigest
+    else do
+      -- Upload each file and build directory
+      fileNodes <- forM fileInputs $ \(name, content) -> do
+        let digest = CAS.digestFromBytes content
+        CAS.uploadBlob (RE.recCAS client) digest content
+        -- Check if file is executable (heuristic: .sh files)
+        let isExec = ".sh" `T.isSuffixOf` T.pack name
+        pure RE.FileNode
+          { RE.fnName = T.pack name
+          , RE.fnDigest = digest
+          , RE.fnIsExecutable = isExec
+          }
+      
+      -- Create root directory
+      let rootDir = RE.Directory
+            { RE.dirFiles = fileNodes
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          dirBytes = RE.serializeDirectory rootDir
+          dirDigest = CAS.digestFromBytes dirBytes
+      
+      CAS.uploadBlob (RE.recCAS client) dirDigest dirBytes
+      pure dirDigest
 
 -- | Convert Dhall Resource to Builder Coeffect  
 resourceToCoeffect :: Dhall.Resource -> Builder.Coeffect
@@ -893,11 +938,38 @@ checkCoeffectsWitnessed _wc = go
           else pure $ Left (Dhall.Resource_Filesystem path)
 
 -- -----------------------------------------------------------------------------
--- CAS Stubs (would use Armitage.CAS)
+-- Local Action Cache (file-based for simplicity)
 -- -----------------------------------------------------------------------------
 
-checkCAS :: ActionKey -> IO (Maybe [Text])
-checkCAS _ = pure Nothing  -- TODO: implement
+-- | Cache directory for action results
+-- Uses XDG_CACHE_HOME or ~/.cache/armitage
+actionCacheDir :: IO FilePath
+actionCacheDir = do
+  home <- getEnvironment >>= \env -> 
+    pure $ fromMaybe (error "HOME not set") (lookup "HOME" env)
+  let cacheBase = fromMaybe (home </> ".cache") (lookup "XDG_CACHE_HOME" =<< Just <$> getEnvironment)
+  pure $ home </> ".cache" </> "armitage" </> "actions"
 
+-- | Check local cache for action result
+checkCAS :: ActionKey -> IO (Maybe [Text])
+checkCAS (ActionKey key) = do
+  cacheDir <- actionCacheDir
+  let cachePath = cacheDir </> T.unpack key
+  exists <- doesFileExist cachePath
+  if exists
+    then do
+      content <- TIO.readFile cachePath
+      let paths = filter (not . T.null) $ T.lines content
+      if null paths
+        then pure Nothing
+        else pure $ Just paths
+    else pure Nothing
+
+-- | Store action result in local cache
 storeCAS :: ActionKey -> [Text] -> IO ()
-storeCAS _ _ = pure ()  -- TODO: implement
+storeCAS (ActionKey key) paths = do
+  cacheDir <- actionCacheDir
+  createDirectoryIfMissing True cacheDir
+  let cachePath = cacheDir </> T.unpack key
+      content = T.unlines paths
+  TIO.writeFile cachePath content

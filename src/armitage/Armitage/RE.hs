@@ -73,8 +73,8 @@ import qualified Data.Text.Encoding as TE
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
 import Network.Socket (PortNumber)
-import System.Directory (doesFileExist, getFileSize)
-import System.FilePath (takeFileName)
+import System.Directory (doesFileExist, doesDirectoryExist, getFileSize, listDirectory, getPermissions, executable)
+import System.FilePath (takeFileName, (</>))
 
 import Network.GRPC.Client
   ( Connection
@@ -444,11 +444,62 @@ getActionResult client actionDigest = do
 -- -----------------------------------------------------------------------------
 
 -- | Upload a directory tree to CAS, return root digest
+-- Walks the directory recursively, uploads all files, builds Merkle tree
 uploadDirectory :: REClient -> FilePath -> IO CAS.Digest
-uploadDirectory client path = do
-  -- TODO: walk directory, build Merkle tree, upload all blobs
-  putStrLn $ "RE: uploadDirectory " <> path
-  pure $ CAS.Digest "stubhash" 0
+uploadDirectory client rootPath = do
+  uploadDirRecursive client rootPath
+  where
+    uploadDirRecursive :: REClient -> FilePath -> IO CAS.Digest
+    uploadDirRecursive cli dirPath = do
+      entries <- listDirectory dirPath
+      
+      -- Separate files and directories
+      (files, dirs) <- foldM (categorize dirPath) ([], []) entries
+      
+      -- Upload files and create FileNodes
+      fileNodes <- forM files $ \filePath -> do
+        content <- BS.readFile filePath
+        let digest = CAS.digestFromBytes content
+        CAS.uploadBlob (recCAS cli) digest content
+        isExec <- isExecutable filePath
+        pure FileNode
+          { fnName = T.pack (takeFileName filePath)
+          , fnDigest = digest
+          , fnIsExecutable = isExec
+          }
+      
+      -- Recursively upload subdirectories and create DirectoryNodes
+      dirNodes <- forM dirs $ \subDirPath -> do
+        subDigest <- uploadDirRecursive cli subDirPath
+        pure DirectoryNode
+          { dnName = T.pack (takeFileName subDirPath)
+          , dnDigest = subDigest
+          }
+      
+      -- Create and upload this directory
+      let dir = Directory
+            { dirFiles = fileNodes
+            , dirDirectories = dirNodes
+            , dirSymlinks = []  -- TODO: handle symlinks
+            }
+          dirBytes = serializeDirectory dir
+          dirDigest = CAS.digestFromBytes dirBytes
+      
+      CAS.uploadBlob (recCAS cli) dirDigest dirBytes
+      pure dirDigest
+    
+    categorize :: FilePath -> ([FilePath], [FilePath]) -> FilePath -> IO ([FilePath], [FilePath])
+    categorize parent (fs, ds) name = do
+      let fullPath = parent </> name
+      isDir <- doesDirectoryExist fullPath
+      if isDir
+        then pure (fs, fullPath : ds)
+        else pure (fullPath : fs, ds)
+    
+    isExecutable :: FilePath -> IO Bool
+    isExecutable fp = do
+      perms <- getPermissions fp
+      pure $ executable perms
 
 -- | Compute input root from list of files
 computeInputRoot :: REClient -> [(FilePath, ByteString)] -> IO CAS.Digest
