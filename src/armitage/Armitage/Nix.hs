@@ -70,9 +70,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
+import Data.List (isSuffixOf)
 import GHC.Generics (Generic)
+import System.Directory (doesDirectoryExist, listDirectory)
+import System.Environment (getEnvironment, setEnv)
 import System.Exit (ExitCode (..))
 import System.Process (readProcessWithExitCode)
+import Control.Exception (bracket_)
 
 -- -----------------------------------------------------------------------------
 -- Analysis Modes
@@ -111,7 +115,7 @@ resolveToFlags refs = do
   flagSets <- mapM resolveOnePackage refs
   pure $ T.unlines (concat flagSets)
 
--- | Resolve a single package to its flags
+-- | Resolve a single package to its flags using pkg-config
 resolveOnePackage :: Text -> IO [Text]
 resolveOnePackage ref = do
   -- Get output path (try .out first for packages with multiple outputs)
@@ -120,13 +124,16 @@ resolveOnePackage ref = do
   
   let includePath = devPath <> "/include"
       libPath = outPath <> "/lib"
-      libNames = getLibNames ref
+      pkgConfigPath = devPath <> "/lib/pkgconfig:" <> outPath <> "/lib/pkgconfig"
+  
+  -- Try pkg-config first, fall back to package name
+  pkgConfigFlags <- queryPkgConfig pkgConfigPath ref
   
   -- Build flag list
   pure $ 
     [ "-isystem", includePath
     , "-L" <> libPath
-    ] ++ map ("-l" <>) libNames
+    ] ++ pkgConfigFlags
 
 -- | Resolve a specific output of a flake ref
 resolveOutput :: Text -> Text -> IO Text
@@ -149,48 +156,67 @@ resolveOutput ref output = do
         ExitSuccess -> pure $ T.strip $ T.pack stdout'
         ExitFailure _ -> error $ "Failed to resolve " <> T.unpack ref
 
--- | Get library names for a package
--- TODO[b7r6]: This should come from nix metadata, not a hardcoded map
-getLibNames :: Text -> [Text]
-getLibNames ref = 
+-- | Query pkg-config for library flags
+-- Returns -l flags from pkg-config, or falls back to package name
+queryPkgConfig :: Text -> Text -> IO [Text]
+queryPkgConfig pkgConfigPath ref = do
   let pkg = T.takeWhileEnd (/= '#') ref
-      -- Strip any output suffix (.dev, .out, etc)
-      basePkg = T.takeWhile (/= '.') pkg
-  in case Map.lookup basePkg libNameMap of
-       Just libs -> libs
-       Nothing -> [basePkg]  -- Assume lib name matches package name
+      -- Strip version suffix if present (e.g., simdjson-4.2.4 -> simdjson)
+      basePkg = T.takeWhile (/= '-') $ T.takeWhile (/= '.') pkg
+  
+  -- Try pkg-config with the package name
+  (exitCode, stdout, _) <- readProcessWithExitCode
+    "pkg-config"
+    ["--libs", T.unpack basePkg]
+    ""
+    `withEnv` [("PKG_CONFIG_PATH", T.unpack pkgConfigPath)]
+  
+  case exitCode of
+    ExitSuccess -> pure $ extractLibFlags (T.pack stdout)
+    ExitFailure _ -> do
+      -- Try scanning for .pc files
+      pcNames <- findPkgConfigNames pkgConfigPath
+      case pcNames of
+        (pcName:_) -> do
+          (ec, out, _) <- readProcessWithExitCode
+            "pkg-config"
+            ["--libs", T.unpack pcName]
+            ""
+            `withEnv` [("PKG_CONFIG_PATH", T.unpack pkgConfigPath)]
+          case ec of
+            ExitSuccess -> pure $ extractLibFlags (T.pack out)
+            ExitFailure _ -> pure ["-l" <> basePkg]
+        [] -> pure ["-l" <> basePkg]  -- Fall back to package name
 
--- | Map package names to library names
--- Some packages have different lib names than package names
--- Some packages provide multiple libraries
-libNameMap :: Map Text [Text]
-libNameMap = Map.fromList
-  [ ("zlib", ["z"])
-  , ("openssl", ["ssl", "crypto"])
-  , ("libpng", ["png"])
-  , ("libjpeg", ["jpeg"])
-  , ("sqlite", ["sqlite3"])
-  , ("curl", ["curl"])
-  , ("boost", ["boost_system"])
-  , ("protobuf", ["protobuf"])
-  , ("lz4", ["lz4"])
-  , ("zstd", ["zstd"])
-  , ("brotli", ["brotlienc", "brotlidec", "brotlicommon"])
-  , ("libsodium", ["sodium"])
-  , ("gmp", ["gmp"])
-  , ("mpfr", ["mpfr"])
-  , ("pcre2", ["pcre2-8"])
-  , ("libffi", ["ffi"])
-  , ("libuv", ["uv"])
-  , ("libgit2", ["git2"])
-  , ("jq", ["jq"])
-  , ("simdjson", ["simdjson"])
-  , ("fmt", ["fmt"])
-  , ("spdlog", ["spdlog"])
-  , ("catch2", ["Catch2Main", "Catch2"])
-  , ("nlohmann_json", [])  -- header-only
-  , ("rapidjson", [])      -- header-only
-  ]
+-- | Run a process with modified environment
+withEnv :: IO a -> [(String, String)] -> IO a
+withEnv action envVars = do
+  oldEnv <- getEnvironment
+  let newEnv = envVars ++ filter (\(k,_) -> k `notElem` map fst envVars) oldEnv
+  bracket_
+    (mapM_ (uncurry setEnv) envVars)
+    (mapM_ (\(k, v) -> setEnv k v) [(k, v) | (k, v) <- oldEnv, k `elem` map fst envVars])
+    action
+
+-- | Extract -l flags from pkg-config output
+extractLibFlags :: Text -> [Text]
+extractLibFlags output = 
+  [ flag | flag <- T.words output, "-l" `T.isPrefixOf` flag ]
+
+-- | Find .pc file names in pkg-config path
+findPkgConfigNames :: Text -> IO [Text]
+findPkgConfigNames pkgConfigPath = do
+  let dirs = T.splitOn ":" pkgConfigPath
+  pcFiles <- concat <$> mapM findPcFiles dirs
+  pure $ map (T.dropEnd 3) pcFiles  -- Remove .pc extension
+  where
+    findPcFiles dir = do
+      exists <- doesDirectoryExist (T.unpack dir)
+      if exists
+        then do
+          contents <- listDirectory (T.unpack dir)
+          pure [T.pack f | f <- contents, ".pc" `isSuffixOf` f]
+        else pure []
 
 -- -----------------------------------------------------------------------------
 -- Unroll: Convert nix derivation to concrete build commands
