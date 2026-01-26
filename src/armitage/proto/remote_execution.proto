@@ -1,0 +1,115 @@
+// Remote Execution API - Subset for CAS operations
+// Source: https://github.com/bazelbuild/remote-apis
+//
+// This is a minimal subset needed for content-addressed storage.
+// Full API at: build/bazel/remote/execution/v2/remote_execution.proto
+
+syntax = "proto3";
+
+package build.bazel.remote.execution.v2;
+
+option java_package = "build.bazel.remote.execution.v2";
+option java_outer_classname = "RemoteExecutionProto";
+option go_package = "remoteexecution";
+
+import "google/protobuf/wrappers.proto";
+import "google/rpc/status.proto";
+
+// A content digest. A digest for a given blob consists of the size of the blob
+// and its hash. The hash algorithm to use is defined by the server.
+message Digest {
+  // The hash. In the case of SHA-256, it will always be a lowercase hex string
+  // exactly 64 characters long.
+  string hash = 1;
+
+  // The size of the blob, in bytes.
+  int64 size_bytes = 2;
+}
+
+// A request message for ContentAddressableStorage.FindMissingBlobs.
+message FindMissingBlobsRequest {
+  // The instance of the execution system to operate against.
+  string instance_name = 1;
+
+  // A list of the blobs to check.
+  repeated Digest blob_digests = 2;
+}
+
+// A response message for ContentAddressableStorage.FindMissingBlobs.
+message FindMissingBlobsResponse {
+  // A list of the blobs requested *not* present in the storage.
+  repeated Digest missing_blob_digests = 2;
+}
+
+// A request message for ContentAddressableStorage.BatchUpdateBlobs.
+message BatchUpdateBlobsRequest {
+  // The instance of the execution system to operate against.
+  string instance_name = 1;
+
+  // A request corresponding to a single blob that the client wants to upload.
+  message Request {
+    // The digest of the blob.
+    Digest digest = 1;
+
+    // The raw binary data.
+    bytes data = 2;
+  }
+
+  // The individual upload requests.
+  repeated Request requests = 2;
+}
+
+// A response message for ContentAddressableStorage.BatchUpdateBlobs.
+message BatchUpdateBlobsResponse {
+  // A response corresponding to a single blob that the client tried to upload.
+  message Response {
+    // The blob digest to which this response corresponds.
+    Digest digest = 1;
+
+    // The result of attempting to upload that blob.
+    google.rpc.Status status = 2;
+  }
+
+  // The responses to the requests.
+  repeated Response responses = 1;
+}
+
+// A request message for ContentAddressableStorage.BatchReadBlobs.
+message BatchReadBlobsRequest {
+  // The instance of the execution system to operate against.
+  string instance_name = 1;
+
+  // The individual blob digests.
+  repeated Digest digests = 2;
+}
+
+// A response message for ContentAddressableStorage.BatchReadBlobs.
+message BatchReadBlobsResponse {
+  // A response corresponding to a single blob that the client tried to download.
+  message Response {
+    // The digest to which this response corresponds.
+    Digest digest = 1;
+
+    // The raw binary data.
+    bytes data = 2;
+
+    // The result of attempting to download that blob.
+    google.rpc.Status status = 3;
+  }
+
+  // The responses to the requests.
+  repeated Response responses = 1;
+}
+
+// The CAS (content-addressable storage) is used to store the inputs to and
+// outputs from the execution service.
+service ContentAddressableStorage {
+  // Determine if blobs are present in the CAS.
+  rpc FindMissingBlobs(FindMissingBlobsRequest) returns (FindMissingBlobsResponse);
+
+  // Upload many blobs at once.
+  rpc BatchUpdateBlobs(BatchUpdateBlobsRequest) returns (BatchUpdateBlobsResponse);
+
+  // Download many blobs at once.
+  rpc BatchReadBlobs(BatchReadBlobsRequest) returns (BatchReadBlobsResponse);
+}

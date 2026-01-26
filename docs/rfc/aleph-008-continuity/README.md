@@ -96,12 +96,12 @@ Dhall is sufficient. It is:
 ```dhall
 -- BUILD.dhall
 
-let DICE    = https://straylight.dev/dice/v1.dhall sha256:abc...
-let Targets = https://straylight.dev/targets/v1.dhall sha256:def...
-let Rust    = https://straylight.dev/rules/rust/v1.dhall sha256:123...
-let Lean    = https://straylight.dev/rules/lean/v1.dhall sha256:456...
-let C       = https://straylight.dev/rules/c/v1.dhall sha256:789...
-let Wasm    = https://straylight.dev/rules/wasm/v1.dhall sha256:aaa...
+let DICE    = https://straylight.cx/dice/v1.dhall sha256:abc...
+let Targets = https://straylight.cx/targets/v1.dhall sha256:def...
+let Rust    = https://straylight.cx/rules/rust/v1.dhall sha256:123...
+let Lean    = https://straylight.cx/rules/lean/v1.dhall sha256:456...
+let C       = https://straylight.cx/rules/c/v1.dhall sha256:789...
+let Wasm    = https://straylight.cx/rules/wasm/v1.dhall sha256:aaa...
 
 -- targets
 let targets =
@@ -212,7 +212,7 @@ three lines.
 ### Toolchain Types
 
 ```dhall
--- https://straylight.dev/toolchains/v1.dhall
+-- https://straylight.cx/toolchains/v1.dhall
 
 let Triple =
     { arch   : Arch
@@ -305,7 +305,7 @@ Flags compose, validate, dedupe. Not strings.
 ## Component 3: Target Types
 
 ```dhall
--- https://straylight.dev/targets/v1.dhall
+-- https://straylight.cx/targets/v1.dhall
 
 let Arch = < x86_64 | aarch64 | wasm32 | riscv64 >
 
@@ -346,7 +346,7 @@ Preludeless Rust in idiomatic Dhall. Useful for code generation, FFI bindings,
 AST representation, and the stochastic_omega translation pipeline.
 
 ```dhall
--- https://straylight.dev/lang/rust/v1.dhall
+-- https://straylight.cx/lang/rust/v1.dhall
 
 let Primitive =
     < U8 | U16 | U32 | U64 | U128 | Usize
@@ -436,7 +436,7 @@ let Crate =
 ### Usage: Define Option Without Prelude
 
 ```dhall
-let Rust = https://straylight.dev/lang/rust/v1.dhall sha256:...
+let Rust = https://straylight.cx/lang/rust/v1.dhall sha256:...
 
 let T = Rust.Generic { name = "T", bounds = [] : List Rust.Bound, default = None Rust.Type }
 
@@ -708,24 +708,66 @@ What's left of "Nix" as we know it?
 | 1 | CA derivations always-on | Complete (RFC-007) |
 | 2 | builtins.wasm | Complete (RFC-007) |
 | 3 | Typed package DSL | Complete (RFC-007) |
-| 4 | **Armitage witness proxy** | **Next** |
-| 5 | **Armitage coeffect checker** | Planned |
-| 6 | Dhall rule schemas | Draft |
-| 7 | R2 store backend | Planned |
-| 8 | git attestation | Planned |
-| 9 | DICE (Buck2 fork) | Planned |
-| 10 | stochastic_omega tactic | Research |
-| 11 | isospin microvm | Research |
-| 12 | nvidia.ko in Lean | Research |
+| 4 | Armitage witness proxy | **Complete** |
+| 5 | Armitage OCI container (nix2gpu) | **Complete** |
+| 6 | isospin TAP networking | **Complete** |
+| 7 | **NativeLink CAS integration** | **Next** |
+| 8 | **Graded monad executor** | Design |
+| 9 | Nix binary cache facade | Planned |
+| 10 | Lean proof discharge | Planned |
+| 11 | Dhall rule schemas | Draft |
+| 12 | R2 store backend | Planned |
+| 13 | DICE (Buck2 fork) | Planned |
+| 14 | stochastic_omega tactic | Research |
+| 15 | nvidia.ko in Lean | Research |
 
 ## Component Index
 
 | Document | Description |
 |----------|-------------|
 | [README.md](README.md) | This document - overview |
-| [armitage.md](armitage.md) | Nix compatibility layer, coeffects, attestation |
+| [armitage.md](armitage.md) | Nix compatibility layer, coeffects, graded monad execution |
 | [dhall-bridge.md](dhall-bridge.md) | Dhall → Buck2 translation options |
 | [ROADMAP.md](ROADMAP.md) | Timeline and milestones |
+
+## Bucket Layout
+
+All witnessed builds store artifacts in a unified content-addressed bucket:
+
+```
+r2.straylight.cx/
+├── specs/              # Build computations (Lean/Dhall)
+│   └── {hash}.lean
+├── traces/             # Execution traces (CBOR)
+│   └── {hash}.cbor  
+├── cas/                # Content-addressed blobs (outputs + fetches)
+│   └── {hash}
+├── proofs/             # Compiled Lean discharge proofs
+│   └── {hash}.olean
+└── attestations/       # Signed attestations
+    └── {hash}.json
+```
+
+The proxy is both **witness** (records fetches) and **substitutor** (serves
+cached content). Same infrastructure, two modes.
+
+## Infrastructure
+
+| Service | Domain | Purpose |
+|---------|--------|---------|
+| DNS | ns1.straylight.cx | Dynamic DNS from attestation store |
+| Resolver | resolve.straylight.cx | Name → CAS redirect for `nix run` |
+| CAS | cas.straylight.cx | NativeLink gRPC endpoint |
+| Storage | r2.straylight.cx | Cloudflare R2 (S3-compatible) |
+| Git | git.straylight.cx | Attestation repository |
+
+## Naming
+
+```
+ca://sha256:abc...                  # content-addressed (sovereign)
+att://straylight.cx/llvm@18         # attested package
+nix://nixpkgs#hello                 # legacy compat (via registry redirect)
+```
 
 ## References
 

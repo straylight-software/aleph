@@ -1,0 +1,80 @@
+# src/armitage/BUCK
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                              // armitage //
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+#   Armitage routes around the daemon. Named for the man who put the team
+#   together - the one who orchestrated the run before anyone knew what
+#   the real job was.
+#
+#   The daemon is hostile infrastructure. This is the replacement.
+#
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+load("@toolchains//:haskell.bzl", "haskell_script")
+
+# Packages for armitage modules (from ghcWithPackages)
+ARMITAGE_PACKAGES = [
+    "base",
+    "bytestring",
+    "text",
+    "containers",
+    "crypton",
+    "directory",
+    "filepath",
+    "process",
+    "unix",
+    "time",
+    "aeson",
+    "network",
+    "grapesy",
+    "dhall",           # Dhall configuration parsing
+    "async",           # Parallel flake resolution
+]
+
+# Packages for proxy (heavier TLS deps)
+PROXY_PACKAGES = [
+    "base",
+    "bytestring",
+    "text",
+    "containers",
+    "network",
+    "tls",
+    "crypton",
+    "crypton-x509",
+    "crypton-x509-store",
+    "data-default-class",
+    "pem",
+    "asn1-types",
+    "asn1-encoding",
+    "hourglass",
+    "aeson",
+    "directory",
+    "filepath",
+    "time",
+]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Main CLI
+# ─────────────────────────────────────────────────────────────────────────────
+
+haskell_script(
+    name = "armitage",
+    srcs = ["Main.hs"],
+    include_paths = ["src/armitage"],
+    packages = ARMITAGE_PACKAGES,
+    compiler_flags = ["-O2", "-Wall"],
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Witness Proxy
+# ─────────────────────────────────────────────────────────────────────────────
+
+haskell_script(
+    name = "armitage-proxy",
+    srcs = ["ProxyMain.hs"],
+    include_paths = ["src/armitage"],
+    packages = PROXY_PACKAGES,
+    compiler_flags = ["-O2", "-Wall", "-threaded"],
+)

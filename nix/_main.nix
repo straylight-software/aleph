@@ -377,8 +377,11 @@ in
       packages = {
         aleph-lint = pkgs.callPackage ./packages/aleph-lint.nix { };
 
-        # Buck2 built packages - these can be used in NixOS, containers, etc.
-        # fmt-test = config.buck2.build { target = "//examples/cxx:fmt_test"; };
+        # Armitage - daemon-free Nix operations
+        # Built via GHC from overlay, not Buck2 (faster for Nix builds)
+        # For Buck2: buck2 build //src/armitage:armitage
+        armitage = pkgs.armitage-cli;
+        armitage-proxy = pkgs.armitage-proxy;
       }
       // optional-attrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
       // optional-attrs (system == "x86_64-linux" || system == "aarch64-linux") (
@@ -430,6 +433,21 @@ in
           hp.unordered-containers
           hp.vector
           hp.async
+
+          # Armitage proxy (TLS MITM, certificate generation)
+          hp.network
+          hp.tls # version pinned in haskell.nix overlay
+          hp.crypton-x509
+          hp.crypton-x509-store
+          hp.data-default-class
+          hp.pem
+          hp.asn1-types
+          hp.asn1-encoding
+          hp.hourglass
+
+          # gRPC for NativeLink CAS integration
+          # proto-lens-setup patched for Cabal 3.14+ in haskell.nix
+          hp.grapesy
         ];
       };
       rust.enable = true;

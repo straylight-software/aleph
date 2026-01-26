@@ -25,6 +25,13 @@
       # Don't follow nixpkgs - ghc-wasm-meta has specific version requirements
     };
 
+    # ghc-source-gen from git (Hackage version doesn't support GHC 9.12)
+    # Required for grapesy -> proto-lens-protoc -> ghc-source-gen
+    ghc-source-gen-src = {
+      url = "github:google/ghc-source-gen";
+      flake = false;
+    };
+
     # Buck2 prelude (straylight fork with NVIDIA support)
     # Mercury-based Haskell rules, LLVM 22 C++ toolchain, nv target compilation
     buck2-prelude = {
@@ -45,8 +52,9 @@
 
     # Nimi - Tini-like PID 1 for containers and NixOS modular services
     # Used for VM init scripts with proper process supervision
+    # Using fork with nimi-static for microVM support (PR: weyl-ai/nimi#12)
     nimi = {
-      url = "github:weyl-ai/nimi";
+      url = "github:b7r6/nimi/add-static-build";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

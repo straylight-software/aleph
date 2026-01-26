@@ -4,7 +4,7 @@
 --| Import this to define builds.
 --|
 --| Usage:
---|   let DICE = https://straylight.dev/dice/v1/package.dhall sha256:...
+--|   let DICE = https://straylight.cx/dice/v1/package.dhall sha256:...
 --|   in DICE.rust_library "mylib" ["src/lib.rs"] []
 
 let Target = ./Target.dhall

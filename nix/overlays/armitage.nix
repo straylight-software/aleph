@@ -4,95 +4,147 @@
 #                           // armitage //
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
-#   Armitage is the shim between typed builds and the nix daemon. Named for
-#   the man who put the team together - the one who orchestrated the run
-#   before anyone knew what the real job was.
+#   Armitage routes around the daemon. Named for the man who put the team
+#   together - the one who orchestrated the run before anyone knew what
+#   the real job was.
 #
-#   - armitage-proxy: Witness proxy for build-time network access
-#   - (future) coeffect checker, attestation tools
+#   Components:
+#     - armitage: Main CLI (build, store, cas operations)
+#     - armitage-proxy: TLS MITM witness proxy for build fetches
+#
+#   The daemon is hostile infrastructure. This is the replacement.
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 final: prev:
 let
   inherit (prev) lib;
 
-  # Source directory for armitage
-  armitage-src = ../../armitage;
-  proxy-src = armitage-src + "/proxy/src";
+  # Source directory
+  armitage-src = ../../src/armitage;
 
-  # Use GHC 9.12 consistently
+  # GHC 9.12 with all required packages
   hs-pkgs = final.haskell.packages.ghc912;
 
-  # Dependencies for armitage-proxy
-  # Network server + cryptography + JSON
-  proxy-deps =
+  # Dependencies for armitage modules
+  armitage-deps =
     p: with p; [
+      # Core
       text
-      aeson
       bytestring
+      containers
       directory
       filepath
-      network
+      process
+      unix
+      time
+      aeson
+
+      # Crypto
       crypton
       memory
-      time
-      containers
+
+      # Network
+      network
+
+      # gRPC (NativeLink CAS)
+      grapesy
     ];
 
-  # GHC with proxy dependencies
+  # Dependencies for proxy (additional TLS)
+  proxy-deps =
+    p:
+    armitage-deps p
+    ++ (with p; [
+      tls
+      crypton-x509
+      crypton-x509-store
+      data-default-class
+      pem
+      asn1-types
+      asn1-encoding
+      hourglass
+    ]);
+
+  # GHC with armitage deps
+  ghc-with-armitage = hs-pkgs.ghcWithPackages armitage-deps;
+
+  # GHC with proxy deps
   ghc-with-proxy = hs-pkgs.ghcWithPackages proxy-deps;
+
+  # Build armitage CLI
+  mk-armitage = final.stdenv.mkDerivation {
+    name = "armitage";
+    src = armitage-src;
+
+    "nativeBuildInputs" = [ ghc-with-armitage ];
+
+    "buildPhase" = ''
+      runHook preBuild
+      ghc -O2 -Wall -Wno-unused-imports \
+        -hidir . -odir . \
+        -i. \
+        -o armitage Main.hs
+      runHook postBuild
+    '';
+
+    "installPhase" = ''
+      runHook preInstall
+      mkdir -p $out/bin
+      cp armitage $out/bin/
+      runHook postInstall
+    '';
+
+    meta = {
+      description = "Daemon-free Nix operations with coeffect tracking";
+      mainProgram = "armitage";
+    };
+  };
+
+  # Build armitage-proxy
+  mk-armitage-proxy = final.stdenv.mkDerivation {
+    name = "armitage-proxy";
+    src = armitage-src;
+
+    "nativeBuildInputs" = [ ghc-with-proxy ];
+
+    "buildPhase" = ''
+      runHook preBuild
+      ghc -O2 -Wall -Wno-unused-imports -threaded \
+        -hidir . -odir . \
+        -i. \
+        -o armitage-proxy ProxyMain.hs
+      runHook postBuild
+    '';
+
+    "installPhase" = ''
+      runHook preInstall
+      mkdir -p $out/bin
+      cp armitage-proxy $out/bin/
+      runHook postInstall
+    '';
+
+    meta = {
+      description = "TLS MITM witness proxy for build fetches";
+      mainProgram = "armitage-proxy";
+    };
+  };
 
 in
 {
   armitage = (prev.armitage or { }) // {
-    # ──────────────────────────────────────────────────────────────────────────
-    # // witness proxy //
-    # ──────────────────────────────────────────────────────────────────────────
-    #
-    # HTTP/HTTPS proxy that witnesses all build-time network fetches.
-    #
-    #   - Caches responses by SHA256 (content-addressed)
-    #   - Logs all fetches as JSONL attestations
-    #   - Enforces domain allowlist
-    #   - Tunnels HTTPS via CONNECT method
-    #
-    # Usage:
-    #   nix build .#armitage-proxy
-    #   PROXY_PORT=8080 ./result/bin/armitage-proxy
-    #
-    # Configure builds:
-    #   HTTP_PROXY=http://proxy:8080 HTTPS_PROXY=http://proxy:8080 nix build ...
-
-    proxy = final.stdenv.mkDerivation {
-      name = "armitage-proxy";
-      src = proxy-src;
-      "dontUnpack" = true;
-
-      "nativeBuildInputs" = [ ghc-with-proxy ];
-
-      "buildPhase" = ''
-        runHook preBuild
-        ghc -O2 -Wall -Wno-unused-imports \
-          -threaded -rtsopts "-with-rtsopts=-N" \
-          -hidir . -odir . \
-          -o armitage-proxy ${proxy-src}/Main.hs
-        runHook postBuild
-      '';
-
-      "installPhase" = ''
-        runHook preInstall
-        mkdir -p $out/bin
-        cp armitage-proxy $out/bin/
-        runHook postInstall
-      '';
-
-      meta = {
-        description = "Armitage Witness Proxy - Content-addressed caching HTTP proxy";
-        mainProgram = "armitage-proxy";
-      };
+    # Source paths
+    src = {
+      root = armitage-src;
+      dhall = armitage-src + "/dhall";
+      proto = armitage-src + "/proto";
     };
 
-    # GHC with armitage dependencies (for development)
-    ghc = ghc-with-proxy;
+    # GHC environments for development
+    ghc = ghc-with-armitage;
+    ghc-proxy = ghc-with-proxy;
   };
+
+  # Top-level packages
+  armitage-cli = mk-armitage;
+  armitage-proxy = mk-armitage-proxy;
 }

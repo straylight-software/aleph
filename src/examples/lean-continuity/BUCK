@@ -16,7 +16,7 @@ load("@toolchains//:lean.bzl", "lean_lake_build")
 
 lean_lake_build(
     name = "continuity",
-    srcs = ["Continuity.lean"],
+    srcs = ["Continuity.lean", "DhallEmbed.lean"],
     lakefile = "lakefile.lean",
     toolchain_file = "lean-toolchain",
     visibility = ["PUBLIC"],

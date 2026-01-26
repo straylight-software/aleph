@@ -4,7 +4,7 @@
 --| Import this to define BUILD.dhall files.
 --|
 --| Usage:
---|   let S = https://straylight.dev/prelude/v1/package.dhall sha256:...
+--|   let S = https://straylight.cx/prelude/v1/package.dhall sha256:...
 --|   in [ S.rust_library "mylib" ["src/lib.rs"] [] ]
 
 let Types = ./Types.dhall

@@ -24,7 +24,7 @@
 #   - VFIO for GPU passthrough (cloud-hypervisor-gpu, not nvidia-docker)
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{ lib, ... }:
+{ lib, inputs, ... }:
 let
   # ────────────────────────────────────────────────────────────────────────────
   # // lib aliases (lisp-case) //
@@ -44,6 +44,9 @@ let
   init-scripts = import ./init-scripts.nix;
 
   inherit (kernels) fc-kernel ch-kernel;
+
+  # Import nimi-init module (needs pkgs and nimi, so done in perSystem)
+  mk-nimi-init = pkgs: nimi: import ./nimi-init.nix { inherit lib pkgs nimi; };
 
   # ────────────────────────────────────────────────────────────────────────────
   # // container module //
@@ -193,6 +196,8 @@ let
                       pkgs.genext2fs
                       pkgs.e2fsprogs
                       pkgs.firecracker # TODO: replace with isospin package
+                      pkgs.iproute2 # for ip command (TAP setup)
+                      pkgs.iptables # for NAT masquerading
                     ]
                   }
               ''
@@ -259,8 +264,49 @@ let
             );
 
             # ──────────────────────────────────────────────────────────────────────
-            # // busybox injection //
+            # // armitage builder (OCI container via nix2gpu) //
             # ──────────────────────────────────────────────────────────────────────
+            #
+            # OCI container with Nimi + Armitage + Nix for witnessed builds.
+            # All network fetches go through Armitage proxy (TLS MITM).
+            # Attestation log written to /var/log/armitage/fetches.jsonl
+            #
+            # Deploy to: Fly.io, Docker, Podman, Kubernetes
+            # Build: nix build .#armitage-builder
+            # Run:   docker load < result && docker run -it armitage-builder
+
+            # Armitage startup script for nimi service
+            # Environment variables are embedded since nimi doesn't support process.environment
+            armitage-startup-script = pkgs.writeShellApplication {
+              name = "armitage-startup";
+              runtimeInputs = with pkgs; [
+                coreutils
+                procps
+              ];
+              text = ''
+                # Create directories for armitage
+                mkdir -p /var/cache/armitage /var/log/armitage /etc/ssl/armitage
+
+                # Set environment for armitage proxy
+                export PROXY_PORT="8888"
+                export PROXY_CACHE_DIR="/var/cache/armitage"
+                export PROXY_LOG_DIR="/var/log/armitage"
+                export PROXY_CERT_DIR="/etc/ssl/armitage"
+
+                # Start Armitage proxy
+                echo ":: Starting Armitage proxy on :8888..."
+                exec ${pkgs.armitage-proxy}/bin/armitage-proxy
+              '';
+            };
+
+            # Armitage service module for nimi (follows nativelink pattern)
+            mk-armitage-service =
+              { lib, pkgs, ... }:
+              { ... }:
+              {
+                _class = "service";
+                config.process.argv = [ "${armitage-startup-script}/bin/armitage-startup" ];
+              };
 
           in
           {
@@ -321,6 +367,68 @@ let
               # Compiled Haskell scripts for FHS/GPU namespace runners.
 
               inherit (compiled) fhs-run gpu-run;
+
+              # ──────────────────────────────────────────────────────────────────
+              # // armitage builder //
+              # ──────────────────────────────────────────────────────────────────
+              #
+              # OCI container with Nimi + Armitage for witnessed builds.
+              # Built via nix2gpu module - see nix2gpu.armitage-builder below.
+              # Usage: nix build .#armitage-builder
+            };
+
+            # ──────────────────────────────────────────────────────────────────────
+            # // nix2gpu container definitions //
+            # ──────────────────────────────────────────────────────────────────────
+            #
+            # OCI containers built via nix2gpu with Ubuntu 24.04 base.
+            # These containers work on Fly.io, Docker, Podman, Kubernetes.
+            #
+            # Build:   nix build .#armitage-builder
+            # Load:    docker load < result
+            # Run:     docker run -it armitage-builder
+            # Push:    nix run .#armitage-builder.copyToGithub
+
+            nix2gpu = {
+              # Armitage Builder - Witnessed build environment
+              # All network fetches go through Armitage TLS MITM proxy.
+              # Attestation log written to /var/log/armitage/fetches.jsonl
+              armitage-builder = {
+                "systemPackages" = with pkgs; [
+                  # Core build tools
+                  nix
+                  git
+                  coreutils
+                  bash
+                  gnugrep
+                  gnutar
+                  gzip
+                  curl
+                  jq
+                  cacert
+
+                  # Armitage proxy and startup script
+                  armitage-proxy
+                  armitage-startup-script
+
+                  # Process management
+                  procps
+                ];
+
+                # Nimi service for armitage proxy
+                services.armitage = {
+                  imports = [ (mk-armitage-service { inherit lib pkgs; }) ];
+                };
+
+                "extraEnv" = {
+                  # Proxy environment for all processes (uppercase only for nix2gpu)
+                  HTTP_PROXY = "http://127.0.0.1:8888";
+                  HTTPS_PROXY = "http://127.0.0.1:8888";
+                  # Note: SSL_CERT_FILE set at runtime after CA is generated
+                  NIX_SSL_CERT_FILE = "/etc/ssl/armitage/ca.pem";
+                  SSL_CERT_FILE = "/etc/ssl/armitage/ca.pem";
+                };
+              };
             };
           };
       };

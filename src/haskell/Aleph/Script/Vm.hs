@@ -13,6 +13,15 @@ Shared infrastructure for building VM disk images from OCI containers.
 2. Inject busybox and init script with 'injectInit'
 3. Build ext4 disk image with 'buildExt4'
 4. Generate VM config and launch
+
+== Networking
+
+Firecracker VMs can be configured with TAP networking:
+
+1. Create TAP device on host with 'setupTap'
+2. Add 'fcNetwork' to 'FirecrackerConfig'
+3. Configure eth0 inside VM (done by init script)
+4. Clean up TAP with 'teardownTap'
 -}
 module Aleph.Script.Vm (
     -- * Rootfs Construction
@@ -22,9 +31,15 @@ module Aleph.Script.Vm (
 
     -- * Firecracker
     FirecrackerConfig (..),
+    FirecrackerNetwork (..),
     defaultFirecrackerConfig,
+    defaultFirecrackerNetwork,
     firecrackerConfigJson,
     runFirecracker,
+
+    -- * TAP Networking
+    setupTap,
+    teardownTap,
 
     -- * Cloud Hypervisor
     CloudHypervisorConfig (..),
@@ -162,6 +177,32 @@ buildExt4Sized sizeBlocks rootfs diskPath = do
 -- Firecracker
 -- ============================================================================
 
+-- | Firecracker network configuration
+data FirecrackerNetwork = FirecrackerNetwork
+    { fnTapDev :: Text
+    -- ^ TAP device name (e.g., "tap0")
+    , fnTapIp :: Text
+    -- ^ Host IP for TAP (e.g., "172.16.0.1")
+    , fnGuestIp :: Text
+    -- ^ Guest IP (e.g., "172.16.0.2")
+    , fnGuestMac :: Text
+    -- ^ Guest MAC address (e.g., "06:00:AC:10:00:02")
+    , fnMask :: Text
+    -- ^ Network mask (e.g., "/30")
+    }
+    deriving (Show)
+
+-- | Default network config using 172.16.0.0/30 subnet
+defaultFirecrackerNetwork :: FirecrackerNetwork
+defaultFirecrackerNetwork =
+    FirecrackerNetwork
+        { fnTapDev = "fctap0"
+        , fnTapIp = "172.16.0.1"
+        , fnGuestIp = "172.16.0.2"
+        , fnGuestMac = "06:00:AC:10:00:02"
+        , fnMask = "/30"
+        }
+
 -- | Firecracker VM configuration
 data FirecrackerConfig = FirecrackerConfig
     { fcKernel :: FilePath
@@ -174,6 +215,8 @@ data FirecrackerConfig = FirecrackerConfig
     -- ^ Memory in MiB
     , fcBootArgs :: Text
     -- ^ Kernel command line
+    , fcNetwork :: Maybe FirecrackerNetwork
+    -- ^ Optional network configuration
     }
     deriving (Show)
 
@@ -186,6 +229,7 @@ defaultFirecrackerConfig =
         , fcCpus = 2
         , fcMemMib = 1024
         , fcBootArgs = "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init"
+        , fcNetwork = Nothing
         }
 
 -- | Generate Firecracker config JSON
@@ -193,19 +237,89 @@ firecrackerConfigJson :: FirecrackerConfig -> Sh Text
 firecrackerConfigJson FirecrackerConfig{..} = do
     -- Use jq to build the JSON (handles escaping correctly)
     -- nullInput = True (-n) because we're not reading from any file
+    let baseArgs =
+            [ Jq.arg "kernel" (pack fcKernel)
+            , Jq.arg "disk" (pack fcDisk)
+            , Jq.arg "boot_args" fcBootArgs
+            , Jq.argjson "cpus" (pack $ show fcCpus)
+            , Jq.argjson "mem" (pack $ show fcMemMib)
+            ]
+        -- Add network args if configured
+        netArgs = case fcNetwork of
+            Nothing -> []
+            Just FirecrackerNetwork{..} ->
+                [ Jq.arg "tap_dev" fnTapDev
+                , Jq.arg "guest_mac" fnGuestMac
+                ]
+        allArgs = baseArgs ++ netArgs
+        -- Base config without network
+        baseFilter =
+            "{ \"boot-source\": { \"kernel_image_path\": $kernel, \"boot_args\": $boot_args }, "
+                <> "\"drives\": [{ \"drive_id\": \"rootfs\", \"path_on_host\": $disk, \"is_root_device\": true, \"is_read_only\": false }], "
+                <> "\"machine-config\": { \"vcpu_count\": $cpus, \"mem_size_mib\": $mem }"
+        -- Add network-interfaces if configured
+        filterWithNet = case fcNetwork of
+            Nothing -> baseFilter <> " }"
+            Just _ ->
+                baseFilter
+                    <> ", \"network-interfaces\": [{ \"iface_id\": \"eth0\", \"guest_mac\": $guest_mac, \"host_dev_name\": $tap_dev }] }"
     Jq.jqWithArgs
         Jq.defaults{Jq.nullInput = True}
-        [ Jq.arg "kernel" (pack fcKernel)
-        , Jq.arg "disk" (pack fcDisk)
-        , Jq.arg "boot_args" fcBootArgs
-        , Jq.argjson "cpus" (pack $ show fcCpus)
-        , Jq.argjson "mem" (pack $ show fcMemMib)
-        ]
-        ( "{ \"boot-source\": { \"kernel_image_path\": $kernel, \"boot_args\": $boot_args }, "
-            <> "\"drives\": [{ \"drive_id\": \"rootfs\", \"path_on_host\": $disk, \"is_root_device\": true, \"is_read_only\": false }], "
-            <> "\"machine-config\": { \"vcpu_count\": $cpus, \"mem_size_mib\": $mem } }"
-        )
+        allArgs
+        filterWithNet
         []
+
+-- | Setup TAP device on host for VM networking
+--
+-- Creates TAP device, assigns IP, enables forwarding and NAT.
+-- Requires root/sudo. Returns the TAP device name.
+setupTap :: FirecrackerNetwork -> Sh ()
+setupTap FirecrackerNetwork{..} = do
+    -- Delete existing TAP if present (ignore errors)
+    errExit False $ run_ "sudo" ["ip", "link", "del", fnTapDev]
+
+    -- Create TAP device
+    run_ "sudo" ["ip", "tuntap", "add", "dev", fnTapDev, "mode", "tap"]
+
+    -- Assign IP address
+    run_ "sudo" ["ip", "addr", "add", fnTapIp <> fnMask, "dev", fnTapDev]
+
+    -- Bring up the interface
+    run_ "sudo" ["ip", "link", "set", "dev", fnTapDev, "up"]
+
+    -- Enable IP forwarding
+    run_ "sudo" ["sh", "-c", "echo 1 > /proc/sys/net/ipv4/ip_forward"]
+
+    -- Get default route interface for NAT
+    hostIface <-
+        run "ip" ["-j", "route", "list", "default"]
+            & silently
+    let ifaceName = extractDefaultIface hostIface
+
+    -- Setup NAT masquerading (delete first to avoid duplicates)
+    errExit False $ run_ "sudo" ["iptables", "-t", "nat", "-D", "POSTROUTING", "-o", ifaceName, "-j", "MASQUERADE"]
+    run_ "sudo" ["iptables", "-t", "nat", "-A", "POSTROUTING", "-o", ifaceName, "-j", "MASQUERADE"]
+
+    -- Allow forwarding
+    run_ "sudo" ["iptables", "-P", "FORWARD", "ACCEPT"]
+  where
+    -- Extract interface name from `ip -j route list default` output
+    -- Returns "eth0" as fallback if parsing fails
+    extractDefaultIface :: Text -> Text
+    extractDefaultIface json =
+        -- Simple extraction: look for "dev":"xxx" pattern
+        case T.breakOn "\"dev\":\"" json of
+            (_, rest)
+                | T.null rest -> "eth0"
+                | otherwise ->
+                    let afterDev = T.drop 7 rest -- drop "dev":"
+                     in T.takeWhile (/= '"') afterDev
+
+-- | Teardown TAP device
+teardownTap :: FirecrackerNetwork -> Sh ()
+teardownTap FirecrackerNetwork{..} = do
+    errExit False $ run_ "sudo" ["ip", "link", "del", fnTapDev]
+    pure ()
 
 -- | Run Firecracker with config
 runFirecracker :: FirecrackerConfig -> Sh ()

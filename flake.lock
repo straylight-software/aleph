@@ -195,6 +195,22 @@
         "type": "github"
       }
     },
+    "ghc-source-gen-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1767727283,
+        "narHash": "sha256-TsPEK0I5c9FYqZp0lAzQNogqEv1LPMzdjFO9EtOm/Ls=",
+        "owner": "google",
+        "repo": "ghc-source-gen",
+        "rev": "79ecc01213131da03a7198fc377606ce72ac037a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "google",
+        "repo": "ghc-source-gen",
+        "type": "github"
+      }
+    },
     "ghc-wasm-meta": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -408,15 +424,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1768250551,
-        "narHash": "sha256-prTeXJ5KHTlYJU42e8NEw5frYER8NeGcWU2EqlZE1kA=",
-        "owner": "weyl-ai",
+        "lastModified": 1769379407,
+        "narHash": "sha256-L9gtn4MetI8ZYpN/Aia1ZG7eOzkQoth4/FusxehCQrw=",
+        "owner": "b7r6",
         "repo": "nimi",
-        "rev": "7132bf6f7647acd0606f1de550e30d2b88ea4b1a",
+        "rev": "ed5cb7d35c609ab19065a744391242b4accf46ff",
         "type": "github"
       },
       "original": {
-        "owner": "weyl-ai",
+        "owner": "b7r6",
+        "ref": "add-static-build",
         "repo": "nimi",
         "type": "github"
       }
@@ -765,6 +782,7 @@
       "inputs": {
         "buck2-prelude": "buck2-prelude",
         "flake-parts": "flake-parts",
+        "ghc-source-gen-src": "ghc-source-gen-src",
         "ghc-wasm-meta": "ghc-wasm-meta",
         "llvm-project": "llvm-project",
         "nativelink": "nativelink",

@@ -38,6 +38,7 @@ import qualified Aleph.Script.Vm as Vm
 import Aleph.Script.Vm.Config (FirecrackerConfig (..), loadFirecrackerConfig)
 import qualified Data.Text as T
 
+import Control.Exception (bracket_)
 import Data.Maybe (fromMaybe)
 import Numeric.Natural (Natural)
 import System.Environment (getArgs, lookupEnv)
@@ -49,17 +50,19 @@ data CliArgs = CliArgs
     { argCpus :: Maybe Int
     , argMem :: Maybe Int
     , argBuild :: Bool
+    , argNoNet :: Bool
     , argImage :: String
     , argCommand :: [String]
     }
 
 parseArgs :: [String] -> CliArgs
-parseArgs = go (CliArgs Nothing Nothing False "ubuntu:24.04" [])
+parseArgs = go (CliArgs Nothing Nothing False False "ubuntu:24.04" [])
   where
     go acc [] = acc
     go acc ("--cpus" : n : rest) = go acc{argCpus = readMaybe n} rest
     go acc ("--mem" : n : rest) = go acc{argMem = readMaybe n} rest
     go acc ("--build" : rest) = go acc{argBuild = True} rest
+    go acc ("--no-net" : rest) = go acc{argNoNet = True} rest
     go acc (img : rest)
         | Prelude.take 2 img /= "--" =
             if argBuild acc
@@ -91,6 +94,7 @@ runWithConfig FirecrackerConfig{..} = do
         image = argImage args
         isBuild = argBuild args
         buildCmd = argCommand args
+        enableNet = not (argNoNet args)
 
     when (isBuild && Prelude.null buildCmd) $ do
         putStrLn "Error: --build requires a command"
@@ -100,6 +104,9 @@ runWithConfig FirecrackerConfig{..} = do
     script $ do
         let modeStr = if isBuild then "build" else "run"
         echoErr $ ":: Firecracker " <> modeStr <> " (" <> pack (show cpus) <> " CPUs, " <> pack (show mem) <> " MiB)"
+
+        -- Network config (use default subnet 172.16.0.0/30)
+        let netCfg = Vm.defaultFirecrackerNetwork
 
         withTmpDir $ \workDir -> do
             let rootfsDir = workDir </> "rootfs"
@@ -127,6 +134,17 @@ runWithConfig FirecrackerConfig{..} = do
             cp initPath (rootfsDir </> "init")
             run_ "chmod" ["+x", pack (rootfsDir </> "init")]
 
+            -- Write network config for init script to read
+            when enableNet $ do
+                let netConfigContent = T.unlines
+                        [ "GUEST_IP=" <> Vm.fnGuestIp netCfg
+                        , "GATEWAY=" <> Vm.fnTapIp netCfg
+                        , "NETMASK=" <> Vm.fnMask netCfg
+                        ]
+                -- Ensure /etc exists in rootfs (should already from OCI image)
+                mkdirP (rootfsDir </> "etc")
+                liftIO $ Prelude.writeFile (rootfsDir </> "etc/network-config") (unpack netConfigContent)
+
             -- In build mode, write the build command
             when isBuild $ do
                 echoErr $ ":: Build command: " <> pack (Prelude.unwords buildCmd)
@@ -135,6 +153,11 @@ runWithConfig FirecrackerConfig{..} = do
             -- Build disk image
             echoErr ":: Building rootfs"
             Vm.buildExt4 rootfsDir disk
+
+            -- Setup TAP networking on host
+            when enableNet $ do
+                echoErr ":: Setting up TAP network"
+                Vm.setupTap netCfg
 
             -- Boot with appropriate verbosity
             echoErr ":: Booting Firecracker"
@@ -149,8 +172,13 @@ runWithConfig FirecrackerConfig{..} = do
                         , Vm.fcCpus = cpus
                         , Vm.fcMemMib = mem
                         , Vm.fcBootArgs = bootArgs
+                        , Vm.fcNetwork = if enableNet then Just netCfg else Nothing
                         }
-            Vm.runFirecracker vmCfg
+
+            -- Run VM, then cleanup TAP
+            finally
+                (Vm.runFirecracker vmCfg)
+                (when enableNet $ Vm.teardownTap netCfg)
 
 -- | Write build command script
 writeBuildCmd :: FilePath -> [String] -> Sh ()

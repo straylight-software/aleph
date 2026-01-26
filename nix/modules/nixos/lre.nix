@@ -62,42 +62,97 @@ let
 
   # Scheduler configuration (CAS + AC + Scheduler + optional Worker API)
   # NOTE: Attribute names are quoted because they're NativeLink's JSON schema
+  #
+  # When R2 is enabled, uses fast_slow store:
+  #   - fast: local filesystem (LRU eviction cache)
+  #   - slow: Cloudflare R2 (persistent global storage)
   scheduler-config = {
-    stores = [
-      {
-        name = "CAS_MAIN_STORE";
-        compression = {
-          "compression_algorithm".lz4 = { };
-          backend =
-            if cfg.persistence.enable then
-              {
-                filesystem = {
-                  "content_path" = "${cfg.persistence.directory}/cas/content";
-                  "temp_path" = "${cfg.persistence.directory}/cas/tmp";
-                  "eviction_policy"."max_bytes" = cfg.cas-max-bytes;
-                };
-              }
-            else
-              {
-                memory."eviction_policy"."max_bytes" = cfg.cas-max-bytes;
+    stores =
+      if cfg.r2.enable then
+        [
+          # Local filesystem as fast tier
+          {
+            name = "CAS_LOCAL_STORE";
+            compression = {
+              "compression_algorithm".lz4 = { };
+              backend.filesystem = {
+                "content_path" = "${cfg.persistence.directory}/cas/content";
+                "temp_path" = "${cfg.persistence.directory}/cas/tmp";
+                "eviction_policy"."max_bytes" = cfg.cas-max-bytes;
               };
-        };
-      }
-      {
-        name = "AC_MAIN_STORE";
-        ${if cfg.persistence.enable then "filesystem" else "memory"} =
-          if cfg.persistence.enable then
-            {
+            };
+          }
+          # R2 as slow tier
+          {
+            name = "CAS_R2_STORE";
+            "experimental_s3_store" = {
+              region = "auto";
+              bucket = cfg.r2.bucket;
+              "key_prefix" = cfg.r2.key-prefix;
+              retry = {
+                "max_retries" = 6;
+                delay = 0.3;
+                jitter = 0.5;
+              };
+            }
+            // lib.optionalAttrs (cfg.r2.endpoint != "") {
+              "endpoint_url" = cfg.r2.endpoint;
+            };
+          }
+          # Fast/slow composite for CAS
+          {
+            name = "CAS_MAIN_STORE";
+            "fast_slow" = {
+              fast."ref_store".name = "CAS_LOCAL_STORE";
+              slow."ref_store".name = "CAS_R2_STORE";
+            };
+          }
+          # AC store (local only - action cache doesn't need global persistence)
+          {
+            name = "AC_MAIN_STORE";
+            filesystem = {
               "content_path" = "${cfg.persistence.directory}/ac/content";
               "temp_path" = "${cfg.persistence.directory}/ac/tmp";
               "eviction_policy"."max_bytes" = cfg.ac-max-bytes;
-            }
-          else
-            {
-              "eviction_policy"."max_bytes" = cfg.ac-max-bytes;
             };
-      }
-    ];
+          }
+        ]
+      else
+        [
+          {
+            name = "CAS_MAIN_STORE";
+            compression = {
+              "compression_algorithm".lz4 = { };
+              backend =
+                if cfg.persistence.enable then
+                  {
+                    filesystem = {
+                      "content_path" = "${cfg.persistence.directory}/cas/content";
+                      "temp_path" = "${cfg.persistence.directory}/cas/tmp";
+                      "eviction_policy"."max_bytes" = cfg.cas-max-bytes;
+                    };
+                  }
+                else
+                  {
+                    memory."eviction_policy"."max_bytes" = cfg.cas-max-bytes;
+                  };
+            };
+          }
+          {
+            name = "AC_MAIN_STORE";
+            ${if cfg.persistence.enable then "filesystem" else "memory"} =
+              if cfg.persistence.enable then
+                {
+                  "content_path" = "${cfg.persistence.directory}/ac/content";
+                  "temp_path" = "${cfg.persistence.directory}/ac/tmp";
+                  "eviction_policy"."max_bytes" = cfg.ac-max-bytes;
+                }
+              else
+                {
+                  "eviction_policy"."max_bytes" = cfg.ac-max-bytes;
+                };
+          }
+        ];
 
     schedulers = [
       {
@@ -290,6 +345,53 @@ in
       };
     };
 
+    # R2 backend for global persistent storage
+    r2 = {
+      enable = mk-option {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable Cloudflare R2 as slow tier backend for CAS.
+          Local filesystem becomes a fast LRU cache, R2 provides
+          persistent global storage shared across machines.
+
+          Requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+          environment variables (R2 uses S3-compatible API).
+        '';
+      };
+
+      bucket = mk-option {
+        type = lib.types.str;
+        default = "nativelink-cas";
+        description = "R2 bucket name";
+      };
+
+      endpoint = mk-option {
+        type = lib.types.str;
+        default = "";
+        description = "R2 S3-compatible endpoint URL (e.g., https://<account>.r2.cloudflarestorage.com)";
+      };
+
+      key-prefix = mk-option {
+        type = lib.types.str;
+        default = "cas/";
+        description = "Key prefix for objects in bucket";
+      };
+
+      credentials-file = mk-option {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to file containing R2 credentials as environment variables:
+            AWS_ACCESS_KEY_ID=...
+            AWS_SECRET_ACCESS_KEY=...
+
+          If null, credentials must be provided via EnvironmentFile in systemd
+          or through another mechanism.
+        '';
+      };
+    };
+
     user = mk-option {
       type = lib.types.str;
       default = "nativelink";
@@ -395,6 +497,10 @@ in
 
         "ReadWritePaths" = mk-if cfg.persistence.enable [ cfg.persistence.directory ];
         "LimitNOFILE" = cfg.max-open-files;
+      }
+      # R2 credentials from file (if configured)
+      // lib.optionalAttrs (cfg.r2.enable && cfg.r2.credentials-file != null) {
+        "EnvironmentFile" = cfg.r2.credentials-file;
       };
     };
 

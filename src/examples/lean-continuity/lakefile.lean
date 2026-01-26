@@ -14,3 +14,6 @@ require mathlib from git
 @[default_target]
 lean_lib «Continuity» where
   globs := #[.one `Continuity]
+
+lean_lib «DhallEmbed» where
+  globs := #[.one `DhallEmbed]

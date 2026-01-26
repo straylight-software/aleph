@@ -143,7 +143,7 @@ fn main() -> Result<()> {
 
 /*
 -- BUILD.dhall
-let DICE = https://straylight.dev/dice/v1/package.dhall sha256:...
+let DICE = https://straylight.cx/dice/v1/package.dhall sha256:...
 
 let mylib = DICE.rust_library
     { name = "mylib"

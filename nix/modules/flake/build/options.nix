@@ -156,8 +156,12 @@ in
           type = types.function-to (types.list-of types.package);
           # Full Aleph.Script dependencies - matches src/tools/scripts/BUCK SCRIPT_PACKAGES
           # and nix/overlays/script.nix hsDeps
+          #
+          # Also includes armitage proxy dependencies (TLS MITM, certificates)
+          # and grapesy for future NativeLink CAS integration.
           default =
             hp: with hp; [
+              # ── Aleph.Script core ──────────────────────────────────────────
               megaparsec
               text
               shelly
@@ -179,6 +183,21 @@ in
               mtl
               time
               optparse-applicative
+
+              # ── Armitage proxy (TLS MITM, certificate generation) ─────────
+              network
+              tls # version pinned in haskell.nix overlay
+              crypton-x509
+              crypton-x509-store
+              data-default-class
+              pem
+              asn1-types
+              asn1-encoding
+              hourglass
+
+              # ── gRPC for NativeLink CAS integration ───────────────────────
+              # proto-lens-setup patched for Cabal 3.14+ in haskell.nix
+              grapesy
             ];
           description = "Haskell packages for Buck2 toolchain (receives haskellPackages)";
         };

@@ -1,0 +1,52 @@
+--- a/src/Data/ProtoLens/Setup.hs
++++ b/src/Data/ProtoLens/Setup.hs
+@@ -75,6 +75,9 @@
+ #if MIN_VERSION_Cabal(2,4,0)
+ import Distribution.Simple.Glob (matchDirFileGlob)
+ #endif
++#if MIN_VERSION_Cabal(3,14,0)
++import Distribution.Utils.Path (getSymbolicPath, makeSymbolicPath)
++#endif
+ import Distribution.Simple
+     ( defaultMainWithHooks
+     , simpleUserHooks
+@@ -169,8 +172,14 @@
+   where
+     getProtos l = do
+       -- Replicate Cabal's own logic for parsing file globs.
++#if MIN_VERSION_Cabal(3,14,0)
++      -- Cabal 3.14+ uses SymbolicPath instead of FilePath for extraSrcFiles
++      files <- concat <$> mapM (match $ localPkgDescr l)
++                               (map getSymbolicPath $ extraSrcFiles $ localPkgDescr l)
++#else
+       files <- concat <$> mapM (match $ localPkgDescr l)
+                                (extraSrcFiles $ localPkgDescr l)
++#endif
+       pure
+            . filter (\f -> takeExtension f == ".proto")
+            . map (makeRelative root)
+@@ -178,7 +187,10 @@
+            $ files
+ 
+ match :: PackageDescription -> FilePath -> IO [FilePath]
+-#if MIN_VERSION_Cabal(2,4,0)
++#if MIN_VERSION_Cabal(3,14,0)
++-- Cabal 3.14+ matchDirFileGlob uses SymbolicPath and Maybe for directory
++match desc f = map getSymbolicPath <$> matchDirFileGlob normal (specVersion desc) Nothing (makeSymbolicPath f)
++#elif MIN_VERSION_Cabal(2,4,0)
+ match desc f = matchDirFileGlob normal (specVersion desc) "." f
+ #else
+ match _ f = matchFileGlob f
+@@ -254,7 +266,12 @@
+           let sourcePath = tmpDir </> f
+           sourceExists <- doesFileExist sourcePath
+           when sourceExists $ do
++#if MIN_VERSION_Cabal(3,14,0)
++            -- Cabal 3.14+ autogenComponentModulesDir returns SymbolicPath
++            let dest = getSymbolicPath (autogenComponentModulesDir l compBI) </> f
++#else
+             let dest = autogenComponentModulesDir l compBI </> f
++#endif
+             copyIfDifferent sourcePath dest
+ 
+ -- Note: we do a copy rather than a move since a given module may be used in

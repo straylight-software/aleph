@@ -116,6 +116,10 @@ in
     # ──────────────────────────────────────────────────────────────────────────
     # CAS: content-addressed storage with LZ4 compression
     # Hot path for all blob transfers - size aggressively
+    #
+    # With R2 backend enabled, uses fast_slow store:
+    #   - fast: local filesystem (eviction-based LRU)
+    #   - slow: Cloudflare R2 (S3-compatible, persistent)
     # ──────────────────────────────────────────────────────────────────────────
     cas = {
       port = mk-option {
@@ -133,7 +137,7 @@ in
       max-bytes = mk-option {
         type = types.int;
         default = 500 * 1024 * 1024 * 1024; # 500GB
-        description = "Maximum CAS storage size in bytes";
+        description = "Maximum CAS storage size in bytes (local fast tier)";
       };
 
       cpus = mk-option {
@@ -152,6 +156,40 @@ in
         type = types.str;
         default = "500gb";
         description = "CAS storage volume size";
+      };
+
+      # ────────────────────────────────────────────────────────────────────────
+      # R2 Backend: Cloudflare R2 as slow tier for persistent global storage
+      # ────────────────────────────────────────────────────────────────────────
+      r2 = {
+        enable = mk-option {
+          type = types.bool;
+          default = false;
+          description = "Enable Cloudflare R2 as slow tier backend";
+        };
+
+        bucket = mk-option {
+          type = types.str;
+          default = "nativelink-cas";
+          description = "R2 bucket name";
+        };
+
+        endpoint = mk-option {
+          type = types.str;
+          default = "https://bb63fff6a3d0856513474ee20860a81a.r2.cloudflarestorage.com";
+          description = "R2 S3-compatible endpoint URL";
+        };
+
+        key-prefix = mk-option {
+          type = types.str;
+          default = "cas/";
+          description = "Key prefix for objects in bucket";
+        };
+
+        # Credentials loaded from environment:
+        #   AWS_ACCESS_KEY_ID
+        #   AWS_SECRET_ACCESS_KEY
+        # Set via Fly secrets or local env
       };
     };
 
@@ -200,6 +238,66 @@ in
       default = "ghcr.io/straylight-software/aleph";
       description = "Container registry path for pushing images";
     };
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Nix Proxy: caching HTTP proxy for build-time fetches
+    # Routes cargo, npm, pip, etc. through mitmproxy with content-addressed cache.
+    # Workers set HTTP_PROXY to point at this on Fly internal network.
+    # ──────────────────────────────────────────────────────────────────────────
+    nix-proxy = {
+      enable = mk-option {
+        type = types.bool;
+        default = true;
+        description = "Deploy a caching HTTP proxy for build-time fetches";
+      };
+
+      port = mk-option {
+        type = types.port;
+        default = 8080;
+        description = "HTTP proxy port";
+      };
+
+      cpus = mk-option {
+        type = types.int;
+        default = 2;
+        description = "CPUs for proxy";
+      };
+
+      memory = mk-option {
+        type = types.str;
+        default = "4gb";
+        description = "RAM for proxy";
+      };
+
+      volume-size = mk-option {
+        type = types.str;
+        default = "100gb";
+        description = "Cache volume size";
+      };
+
+      allowlist = mk-option {
+        type = types.listOf types.str;
+        default = [
+          # Nix caches
+          "cache.nixos.org"
+          "nix-community.cachix.org"
+          # Source forges
+          "github.com"
+          "githubusercontent.com"
+          "gitlab.com"
+          "bitbucket.org"
+          # Package registries
+          "crates.io"
+          "static.crates.io"
+          "index.crates.io"
+          "pypi.org"
+          "files.pythonhosted.org"
+          "registry.npmjs.org"
+          "hackage.haskell.org"
+        ];
+        description = "Domain allowlist for proxy (empty = allow all)";
+      };
+    };
   };
   config = mk-if cfg.enable {
     "perSystem" =
@@ -224,6 +322,8 @@ in
         # Fly internal DNS addresses (for container-to-container communication)
         scheduler-addr = "${cfg.fly.app-prefix}-scheduler.internal:${to-string cfg.scheduler.port}";
         cas-addr = "${cfg.fly.app-prefix}-cas.internal:${to-string cfg.cas.port}";
+        nix-proxy-addr = "${cfg.fly.app-prefix}-proxy.internal:${to-string cfg.nix-proxy.port}";
+        nix-proxy-url = "http://${nix-proxy-addr}";
 
         # ──────────────────────────────────────────────────────────────────────
         # NativeLink JSON configs
@@ -310,26 +410,67 @@ in
           ];
         });
 
+        # CAS configuration - uses fast_slow store when R2 is enabled
+        # Fast tier: local filesystem with LRU eviction
+        # Slow tier: Cloudflare R2 (S3-compatible) for persistent global storage
         cas-config = write-text "cas.json" (to-json {
-          stores = [
-            {
-              name = "MAIN_STORE";
-              compression = {
-                "compression_algorithm" = {
-                  lz4 = { };
-                };
-                backend = {
-                  filesystem = {
-                    "content_path" = "${cfg.cas.data-dir}/content";
-                    "temp_path" = "${cfg.cas.data-dir}/temp";
-                    "eviction_policy" = {
-                      "max_bytes" = cfg.cas.max-bytes;
+          stores =
+            if cfg.cas.r2.enable then
+              [
+                # Local filesystem as fast tier (LRU cache)
+                {
+                  name = "LOCAL_FILESYSTEM";
+                  compression = {
+                    "compression_algorithm".lz4 = { };
+                    backend.filesystem = {
+                      "content_path" = "${cfg.cas.data-dir}/content";
+                      "temp_path" = "${cfg.cas.data-dir}/temp";
+                      "eviction_policy"."max_bytes" = cfg.cas.max-bytes;
                     };
                   };
-                };
-              };
-            }
-          ];
+                }
+                # R2 as slow tier (persistent S3-compatible storage)
+                {
+                  name = "R2_STORE";
+                  "experimental_s3_store" = {
+                    region = "auto"; # R2 uses "auto" for region
+                    bucket = cfg.cas.r2.bucket;
+                    "key_prefix" = cfg.cas.r2.key-prefix;
+                    retry = {
+                      "max_retries" = 6;
+                      delay = 0.3;
+                      jitter = 0.5;
+                    };
+                    # Credentials from environment: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+                  }
+                  // optional-attrs (cfg.cas.r2.endpoint != "") {
+                    "endpoint_url" = cfg.cas.r2.endpoint;
+                  };
+                }
+                # Fast/slow composite store
+                {
+                  name = "MAIN_STORE";
+                  "fast_slow" = {
+                    fast."ref_store".name = "LOCAL_FILESYSTEM";
+                    slow."ref_store".name = "R2_STORE";
+                  };
+                }
+              ]
+            else
+              [
+                # Simple filesystem store (no R2)
+                {
+                  name = "MAIN_STORE";
+                  compression = {
+                    "compression_algorithm".lz4 = { };
+                    backend.filesystem = {
+                      "content_path" = "${cfg.cas.data-dir}/content";
+                      "temp_path" = "${cfg.cas.data-dir}/temp";
+                      "eviction_policy"."max_bytes" = cfg.cas.max-bytes;
+                    };
+                  };
+                }
+              ];
           servers = [
             {
               listener = {
@@ -560,6 +701,135 @@ in
             _class = "service";
             config.process.argv = [ "${script}/bin/${script.name}" ];
           };
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Nix Proxy: mitmproxy-based caching proxy for build-time fetches
+        # ──────────────────────────────────────────────────────────────────────
+
+        # Python addon for mitmproxy - caches responses by content hash
+        nix-proxy-addon = pkgs.writeText "nix-proxy-addon.py" ''
+          """
+          mitmproxy addon for Nix build fetch caching and logging.
+
+          - Caches responses by content hash (SHA256)
+          - Logs all fetches for attestation
+          - Enforces domain allowlist
+          """
+          import hashlib
+          import json
+          import os
+          from datetime import datetime
+          from pathlib import Path
+
+          from mitmproxy import ctx, http
+
+          CACHE_DIR = Path(os.environ.get("NIX_PROXY_CACHE_DIR", "/data/cache"))
+          LOG_DIR = Path(os.environ.get("NIX_PROXY_LOG_DIR", "/data/logs"))
+          ALLOWLIST = os.environ.get("NIX_PROXY_ALLOWLIST", "").split(",")
+          ALLOWLIST = [d.strip() for d in ALLOWLIST if d.strip()]
+
+
+          class NixProxyAddon:
+              def __init__(self):
+                  CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                  LOG_DIR.mkdir(parents=True, exist_ok=True)
+                  self.log_file = LOG_DIR / f"fetches-{datetime.now():%Y%m%d}.jsonl"
+
+              def _hash_content(self, content: bytes) -> str:
+                  return hashlib.sha256(content).hexdigest()
+
+              def _cache_path(self, content_hash: str) -> Path:
+                  # Two-level cache path like git objects
+                  return CACHE_DIR / content_hash[:2] / content_hash[2:]
+
+              def _log_fetch(self, url: str, content_hash: str, size: int, cached: bool):
+                  entry = {
+                      "timestamp": datetime.utcnow().isoformat(),
+                      "url": url,
+                      "sha256": content_hash,
+                      "size": size,
+                      "cached": cached,
+                  }
+                  with open(self.log_file, "a") as f:
+                      f.write(json.dumps(entry) + "\n")
+
+              def _check_allowlist(self, host: str) -> bool:
+                  if not ALLOWLIST:
+                      return True
+                  return any(
+                      host == allowed or host.endswith("." + allowed) for allowed in ALLOWLIST
+                  )
+
+              def request(self, flow: http.HTTPFlow):
+                  host = flow.request.host
+                  if not self._check_allowlist(host):
+                      flow.response = http.Response.make(
+                          403, f"Host {host} not in allowlist", {"Content-Type": "text/plain"}
+                      )
+                      ctx.log.warn(f"Blocked request to {host} (not in allowlist)")
+
+              def response(self, flow: http.HTTPFlow):
+                  if flow.response.status_code != 200:
+                      return
+
+                  content = flow.response.content
+                  if not content:
+                      return
+
+                  content_hash = self._hash_content(content)
+                  cache_path = self._cache_path(content_hash)
+                  url = flow.request.pretty_url
+
+                  cached = cache_path.exists()
+                  if not cached:
+                      cache_path.parent.mkdir(parents=True, exist_ok=True)
+                      cache_path.write_bytes(content)
+                      ctx.log.info(f"Cached {url} -> {content_hash[:16]}... ({len(content)} bytes)")
+
+                  self._log_fetch(url, content_hash, len(content), cached)
+
+
+          addons = [NixProxyAddon()]
+        '';
+
+        # Allowlist as comma-separated string
+        nix-proxy-allowlist-str = lib.concatStringsSep "," cfg.nix-proxy.allowlist;
+
+        # Nix proxy entrypoint script
+        nix-proxy-script = write-shell-application {
+          name = "nix-proxy";
+          "runtimeInputs" = [ pkgs.mitmproxy ];
+          "runtimeEnv" = {
+            NIX_PROXY_CACHE_DIR = "/data/cache";
+            NIX_PROXY_LOG_DIR = "/data/logs";
+            NIX_PROXY_ALLOWLIST = nix-proxy-allowlist-str;
+          };
+          text = ''
+            # Create data directories
+            mkdir -p /data/cache /data/logs /data/certs
+
+            # Generate CA cert if not exists
+            if [ ! -f /data/certs/mitmproxy-ca-cert.pem ]; then
+              echo "Generating mitmproxy CA certificate..."
+              mitmdump --set confdir=/data/certs -q &
+              PID=$!
+              sleep 3
+              kill $PID 2>/dev/null || true
+            fi
+
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  Nix Proxy starting on port ${to-string cfg.nix-proxy.port}                         ║"
+            echo "║  Allowlist: ${to-string (builtins.length cfg.nix-proxy.allowlist)} domains                                        ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+
+            exec mitmdump \
+              --listen-host 0.0.0.0 \
+              --listen-port ${to-string cfg.nix-proxy.port} \
+              --set confdir=/data/certs \
+              --scripts ${nix-proxy-addon} \
+              "$@"
+          '';
+        };
 
         # ──────────────────────────────────────────────────────────────────────
         # Fly.io configuration (generated from options)
