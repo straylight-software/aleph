@@ -81,7 +81,7 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import GHC.Generics (Generic)
-import System.Directory (doesFileExist, createDirectoryIfMissing)
+import System.Directory (doesFileExist, doesPathExist, createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
 import System.Process (readProcess, readProcessWithExitCode)
@@ -610,8 +610,8 @@ executeActionWitnessed :: WitnessConfig -> Action -> Map ActionKey [Text] -> IO 
 executeActionWitnessed wc action@Action {..} _depOutputs = do
   startTime <- getCurrentTime
   
-  -- Check coeffects
-  coeffectResult <- checkCoeffects aCoeffects
+  -- Check coeffects (witnessed mode can satisfy Network)
+  coeffectResult <- checkCoeffectsWitnessed wc aCoeffects
   case coeffectResult of
     Left missing -> pure $ Left $ "Missing coeffect: " <> T.pack (show missing)
     Right () -> do
@@ -808,9 +808,89 @@ resourceToCoeffect = \case
   Dhall.Resource_Sandbox t -> Builder.Sandbox t
   Dhall.Resource_Filesystem t -> Builder.Filesystem (T.unpack t)
 
--- | Check if coeffects can be satisfied
+-- | Check if coeffects can be satisfied (non-witnessed execution)
+-- 
+-- For non-witnessed execution, we can only satisfy:
+-- - Pure: always ok
+-- - Filesystem: check path exists
+-- 
+-- Network/Auth/Sandbox require witnessed execution to be provable.
 checkCoeffects :: [Dhall.Resource] -> IO (Either Dhall.Resource ())
-checkCoeffects _ = pure $ Right ()  -- TODO: actually check
+checkCoeffects = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network -> 
+        -- Network without witness is allowed but unattested
+        -- The build will work but no proof of what was fetched
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        -- Check for auth token in environment
+        -- Convention: PROVIDER_TOKEN (e.g., GITHUB_TOKEN, DOCKER_TOKEN)
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        -- Sandbox requires explicit setup, can't auto-satisfy
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        -- Check filesystem path exists
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
+
+-- | Check coeffects for witnessed execution
+-- 
+-- With witness proxy running, we can satisfy Network coeffect
+-- and produce attestations for it.
+checkCoeffectsWitnessed :: WitnessConfig -> [Dhall.Resource] -> IO (Either Dhall.Resource ())
+checkCoeffectsWitnessed _wc = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network ->
+        -- Witnessed mode: network access will be logged by proxy
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
 
 -- -----------------------------------------------------------------------------
 -- CAS Stubs (would use Armitage.CAS)

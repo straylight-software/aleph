@@ -29,6 +29,8 @@ module Main where
 import Control.Exception (try, SomeException)
 import Control.Monad (when, forM_, unless)
 import Data.List (isPrefixOf)
+import Data.Maybe (fromMaybe)
+import Text.Read (readMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -197,8 +199,8 @@ parsePort :: [String] -> Int
 parsePort = go 8080
  where
   go def [] = def
-  go def ("--port" : p : _) = read p
-  go def ("-p" : p : _) = read p
+  go def ("--port" : p : rest) = fromMaybe (go def rest) (readMaybe p)
+  go def ("-p" : p : rest) = fromMaybe (go def rest) (readMaybe p)
   go def (_ : rest) = go def rest
 
 -- | Analyze command - resolve deps and build action graph
@@ -432,7 +434,7 @@ cmdUnroll args = case args of
     parseOutDir (_:rest) = parseOutDir rest
     
     parseDepth [] = 10
-    parseDepth ("-d":n:_) = read n
+    parseDepth ("-d":n:rest) = fromMaybe (parseDepth rest) (readMaybe n)
     parseDepth (_:rest) = parseDepth rest
     
     createDirectoryIfMissing _ _ = pure ()  -- TODO: use System.Directory

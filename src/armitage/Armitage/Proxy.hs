@@ -323,6 +323,8 @@ generateHostCert CA {..} host = do
   (pubKey, privKey) <- generate 256 65537
 
   now <- dateCurrent
+  utcNow <- getCurrentTime
+  
   let notBefore = now
       notAfter = addYears 1 now
 
@@ -334,11 +336,17 @@ generateHostCert CA {..} host = do
 
       -- Subject Alternative Name for the host
       san = ExtSubjectAltName [AltNameDNS host]
+      
+      -- Generate unique serial from SHA256(host ++ timestamp)
+      -- Use first 8 bytes of hash as 64-bit positive integer
+      serialInput = BC.pack host <> BC.pack (iso8601Show utcNow)
+      serialHash = BS.pack $ map (fromIntegral . fromEnum) $ show $ hashWith SHA256 serialInput
+      serialNum = abs $ foldr (\b acc -> acc * 256 + fromIntegral b) 1 (BS.unpack $ BS.take 8 serialHash)
 
       cert =
         Certificate
           { certVersion = 2
-          , certSerial = 12345 -- Should be random
+          , certSerial = serialNum
           , certSignatureAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
           , certIssuerDN = issuerDN
           , certValidity = (notBefore, notAfter)
