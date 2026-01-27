@@ -13,6 +13,7 @@
 #
 # No GCC. No nvcc. Ever.
 
+# NOTE: Must use upstream @prelude types - see toolchains/cxx.bzl for rationale
 load(
     "@prelude//cxx:cxx_toolchain_types.bzl",
     "BinaryUtilitiesInfo",

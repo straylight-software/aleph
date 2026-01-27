@@ -10,7 +10,10 @@
 #   rust_binary    - executable
 #   rust_library   - rlib
 
-# Use prelude types directly - avoids nominal typing mismatch between cells
+# NOTE: Use upstream @prelude types for toolchain provider compatibility.
+# Our custom rust_binary/rust_library rules below don't use the toolchain
+# provider - they read config directly. But if anyone uses prelude rust rules,
+# they'll need the upstream provider type.
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 
 # Provider for rust library outputs

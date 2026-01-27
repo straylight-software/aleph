@@ -17,7 +17,9 @@
 #   haskell_script     - single-file scripts
 #   haskell_test       - test executable
 
-# Use prelude types directly - avoids nominal typing mismatch between cells
+# NOTE: Must use upstream @prelude types for HaskellToolchainInfo since prelude
+# haskell_binary rule expects that provider. Our custom rules (haskell_script,
+# etc.) don't use the toolchain provider - they read config directly.
 load("@prelude//haskell:toolchain.bzl", "HaskellToolchainInfo", "HaskellPlatformInfo")
 
 # ═══════════════════════════════════════════════════════════════════════════════

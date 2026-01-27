@@ -344,11 +344,10 @@ resolvePaths ref attrs = do
 
 extractLibNames :: Map Text Aeson.Value -> [Text]
 extractLibNames attrs =
+  -- Just return the pname as the lib name hint
+  -- Actual library resolution is handled by pkg-config in Armitage.Toolchain
   case Map.lookup "pname" attrs of
-    Just (Aeson.String pname) -> 
-      case Map.lookup pname libNameMap of
-        Just libs -> libs
-        Nothing -> [pname]
+    Just (Aeson.String pname) -> [pname]
     _ -> []
 
 getPropagatedPaths :: Text -> IO [Text]
