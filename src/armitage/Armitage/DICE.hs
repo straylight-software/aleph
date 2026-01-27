@@ -201,7 +201,8 @@ data ResolvedFlake = ResolvedFlake
   deriving stock (Show, Eq, Generic)
 
 -- | Resolve a single flake reference
--- Gets both default and dev outputs for C/C++ packages
+-- TODO: This should use wrappers that know the deps, with strace as verification.
+-- Currently falls back to nix build (slow).
 resolveFlake :: Text -> IO (Either Text ResolvedFlake)
 resolveFlake ref = do
   -- Resolve default output

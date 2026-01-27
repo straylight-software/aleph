@@ -136,6 +136,8 @@ resolveOnePackage ref = do
     ] ++ pkgConfigFlags
 
 -- | Resolve a specific output of a flake ref
+-- TODO: This should use wrappers that know the deps, with strace as verification.
+-- Currently falls back to nix build (slow).
 resolveOutput :: Text -> Text -> IO Text
 resolveOutput ref output = do
   -- Try ref.output first, fall back to ref

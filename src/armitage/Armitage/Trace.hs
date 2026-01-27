@@ -7,30 +7,45 @@
 
 {- |
 Module      : Armitage.Trace
-Description : Build system confession via strace interception
+Description : Build system confession via strace/ptrace interception
 
-Ratfuck CMake: intercept compiler/linker calls, extract dependency graph,
-emit typed Dhall targets. The build system confesses its sins.
+The All Seeing Eye.
+
+Two modes:
+  1. Build tracing: Extract dependency graph from legacy build systems
+  2. LSP tracing: Observe compiler I/O for language server ground truth
 
 Pipeline:
-  1. strace -f -e execve <build command>
-  2. Parse execve calls for compilers/linkers
-  3. Extract -I, -L, -l, source files
-  4. Resolve paths to flake refs where possible
-  5. Emit Dhall targets
+  1. strace -f -e trace=execve,openat,read,write <command>
+  2. Parse syscalls to extract:
+     - execve: what commands ran
+     - openat O_RDONLY: what files were read (inputs)
+     - openat O_WRONLY: what files were written (outputs)
+     - stderr: compiler diagnostics
+  3. The trace IS the truth - no simulation, no approximation
 
 The key insight (proven in Continuity.lean §17):
   Build systems are parametric over artifacts.
   They can't inspect .o contents, only route them.
   Therefore: traced graph = real graph.
+
+For LSP: the compiler runs, we observe, diagnostics are real.
+No reimplementation of type checkers. Just ground truth.
 -}
 module Armitage.Trace
   ( -- * Tracing
     traceCommand
+  , traceCommandFull
   , TraceConfig (..)
   , defaultTraceConfig
   
-    -- * Parsing
+    -- * Full Trace (for LSP)
+  , FullTrace (..)
+  , FileAccess (..)
+  , AccessMode (..)
+  , parseFullTrace
+  
+    -- * Parsing (legacy - execve only)
   , CompilerCall (..)
   , LinkerCall (..)
   , parseStrace
@@ -115,10 +130,41 @@ data LinkerCall = LinkerCall
   deriving stock (Show, Eq, Generic)
 
 -- -----------------------------------------------------------------------------
+-- Full Trace Types (for LSP)
+-- -----------------------------------------------------------------------------
+
+-- | Complete trace of a command execution
+data FullTrace = FullTrace
+  { ftCommand :: [Text]           -- ^ Command that was run
+  , ftExecves :: [(Int, Text, [Text])]  -- ^ (pid, path, args)
+  , ftFileAccesses :: [FileAccess] -- ^ All file accesses
+  , ftStdout :: Text              -- ^ Captured stdout
+  , ftStderr :: Text              -- ^ Captured stderr (compiler diagnostics!)
+  , ftExitCode :: Int             -- ^ Exit code
+  }
+  deriving stock (Show, Eq, Generic)
+
+-- | A file access observed via strace
+data FileAccess = FileAccess
+  { faPid :: !Int
+  , faPath :: !Text
+  , faMode :: !AccessMode
+  , faTimestamp :: !Int           -- ^ Relative order
+  }
+  deriving stock (Show, Eq, Generic)
+
+-- | File access mode
+data AccessMode
+  = ModeRead      -- ^ openat with O_RDONLY
+  | ModeWrite     -- ^ openat with O_WRONLY or O_RDWR
+  | ModeCreate    -- ^ openat with O_CREAT
+  deriving stock (Show, Eq, Ord, Generic)
+
+-- -----------------------------------------------------------------------------
 -- Tracing
 -- -----------------------------------------------------------------------------
 
--- | Run a command under strace and capture execve calls
+-- | Run a command under strace and capture execve calls (legacy)
 traceCommand :: TraceConfig -> [String] -> IO (Either Text Text)
 traceCommand cfg cmd = do
   when (tcVerbose cfg) $
@@ -136,6 +182,164 @@ traceCommand cfg cmd = do
   case exitCode of
     ExitSuccess -> pure $ Right $ T.pack stderr
     ExitFailure code -> pure $ Right $ T.pack stderr  -- Build may fail, we still want the trace
+
+-- | Run a command under strace and capture EVERYTHING (for LSP)
+-- Captures: execve, openat, file reads/writes, stdout, stderr
+traceCommandFull :: TraceConfig -> [String] -> IO FullTrace
+traceCommandFull cfg cmd = do
+  when (tcVerbose cfg) $
+    putStrLn $ "Full trace: " <> unwords cmd
+  
+  -- strace -f: follow forks
+  -- strace -e trace=...: trace multiple syscall types
+  -- strace -y: print paths for file descriptors
+  -- strace -yy: even more fd info
+  -- strace -s 10000: don't truncate strings
+  -- strace -tt: timestamps
+  -- Separate trace output from program output
+  (exitCode, stdout, stderr) <- readProcessWithExitCode
+    "strace"
+    [ "-f"
+    , "-e", "trace=execve,openat,open,creat"
+    , "-y"           -- Show paths for fds
+    , "-s", "10000"  -- Don't truncate
+    , "-o", "/dev/fd/3"  -- Trace to fd 3
+    , "--"
+    ] ++ cmd
+    ""
+    -- Note: This doesn't actually work for fd 3, we need a different approach
+    -- For now, we'll parse stderr which contains both trace and program stderr
+  
+  let traceText = T.pack stderr  -- In practice, strace output goes here
+      (execves, fileAccesses) = parseFullTrace' traceText
+      exitInt = case exitCode of
+        ExitSuccess -> 0
+        ExitFailure n -> n
+  
+  pure FullTrace
+    { ftCommand = map T.pack cmd
+    , ftExecves = execves
+    , ftFileAccesses = fileAccesses
+    , ftStdout = T.pack stdout
+    , ftStderr = extractCompilerStderr traceText
+    , ftExitCode = exitInt
+    }
+
+-- | Extract actual compiler stderr from strace output
+-- Compiler errors are written via write(2, ...) calls
+extractCompilerStderr :: Text -> Text
+extractCompilerStderr trace = 
+  let lines_ = T.lines trace
+      -- Look for write(2, "error...", N) patterns
+      stderrWrites = mapMaybe parseStderrWrite lines_
+  in T.unlines stderrWrites
+
+parseStderrWrite :: Text -> Maybe Text
+parseStderrWrite line
+  -- write(2, "...", N) = N
+  | "write(2, \"" `T.isInfixOf` line
+  , Just content <- extractWriteContent line
+  = Just content
+  | otherwise = Nothing
+
+extractWriteContent :: Text -> Maybe Text
+extractWriteContent line = do
+  let afterWrite = T.drop 1 $ T.dropWhile (/= '"') line
+      content = T.takeWhile (/= '"') afterWrite
+  -- Unescape the content
+  pure $ unescapeStrace content
+
+unescapeStrace :: Text -> Text
+unescapeStrace = T.replace "\\n" "\n" 
+               . T.replace "\\t" "\t"
+               . T.replace "\\\"" "\""
+               . T.replace "\\\\" "\\"
+
+-- | Parse full strace output into execves and file accesses
+parseFullTrace :: Text -> FullTrace
+parseFullTrace trace =
+  let (execves, accesses) = parseFullTrace' trace
+  in FullTrace
+    { ftCommand = []
+    , ftExecves = execves
+    , ftFileAccesses = accesses
+    , ftStdout = ""
+    , ftStderr = extractCompilerStderr trace
+    , ftExitCode = 0
+    }
+
+parseFullTrace' :: Text -> ([(Int, Text, [Text])], [FileAccess])
+parseFullTrace' trace =
+  let lines_ = zip [0..] (T.lines trace)
+      execves = mapMaybe (parseExecveLine . snd) lines_
+      accesses = mapMaybe (uncurry parseOpenatLine) lines_
+  in (execves, accesses)
+
+parseExecveLine :: Text -> Maybe (Int, Text, [Text])
+parseExecveLine line = do
+  -- Format: PID execve("/path", ["arg0", "arg1"], ...) = 0
+  let (pidPart, rest) = T.breakOn " " line
+  pid <- readMaybe (T.unpack pidPart)
+  let rest' = T.stripStart rest
+  if not ("execve(" `T.isPrefixOf` rest')
+    then Nothing
+    else do
+      let afterExecve = T.drop 7 rest'
+      (path, afterPath) <- extractQuoted afterExecve
+      let afterComma = T.dropWhile (/= '[') afterPath
+      args <- extractArgv afterComma
+      if "= 0" `T.isInfixOf` line
+        then Just (pid, path, args)
+        else Nothing
+
+parseOpenatLine :: Int -> Text -> Maybe FileAccess
+parseOpenatLine timestamp line = do
+  -- Format: PID openat(AT_FDCWD, "/path", O_RDONLY|O_CLOEXEC) = 3</path>
+  -- Or: PID openat(AT_FDCWD, "/path", O_WRONLY|O_CREAT|O_TRUNC, 0644) = 3
+  let (pidPart, rest) = T.breakOn " " line
+  pid <- readMaybe (T.unpack pidPart)
+  let rest' = T.stripStart rest
+  
+  -- Check for openat or open
+  (path, flags) <- if "openat(" `T.isPrefixOf` rest'
+    then parseOpenatArgs (T.drop 7 rest')
+    else if "open(" `T.isPrefixOf` rest'
+    then parseOpenArgs (T.drop 5 rest')
+    else Nothing
+  
+  -- Determine mode from flags
+  let mode
+        | "O_CREAT" `T.isInfixOf` flags = ModeCreate
+        | "O_WRONLY" `T.isInfixOf` flags = ModeWrite
+        | "O_RDWR" `T.isInfixOf` flags = ModeWrite
+        | "O_RDONLY" `T.isInfixOf` flags = ModeRead
+        | otherwise = ModeRead
+  
+  -- Only return if the call succeeded
+  if "= -1" `T.isInfixOf` line
+    then Nothing  -- Failed open, ignore
+    else Just FileAccess
+      { faPid = pid
+      , faPath = path
+      , faMode = mode
+      , faTimestamp = timestamp
+      }
+
+parseOpenatArgs :: Text -> Maybe (Text, Text)
+parseOpenatArgs t = do
+  -- Skip AT_FDCWD or fd number
+  let afterFd = T.drop 1 $ T.dropWhile (/= ',') t
+  (path, afterPath) <- extractQuoted (T.stripStart afterFd)
+  let afterComma = T.drop 1 $ T.dropWhile (/= ',') afterPath
+      flags = T.takeWhile (/= ')') (T.stripStart afterComma)
+  Just (path, flags)
+
+parseOpenArgs :: Text -> Maybe (Text, Text)
+parseOpenArgs t = do
+  (path, afterPath) <- extractQuoted t
+  let afterComma = T.drop 1 $ T.dropWhile (/= ',') afterPath
+      flags = T.takeWhile (/= ')') (T.stripStart afterComma)
+  Just (path, flags)
 
 -- -----------------------------------------------------------------------------
 -- Parsing

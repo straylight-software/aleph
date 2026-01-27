@@ -412,6 +412,7 @@ in
   aleph.build = {
     enable = true;
     prelude.enable = true;
+    remote.enable = true; # Fly.io remote execution
     toolchain = {
       cxx.enable = true;
       nv.enable = true;

@@ -38,10 +38,10 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import System.Environment (getArgs, getProgName)
+import System.Environment (getArgs, getProgName, getEnvironment)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
-import System.Process (readProcessWithExitCode)
+import System.Process (readProcessWithExitCode, readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -50,6 +50,7 @@ import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.DICE as DICE
+import qualified Armitage.Shim as Shim
 import qualified Armitage.Trace as Trace
 
 -- -----------------------------------------------------------------------------
@@ -64,6 +65,7 @@ main = do
     ("build" : rest) -> cmdBuild rest
     ("build-dhall" : rest) -> cmdBuildDhall rest
     ("analyze" : rest) -> cmdAnalyze rest
+    ("shim" : rest) -> cmdShim rest
     ("run" : rest) -> cmdRun rest
     ("trace" : rest) -> cmdTrace rest
     ("unroll" : rest) -> cmdUnroll rest
@@ -292,6 +294,175 @@ parsePort = go 8080
   go def ("--port" : p : rest) = fromMaybe (go def rest) (readMaybe p)
   go def ("-p" : p : rest) = fromMaybe (go def rest) (readMaybe p)
   go def (_ : rest) = go def rest
+
+-- | Shim command - run build with fake compilers, extract metadata
+cmdShim :: [String] -> IO ()
+cmdShim args = case args of
+  [] -> shimUsage
+  ("--help" : _) -> shimUsage
+  ("-h" : _) -> shimUsage
+  ("run" : rest) -> shimRun rest
+  ("read" : path : _) -> shimRead path
+  ("log" : _) -> shimLog
+  ("env" : _) -> shimEnv
+  (cmd : _) -> do
+    hPutStrLn stderr $ "Unknown shim command: " <> cmd
+    shimUsage
+    exitFailure
+
+shimUsage :: IO ()
+shimUsage = do
+  hPutStrLn stderr "Usage: armitage shim <command> [options]"
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Run any build system with shim compilers to extract"
+  hPutStrLn stderr "perfect dependency information instantly."
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Commands:"
+  hPutStrLn stderr "  run -- <build cmd>   Run build with shims, extract metadata"
+  hPutStrLn stderr "  read <file>          Read metadata from shim-generated file"
+  hPutStrLn stderr "  log                  Show shim invocation log"
+  hPutStrLn stderr "  env                  Print shim environment variables"
+  hPutStrLn stderr ""
+  hPutStrLn stderr "Examples:"
+  hPutStrLn stderr "  armitage shim run -- cmake --build build/"
+  hPutStrLn stderr "  armitage shim run -- make -j8"
+  hPutStrLn stderr "  armitage shim read ./build/myapp"
+  exitFailure
+
+-- | Run build with shim environment
+shimRun :: [String] -> IO ()
+shimRun args = do
+  let (opts, cmd) = break (== "--") args
+      buildCmd = drop 1 cmd  -- drop the "--"
+  
+  when (null buildCmd) $ do
+    hPutStrLn stderr "Error: No build command specified after --"
+    shimUsage
+  
+  -- Get shim paths from environment or use defaults
+  let shimDir = "/tmp/armitage-shims"
+      logPath = "/tmp/armitage-shim.log"
+      shims = Shim.ShimPaths
+        { Shim.spCC = shimDir <> "/cc"
+        , Shim.spCXX = shimDir <> "/c++"
+        , Shim.spLD = shimDir <> "/ld"
+        , Shim.spAR = shimDir <> "/ar"
+        , Shim.spLogPath = logPath
+        }
+  
+  -- Clear log
+  writeFile logPath ""
+  
+  putStrLn $ "Running with shims: " <> unwords buildCmd
+  putStrLn $ "Log: " <> logPath
+  putStrLn ""
+  
+  -- Build environment
+  let shimEnvVars = Shim.generateShimEnv shims
+  currentEnv <- getEnvironment
+  let fullEnv = shimEnvVars ++ currentEnv
+  
+  -- Run the build
+  case buildCmd of
+    [] -> hPutStrLn stderr "No command to run"
+    (exe:cmdArgs) -> do
+      let p = (proc exe cmdArgs) { env = Just fullEnv }
+      (exitCode, _, _) <- readCreateProcessWithExitCode p ""
+      
+      case exitCode of
+        ExitSuccess -> do
+          putStrLn ""
+          putStrLn "Build completed. Reading metadata..."
+          -- Show summary from log
+          entries <- Shim.parseShimLog logPath
+          putStrLn $ "Shim invocations: " <> show (length entries)
+          let compiles = length [e | e <- entries, Shim.sleTool e == "CC"]
+              links = length [e | e <- entries, Shim.sleTool e == "LD"]
+              archives = length [e | e <- entries, Shim.sleTool e == "AR"]
+          putStrLn $ "  Compiles: " <> show compiles
+          putStrLn $ "  Links: " <> show links
+          putStrLn $ "  Archives: " <> show archives
+        ExitFailure code -> do
+          hPutStrLn stderr $ "Build failed with exit code " <> show code
+
+-- | Read metadata from a shim-generated file
+shimRead :: String -> IO ()
+shimRead path = do
+  putStrLn $ "Reading metadata from: " <> path
+  
+  -- Try as executable first
+  linkInfo <- Shim.readExecutableMetadata path
+  case linkInfo of
+    Just li -> do
+      putStrLn ""
+      putStrLn "Link metadata:"
+      putStrLn $ "  Output: " <> T.unpack (Shim.liOutput li)
+      putStrLn $ "  Objects: " <> show (length $ Shim.liObjects li)
+      forM_ (Shim.liObjects li) $ \obj ->
+        putStrLn $ "    " <> T.unpack obj
+      TIO.putStrLn $ "  Libraries: " <> T.intercalate ", " (Shim.liLibs li)
+      putStrLn $ "  Lib paths: " <> show (length $ Shim.liLibPaths li)
+      putStrLn ""
+      putStrLn "Aggregated compile info:"
+      putStrLn $ "  Sources: " <> show (length $ Shim.liAllSources li)
+      forM_ (Shim.liAllSources li) $ \src ->
+        putStrLn $ "    " <> T.unpack src
+      putStrLn $ "  Includes: " <> show (length $ Shim.liAllIncludes li)
+      forM_ (take 10 $ Shim.liAllIncludes li) $ \inc ->
+        putStrLn $ "    " <> T.unpack inc
+      when (length (Shim.liAllIncludes li) > 10) $
+        putStrLn $ "    ... and " <> show (length (Shim.liAllIncludes li) - 10) <> " more"
+      return ()
+    Nothing -> do
+      -- Try as object
+      objInfo <- Shim.readObjectMetadata path
+      case objInfo of
+        Just ci -> do
+          putStrLn ""
+          putStrLn "Compile metadata:"
+          putStrLn $ "  Output: " <> T.unpack (Shim.ciOutput ci)
+          TIO.putStrLn $ "  Sources: " <> T.intercalate ", " (Shim.ciSources ci)
+          putStrLn $ "  Includes: " <> show (length $ Shim.ciIncludes ci)
+          forM_ (Shim.ciIncludes ci) $ \inc ->
+            putStrLn $ "    " <> T.unpack inc
+          TIO.putStrLn $ "  Defines: " <> T.intercalate ", " (Shim.ciDefines ci)
+          TIO.putStrLn $ "  Flags: " <> T.intercalate " " (Shim.ciFlags ci)
+        Nothing ->
+          putStrLn "No armitage metadata found in file"
+
+-- | Show shim invocation log
+shimLog :: IO ()
+shimLog = do
+  let logPath = "/tmp/armitage-shim.log"
+  entries <- Shim.parseShimLog logPath
+  if null entries
+    then putStrLn "No shim log entries found"
+    else do
+      putStrLn $ "Shim log (" <> show (length entries) <> " entries):"
+      putStrLn ""
+      forM_ entries $ \e -> do
+        TIO.putStrLn $ "[" <> Shim.sleTimestamp e <> "] " 
+                    <> Shim.sleTool e <> " "
+                    <> T.intercalate " " (take 5 $ Shim.sleArgs e)
+                    <> if length (Shim.sleArgs e) > 5 then " ..." else ""
+
+-- | Print shim environment
+shimEnv :: IO ()
+shimEnv = do
+  let shimDir = "/tmp/armitage-shims"
+      logPath = "/tmp/armitage-shim.log"
+      shims = Shim.ShimPaths
+        { Shim.spCC = shimDir <> "/cc"
+        , Shim.spCXX = shimDir <> "/c++"
+        , Shim.spLD = shimDir <> "/ld"
+        , Shim.spAR = shimDir <> "/ar"
+        , Shim.spLogPath = logPath
+        }
+  let envVars = Shim.generateShimEnv shims
+  putStrLn "# Shim environment variables"
+  putStrLn "# eval $(armitage shim env)"
+  forM_ envVars $ \(k, v) ->
+    putStrLn $ "export " <> k <> "=\"" <> v <> "\""
 
 -- | Analyze command - resolve deps and build action graph
 cmdAnalyze :: [String] -> IO ()
@@ -668,8 +839,9 @@ usage = do
   putStrLn "  build <drv>        Build derivation without daemon"
   putStrLn "  build-dhall <file> Build from Dhall target file"
   putStrLn "  analyze <file>     Analyze deps and build action graph"
+  putStrLn "  shim <cmd>         Run build with shims, extract deps (instant)"
   putStrLn "  run <file>         Analyze and execute build"
-  putStrLn "  trace -- <cmd>     Trace build, extract Dhall targets"
+  putStrLn "  trace -- <cmd>     Trace build via strace (verification)"
   putStrLn "  unroll <ref>       Recursively trace flake ref and deps"
   putStrLn "  proxy              Run witness proxy"
   putStrLn "  store <cmd>        Store operations"
