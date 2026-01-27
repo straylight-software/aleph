@@ -1,0 +1,21 @@
+# Test fetching and building crates from crates.io
+
+load("@toolchains//:rust_crate.bzl", "crates_io", "rust_crate")
+load("@toolchains//:rust.bzl", "rust_binary")
+load("@straylight_prelude//http_archive.bzl", "http_archive")
+
+# Simple crate with no dependencies
+crates_io(
+    name = "once_cell",
+    version = "1.21.3",
+    sha256 = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d",
+    features = ["std"],
+)
+
+# Test binary using the crate
+rust_binary(
+    name = "test_once_cell",
+    srcs = ["test_once_cell.rs"],
+    deps = [":once_cell"],
+    edition = "2021",
+)

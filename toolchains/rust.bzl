@@ -16,10 +16,14 @@
 # they'll need the upstream provider type.
 load("@prelude//rust:rust_toolchain.bzl", "PanicRuntime", "RustToolchainInfo")
 
+# Import RustCrateInfo so we can handle deps from crates_io()
+load("@toolchains//rust_crate.bzl", "RustCrateInfo")
+
 # Provider for rust library outputs
 RustLibraryInfo = provider(fields = [
-    "rlib",        # The .rlib artifact
-    "crate_name",  # Crate name for --extern
+    "rlib",           # The .rlib artifact
+    "crate_name",     # Crate name for --extern
+    "transitive_deps", # List of all transitive rlib artifacts (for -L paths)
 ])
 
 def _rust_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -105,15 +109,31 @@ def _rust_binary_impl(ctx: AnalysisContext) -> list[Provider]:
     # Output
     cmd.add("-o", out.as_output())
     
-    # Collect deps (rlibs)
+    # Collect deps (rlibs) - handle both RustLibraryInfo and RustCrateInfo
     for dep in ctx.attrs.deps:
         if RustLibraryInfo in dep:
             lib_info = dep[RustLibraryInfo]
             cmd.add(cmd_args("--extern", cmd_args(lib_info.crate_name, "=", lib_info.rlib, delimiter = "")))
+            # Add search path for RustLibraryInfo deps too
+            cmd.add(cmd_args(lib_info.rlib, format = "-Ldependency={}", parent = 1))
+            # Add search paths for all transitive deps
+            for trans_rlib in lib_info.transitive_deps:
+                cmd.add(cmd_args(trans_rlib, format = "-Ldependency={}", parent = 1))
+        elif RustCrateInfo in dep:
+            crate_info = dep[RustCrateInfo]
+            cmd.add(cmd_args("--extern", cmd_args(crate_info.crate_name, "=", crate_info.rlib, delimiter = "")))
+            # Add search path for this dep
+            cmd.add(cmd_args(crate_info.rlib, format = "-Ldependency={}", parent = 1))
+            # Add search paths for all transitive deps
+            for trans_rlib in crate_info.transitive_deps:
+                cmd.add(cmd_args(trans_rlib, format = "-Ldependency={}", parent = 1))
     
-    # Sources
-    for src in ctx.attrs.srcs:
-        cmd.add(src)
+    # Binary root is the first source file
+    # Other sources are included as hidden deps so they're tracked for rebuilds
+    if ctx.attrs.srcs:
+        cmd.add(ctx.attrs.srcs[0])
+        if len(ctx.attrs.srcs) > 1:
+            cmd.add(cmd_args(hidden = ctx.attrs.srcs[1:]))
     
     ctx.actions.run(cmd, category = "rustc")
     
@@ -137,17 +157,27 @@ rust_binary = rule(
 
 def _rust_library_impl(ctx: AnalysisContext) -> list[Provider]:
     """
-    Build a Rust library (rlib).
+    Build a Rust library (rlib or proc-macro).
+    
+    The first source file is treated as the crate root (lib.rs).
+    Other sources are tracked as dependencies but not passed directly to rustc.
     """
     rustc = read_root_config("rust", "rustc", "rustc")
     
     crate_name = ctx.attrs.crate_name or ctx.attrs.name
-    out = ctx.actions.declare_output("lib{}.rlib".format(crate_name))
+    
+    # Determine crate type and output extension
+    if ctx.attrs.proc_macro:
+        out = ctx.actions.declare_output("lib{}.so".format(crate_name))
+        crate_type = "proc-macro"
+    else:
+        out = ctx.actions.declare_output("lib{}.rlib".format(crate_name))
+        crate_type = "rlib"
     
     cmd = cmd_args([rustc])
     
-    # Build rlib
-    cmd.add("--crate-type", "rlib")
+    # Build crate
+    cmd.add("--crate-type", crate_type)
     cmd.add("--crate-name", crate_name)
     
     # Edition
@@ -159,21 +189,54 @@ def _rust_library_impl(ctx: AnalysisContext) -> list[Provider]:
     # Output
     cmd.add("-o", out.as_output())
     
-    # Collect deps
+    # Proc-macro crates need access to the proc_macro crate from sysroot
+    if ctx.attrs.proc_macro:
+        cmd.add("--extern", "proc_macro")
+    
+    # Features
+    for feature in ctx.attrs.features:
+        cmd.add("--cfg", 'feature="{}"'.format(feature))
+    
+    # Collect transitive deps for propagation
+    transitive_deps = []
+    
+    # Collect deps - handle both RustLibraryInfo and RustCrateInfo
     for dep in ctx.attrs.deps:
         if RustLibraryInfo in dep:
             lib_info = dep[RustLibraryInfo]
             cmd.add(cmd_args("--extern", cmd_args(lib_info.crate_name, "=", lib_info.rlib, delimiter = "")))
+            # Add search path for RustLibraryInfo deps too
+            cmd.add(cmd_args(lib_info.rlib, format = "-Ldependency={}", parent = 1))
+            # Collect this dep's rlib for transitive propagation
+            transitive_deps.append(lib_info.rlib)
+            # Also add all of its transitive deps
+            for trans_rlib in lib_info.transitive_deps:
+                cmd.add(cmd_args(trans_rlib, format = "-Ldependency={}", parent = 1))
+                transitive_deps.append(trans_rlib)
+        elif RustCrateInfo in dep:
+            crate_info = dep[RustCrateInfo]
+            cmd.add(cmd_args("--extern", cmd_args(crate_info.crate_name, "=", crate_info.rlib, delimiter = "")))
+            # Add search path for this dep
+            cmd.add(cmd_args(crate_info.rlib, format = "-Ldependency={}", parent = 1))
+            # Collect this dep's rlib for transitive propagation
+            transitive_deps.append(crate_info.rlib)
+            # Add search paths for all transitive deps
+            for trans_rlib in crate_info.transitive_deps:
+                cmd.add(cmd_args(trans_rlib, format = "-Ldependency={}", parent = 1))
+                transitive_deps.append(trans_rlib)
     
-    # Sources
-    for src in ctx.attrs.srcs:
-        cmd.add(src)
+    # Crate root is the first source file
+    # Other sources are included as hidden deps so they're tracked for rebuilds
+    if ctx.attrs.srcs:
+        cmd.add(ctx.attrs.srcs[0])
+        if len(ctx.attrs.srcs) > 1:
+            cmd.add(cmd_args(hidden = ctx.attrs.srcs[1:]))
     
     ctx.actions.run(cmd, category = "rustc")
     
     return [
         DefaultInfo(default_output = out),
-        RustLibraryInfo(rlib = out, crate_name = crate_name),
+        RustLibraryInfo(rlib = out, crate_name = crate_name, transitive_deps = transitive_deps),
     ]
 
 rust_library = rule(
@@ -183,5 +246,7 @@ rust_library = rule(
         "deps": attrs.list(attrs.dep(), default = []),
         "edition": attrs.string(default = "2021"),
         "crate_name": attrs.option(attrs.string(), default = None),
+        "proc_macro": attrs.bool(default = False),
+        "features": attrs.list(attrs.string(), default = []),
     },
 )
