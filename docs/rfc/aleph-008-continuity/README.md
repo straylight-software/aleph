@@ -711,15 +711,69 @@ What's left of "Nix" as we know it?
 | 4 | Armitage witness proxy | **Complete** |
 | 5 | Armitage OCI container (nix2gpu) | **Complete** |
 | 6 | isospin TAP networking | **Complete** |
-| 7 | **NativeLink CAS integration** | **Next** |
-| 8 | **Graded monad executor** | Design |
-| 9 | Nix binary cache facade | Planned |
-| 10 | Lean proof discharge | Planned |
-| 11 | Dhall rule schemas | Draft |
-| 12 | R2 store backend | Planned |
-| 13 | DICE (Buck2 fork) | Planned |
-| 14 | stochastic_omega tactic | Research |
-| 15 | nvidia.ko in Lean | Research |
+| 7 | NativeLink CAS integration | **Complete** (gRPC client, upload/download) |
+| 8 | Armitage RE client | **Complete** (hand-rolled protobuf, Execute API) |
+| 9 | Buck2 minimal prelude | **Complete** (~5.6k LOC, 57 modules) |
+| 10 | DICE reference (Rust) | **Complete** (Meta's DICE, 36k LOC, benchmarks run) |
+| 11 | Armitage DICE (Haskell) | **In Progress** (~1k LOC core) |
+| 12 | tvix-eval integration | **Evaluation** (nixpkgs-compat, not bug-for-bug) |
+| 13 | Graded monad executor | Design |
+| 14 | Dhall rule schemas | Draft |
+| 15 | R2 store backend | Planned |
+| 16 | Lean proof discharge | Research |
+| 17 | stochastic_omega tactic | Research |
+
+### Current Implementation Stats
+
+```
+aleph/
+├── src/armitage/           7.7k LOC Haskell
+│   ├── DICE.hs               975 LOC  - incremental computation core
+│   ├── Proto.hs              910 LOC  - hand-rolled RE protobuf
+│   ├── Proxy.hs              890 LOC  - witness proxy
+│   ├── Dhall.hs              742 LOC  - BUILD.dhall evaluation
+│   ├── RE.hs                 663 LOC  - remote execution client
+│   ├── Builder.hs            583 LOC  - build orchestration
+│   ├── Trace.hs              518 LOC  - execution traces
+│   ├── Nix.hs                499 LOC  - nix compatibility
+│   ├── CAS.hs                380 LOC  - content-addressed storage
+│   ├── Store.hs              348 LOC  - artifact store
+│   └── Toolchain.hs          317 LOC  - toolchain management
+│
+├── src/dice-rs/           36.1k LOC Rust (Meta's DICE, ported)
+│   ├── dice/              19.2k LOC  - core engine
+│   ├── allocative/         4.1k LOC  - memory profiling
+│   ├── dice_futures/       2.4k LOC  - async/cancellation
+│   └── ...support crates
+│
+└── prelude/                5.6k LOC Starlark (minimal Buck2 prelude)
+    └── 57 modules (haskell, cxx, linking, platforms, etc.)
+```
+
+### External Dependencies
+
+| Component | Source | Status | Notes |
+|-----------|--------|--------|-------|
+| Buck2 | Meta | Nix flake input | Hermetic Rust/Haskell toolchains |
+| NativeLink | TraceMachina | Nix flake input | RE backend (Fly.io deployment) |
+| tvix-eval | TVL | **Evaluating** | ~16k LOC, nixpkgs-compat |
+| tvix nix-compat | TVL | **Usable** | ~2k LOC, derivation hashing |
+| rnix-parser | nix-community | Via tvix | AST parsing |
+
+### The Nix Escape Plan
+
+```
+Current:  Nix lang → nix-daemon → /nix/store
+          ────────────────────────────────────
+Phase 1:  Nix lang → armitage → NativeLink CAS    ← WE ARE HERE
+          (tvix-eval)  (witness)
+          ────────────────────────────────────
+Phase 2:  Dhall → armitage → NativeLink CAS
+          (typed)  (DICE)
+          ────────────────────────────────────
+Phase 3:  Dhall → DICE → R2 + git
+          (no nix evaluator in path)
+```
 
 ## Component Index
 
@@ -729,6 +783,70 @@ What's left of "Nix" as we know it?
 | [armitage.md](armitage.md) | Nix compatibility layer, coeffects, graded monad execution |
 | [dhall-bridge.md](dhall-bridge.md) | Dhall → Buck2 translation options |
 | [ROADMAP.md](ROADMAP.md) | Timeline and milestones |
+
+## tvix: The Clean Nix Implementation
+
+For temporary Nix language compatibility, we use [tvix](https://tvix.dev/) components:
+
+### Why tvix, not C++ Nix
+
+| Aspect | C++ Nix | tvix |
+|--------|---------|------|
+| Language | C++ | Rust |
+| Architecture | Monolithic daemon | Modular crates |
+| Store coupling | Eval ↔ Store tightly coupled | Eval independent of store |
+| Bug compatibility | THE bugs | nixpkgs-compatible only |
+| Codebase | ~100k LOC | ~16k LOC (eval) |
+
+### tvix Components We Use
+
+```
+tvix/
+├── eval/           16k LOC  - Nix language evaluator (bytecode VM)
+│   ├── compiler/    3k LOC  - AST → bytecode
+│   ├── vm/          2k LOC  - 52 opcodes
+│   ├── value/       4k LOC  - runtime values
+│   └── builtins/    2k LOC  - 80 builtins
+│
+├── nix-compat/      2k LOC  - Derivation hashing, NAR, store paths
+│   ├── derivation/  308 LOC - THE important part
+│   └── store_path/  500 LOC - hash calculations
+│
+└── simstore/              - Dummy store for eval-only
+```
+
+### What tvix Gets Right
+
+1. **Separation of concerns**: eval doesn't need a store to run
+2. **`hashDerivationModulo`**: correctly implemented in 50 lines
+3. **Not bug-for-bug**: only replicates behavior nixpkgs needs
+4. **Content-addressed from the start**: no legacy input-addressed paths
+
+### What We Skip
+
+| Component | Why Skip |
+|-----------|----------|
+| tvix-build | We have armitage |
+| tvix-store | We use NativeLink CAS |
+| nix-daemon compat | We don't want daemon protocol |
+| Flakes | Flakes are a mistake |
+
+### Integration Path
+
+```haskell
+-- Option 1: FFI to tvix-eval
+evalNix :: Text -> IO (Either Error NixValue)
+evalNix expr = withTvixEval $ \eval -> do
+    result <- tvix_eval_expr eval expr
+    marshalValue result
+
+-- Option 2: Port nix-compat to Haskell (~800 LOC)
+hashDerivationModulo :: Derivation -> (StorePath -> Digest) -> Digest
+hashDerivationModulo drv lookupDep = ...
+```
+
+The key insight: we only need `nix-compat` (~2k LOC) long-term.
+The evaluator is temporary until Dhall replaces Nix lang.
 
 ## Bucket Layout
 
