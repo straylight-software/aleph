@@ -199,13 +199,13 @@ traceCommandFull cfg cmd = do
   -- Separate trace output from program output
   (exitCode, stdout, stderr) <- readProcessWithExitCode
     "strace"
-    [ "-f"
+    ([ "-f"
     , "-e", "trace=execve,openat,open,creat"
     , "-y"           -- Show paths for fds
     , "-s", "10000"  -- Don't truncate
     , "-o", "/dev/fd/3"  -- Trace to fd 3
     , "--"
-    ] ++ cmd
+    ] ++ cmd)
     ""
     -- Note: This doesn't actually work for fd 3, we need a different approach
     -- For now, we'll parse stderr which contains both trace and program stderr

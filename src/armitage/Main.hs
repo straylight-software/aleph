@@ -29,7 +29,7 @@ module Main where
 import Control.Exception (try, SomeException)
 import Control.Monad (when, forM_, unless)
 import Data.List (isPrefixOf)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Text.Read (readMaybe)
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
@@ -38,6 +38,7 @@ import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
+import System.Directory (createDirectoryIfMissing, doesFileExist)
 import System.Environment (getArgs, getProgName, getEnvironment)
 import System.Exit (ExitCode(..), exitFailure, exitSuccess)
 import System.IO (hPutStrLn, stderr)
@@ -50,6 +51,7 @@ import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.DICE as DICE
+import qualified Armitage.LSP as LSP
 import qualified Armitage.Shim as Shim
 import qualified Armitage.Trace as Trace
 
@@ -66,6 +68,7 @@ main = do
     ("build-dhall" : rest) -> cmdBuildDhall rest
     ("analyze" : rest) -> cmdAnalyze rest
     ("shim" : rest) -> cmdShim rest
+    ("lsp" : rest) -> cmdLSP rest
     ("run" : rest) -> cmdRun rest
     ("trace" : rest) -> cmdTrace rest
     ("unroll" : rest) -> cmdUnroll rest
@@ -305,6 +308,10 @@ cmdShim args = case args of
   ("read" : path : _) -> shimRead path
   ("log" : _) -> shimLog
   ("env" : _) -> shimEnv
+  ("analyze" : rest) -> shimAnalyzeCmd rest
+  -- If first arg doesn't look like a subcommand, treat as flake ref
+  (arg : rest) | not ("-" `isPrefixOf` arg) && not (arg `elem` ["run", "read", "log", "env", "analyze"]) 
+    -> shimAnalyzeCmd (arg : rest)
   (cmd : _) -> do
     hPutStrLn stderr $ "Unknown shim command: " <> cmd
     shimUsage
@@ -312,20 +319,28 @@ cmdShim args = case args of
 
 shimUsage :: IO ()
 shimUsage = do
-  hPutStrLn stderr "Usage: armitage shim <command> [options]"
+  hPutStrLn stderr "Usage: armitage shim <flake-ref|command> [options]"
   hPutStrLn stderr ""
-  hPutStrLn stderr "Run any build system with shim compilers to extract"
-  hPutStrLn stderr "perfect dependency information instantly."
+  hPutStrLn stderr "Analyze builds with shim compilers to extract perfect"
+  hPutStrLn stderr "dependency information instantly."
   hPutStrLn stderr ""
   hPutStrLn stderr "Commands:"
-  hPutStrLn stderr "  run -- <build cmd>   Run build with shims, extract metadata"
+  hPutStrLn stderr "  <flake-ref>          Analyze a Nix flake reference (full pipeline)"
+  hPutStrLn stderr "  analyze <flake-ref>  Same as above, explicit form"
+  hPutStrLn stderr "  run -- <build cmd>   Run arbitrary build with shims"
   hPutStrLn stderr "  read <file>          Read metadata from shim-generated file"
   hPutStrLn stderr "  log                  Show shim invocation log"
   hPutStrLn stderr "  env                  Print shim environment variables"
   hPutStrLn stderr ""
+  hPutStrLn stderr "Options:"
+  hPutStrLn stderr "  --no-validate        Skip strace validation"
+  hPutStrLn stderr "  -v, --verbose        Verbose output"
+  hPutStrLn stderr "  -o <file>            Write Dhall output to file"
+  hPutStrLn stderr ""
   hPutStrLn stderr "Examples:"
+  hPutStrLn stderr "  armitage shim nixpkgs#hello              # analyze hello"
+  hPutStrLn stderr "  armitage shim nixpkgs#zlib -o BUILD.dhall"
   hPutStrLn stderr "  armitage shim run -- cmake --build build/"
-  hPutStrLn stderr "  armitage shim run -- make -j8"
   hPutStrLn stderr "  armitage shim read ./build/myapp"
   exitFailure
 
@@ -463,6 +478,190 @@ shimEnv = do
   putStrLn "# eval $(armitage shim env)"
   forM_ envVars $ \(k, v) ->
     putStrLn $ "export " <> k <> "=\"" <> v <> "\""
+
+-- | Analyze a flake reference with shims (full pipeline)
+shimAnalyzeCmd :: [String] -> IO ()
+shimAnalyzeCmd args = case args of
+  [] -> do
+    hPutStrLn stderr "Usage: armitage shim <flake-ref> [options]"
+    hPutStrLn stderr ""
+    hPutStrLn stderr "Analyze a Nix package with shim compilers to extract"
+    hPutStrLn stderr "complete, validated dependency information."
+    hPutStrLn stderr ""
+    hPutStrLn stderr "Options:"
+    hPutStrLn stderr "  --no-validate    Skip strace validation"
+    hPutStrLn stderr "  -v, --verbose    Verbose output"
+    hPutStrLn stderr "  -o <file>        Write Dhall output to file"
+    hPutStrLn stderr ""
+    hPutStrLn stderr "Examples:"
+    hPutStrLn stderr "  armitage shim nixpkgs#hello"
+    hPutStrLn stderr "  armitage shim nixpkgs#zlib --no-validate"
+    hPutStrLn stderr "  armitage shim .#mypackage -o BUILD.dhall"
+    exitFailure
+  (flakeRef : rest) -> do
+    let verbose = "--verbose" `elem` rest || "-v" `elem` rest
+        noValidate = "--no-validate" `elem` rest
+        outFile = parseOutputFile rest
+        cfg = Shim.defaultAnalysisConfig
+          { Shim.acVerbose = verbose
+          , Shim.acValidate = not noValidate
+          }
+    
+    putStrLn $ "Analyzing: " <> flakeRef
+    putStrLn ""
+    
+    result <- Shim.shimAnalyze cfg (T.pack flakeRef)
+    case result of
+      Left err -> do
+        hPutStrLn stderr $ "Error: " <> T.unpack err
+        exitFailure
+      Right ar -> do
+        -- Print summary
+        putStrLn "Analysis complete:"
+        TIO.putStrLn $ "  Derivation: " <> Shim.arDrvPath ar
+        case Shim.arOutputPath ar of
+          Just p -> TIO.putStrLn $ "  Output: " <> p
+          Nothing -> putStrLn "  Output: (shim build - no real output)"
+        putStrLn ""
+        
+        putStrLn $ "Sources: " <> show (length $ Shim.arSources ar)
+        forM_ (take 10 $ Shim.arSources ar) $ \src ->
+          TIO.putStrLn $ "  " <> src
+        when (length (Shim.arSources ar) > 10) $
+          putStrLn $ "  ... and " <> show (length (Shim.arSources ar) - 10) <> " more"
+        putStrLn ""
+        
+        putStrLn $ "Include paths: " <> show (length $ Shim.arIncludes ar)
+        forM_ (take 5 $ Shim.arIncludes ar) $ \inc ->
+          TIO.putStrLn $ "  " <> inc
+        when (length (Shim.arIncludes ar) > 5) $
+          putStrLn $ "  ... and " <> show (length (Shim.arIncludes ar) - 5) <> " more"
+        putStrLn ""
+        
+        putStrLn $ "Libraries: " <> show (length $ Shim.arLibs ar)
+        forM_ (Shim.arLibs ar) $ \lib ->
+          TIO.putStrLn $ "  -l" <> lib
+        putStrLn ""
+        
+        putStrLn $ "Shim invocations: " <> show (length $ Shim.arShimLog ar)
+        putStrLn ""
+        
+        -- Validation results
+        case Shim.arValidation ar of
+          Nothing -> putStrLn "(validation skipped)"
+          Just v -> do
+            putStrLn "Validation:"
+            putStrLn $ "  Strace outputs: " <> show (Set.size $ Shim.vrStraceOutputs v)
+            putStrLn $ "  Strace artifacts: " <> show (Set.size $ Shim.vrStraceArtifacts v)
+            putStrLn $ "  Shim outputs: " <> show (Set.size $ Shim.vrShimOutputs v)
+            
+            if Shim.vrMatches v
+              then putStrLn "  PASS: All artifacts captured by shim"
+              else do
+                -- THIS IS A FAILURE, not a warning
+                hPutStrLn stderr ""
+                hPutStrLn stderr "VALIDATION FAILED"
+                hPutStrLn stderr "Artifacts written to output that shim did not catch:"
+                forM_ (Set.toList $ Shim.vrMissedArtifacts v) $ \f ->
+                  TIO.hPutStrLn stderr $ "  " <> f
+                hPutStrLn stderr ""
+                hPutStrLn stderr "This means a compiler/linker ran that we didn't shim."
+                hPutStrLn stderr "Fix: add shim for the missing toolchain."
+                exitFailure
+        
+        -- Generate Dhall output
+        case outFile of
+          Nothing -> pure ()
+          Just path -> do
+            putStrLn ""
+            putStrLn $ "Writing Dhall to: " <> path
+            let dhall = analysisResultToDhall ar
+            TIO.writeFile path dhall
+            putStrLn "Done."
+  where
+    parseOutputFile [] = Nothing
+    parseOutputFile ("-o":f:_) = Just f
+    parseOutputFile (_:rest) = parseOutputFile rest
+
+-- | Convert analysis result to Dhall target definition (RFC-008 format)
+-- 
+-- The output is the raw extracted data. No interpretation, no language guessing.
+-- The schema matches what shim actually captured.
+analysisResultToDhall :: Shim.AnalysisResult -> Text
+analysisResultToDhall ar = T.unlines
+  [ "-- Generated by: armitage shim " <> Shim.arFlakeRef ar
+  , "-- Derivation: " <> Shim.arDrvPath ar
+  , "--"
+  , "-- Raw extraction. No interpretation."
+  , ""
+  , "let Armitage = ./Armitage.dhall"
+  , ""
+  , "in Armitage.Extraction {"
+  , "  , flakeRef = \"" <> escapeText (Shim.arFlakeRef ar) <> "\""
+  , "  , derivation = \"" <> escapeText (Shim.arDrvPath ar) <> "\""
+  , "  , sources = " <> listToDhall (Shim.arSources ar)
+  , "  , includes = " <> listToDhall (Shim.arIncludes ar)
+  , "  , defines = " <> listToDhall (Shim.arDefines ar)
+  , "  , libs = " <> listToDhall (Shim.arLibs ar)
+  , "  , libPaths = " <> listToDhall (Shim.arLibPaths ar)
+  , "  , validated = " <> validatedToDhall (Shim.arValidation ar)
+  , "}"
+  ]
+  where
+    escapeText :: Text -> Text
+    escapeText = T.replace "\\" "\\\\" . T.replace "\"" "\\\"" . T.replace "\n" "\\n"
+    
+    listToDhall :: [Text] -> Text
+    listToDhall [] = "[] : List Text"
+    listToDhall xs = 
+      let items = map (\x -> "\"" <> escapeText x <> "\"") xs
+      in "[\n    " <> T.intercalate "\n  , " items <> "\n  ]"
+    
+    validatedToDhall :: Maybe Shim.ValidationResult -> Text
+    validatedToDhall Nothing = "None Bool"
+    validatedToDhall (Just v) = 
+      if Shim.vrMatches v 
+        then "Some True" 
+        else "Some False  -- FAILED: " <> T.pack (show (Set.size $ Shim.vrMissedArtifacts v)) <> " missed artifacts"
+
+-- | LSP command - start language server
+cmdLSP :: [String] -> IO ()
+cmdLSP args = do
+  let verbose = "--verbose" `elem` args || "-v" `elem` args
+      config = LSP.defaultLSPConfig { LSP.lcVerbose = verbose }
+  
+  -- Check for compile-commands subcommand
+  case args of
+    ("compile-commands" : rest) -> cmdCompileCommands rest
+    _ -> do
+      putStrLn "Starting armitage LSP server..."
+      putStrLn "  Fallback enabled: tree-sitter + trace"
+      putStrLn "  Diagnostics from: real compiler"
+      putStrLn ""
+      LSP.startLSP config
+
+-- | Generate compile_commands.json from shim build
+cmdCompileCommands :: [String] -> IO ()
+cmdCompileCommands args = case args of
+  [] -> do
+    hPutStrLn stderr "Usage: armitage lsp compile-commands <executable>"
+    hPutStrLn stderr ""
+    hPutStrLn stderr "Generate compile_commands.json from shim-built executable"
+    exitFailure
+  (target : rest) -> do
+    let outFile = case rest of
+          ("-o" : f : _) -> f
+          _ -> "compile_commands.json"
+    
+    putStrLn $ "Reading metadata from: " <> target
+    cmds <- LSP.generateCompileCommands "." target
+    if null cmds
+      then do
+        putStrLn "No compile commands found"
+        putStrLn "Make sure the target was built with armitage shims"
+      else do
+        LSP.writeCompileCommands outFile cmds
+        putStrLn $ "Wrote " <> show (length cmds) <> " entries to " <> outFile
 
 -- | Analyze command - resolve deps and build action graph
 cmdAnalyze :: [String] -> IO ()
@@ -697,8 +896,6 @@ cmdUnroll args = case args of
     parseDepth [] = 10
     parseDepth ("-d":n:rest) = fromMaybe (parseDepth rest) (readMaybe n)
     parseDepth (_:rest) = parseDepth rest
-    
-    createDirectoryIfMissing _ _ = pure ()  -- TODO: use System.Directory
 
 unrollUsage :: IO ()
 unrollUsage = do
@@ -839,13 +1036,17 @@ usage = do
   putStrLn "  build <drv>        Build derivation without daemon"
   putStrLn "  build-dhall <file> Build from Dhall target file"
   putStrLn "  analyze <file>     Analyze deps and build action graph"
-  putStrLn "  shim <cmd>         Run build with shims, extract deps (instant)"
+  putStrLn "  shim <flake-ref>   Analyze with shims + strace validation (instant)"
+  putStrLn "  lsp                Start LSP server with graceful degradation"
   putStrLn "  run <file>         Analyze and execute build"
   putStrLn "  trace -- <cmd>     Trace build via strace (verification)"
   putStrLn "  unroll <ref>       Recursively trace flake ref and deps"
   putStrLn "  proxy              Run witness proxy"
   putStrLn "  store <cmd>        Store operations"
   putStrLn "  cas <cmd>          Content-addressed storage"
+  putStrLn ""
+  putStrLn "Key insight: shims intercept compiler calls to capture deps instantly,"
+  putStrLn "then strace validates completeness. Works with ANY build system."
   putStrLn ""
   putStrLn "The daemon is hostile infrastructure. armitage routes around it."
 

@@ -36,6 +36,8 @@ module Armitage.CAS
   , Digest (..)
   , digestFromBytes
   , digestToResourceName
+  , toProtoDigest
+  , fromProtoDigest
 
     -- * Operations
   , uploadBlob
@@ -51,12 +53,15 @@ import Control.Exception (try, SomeException)
 import System.IO (hPutStrLn, hFlush, stderr)
 import Control.Monad (forM_)
 import Crypto.Hash (SHA256 (..), hashWith)
+import qualified Data.ByteArray as BA
+import qualified Data.ByteArray.Encoding as BA
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Proxy (Proxy(..))
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
 import GHC.Generics (Generic)
 import Network.Socket (PortNumber)
 
@@ -156,7 +161,9 @@ digestToResourceName instanceName Digest {..} =
 
 -- | Hash bytes to SHA256 hex string
 hashBytes :: ByteString -> Text
-hashBytes bs = T.pack $ show $ hashWith SHA256 bs
+hashBytes bs = 
+  let digest = hashWith SHA256 bs
+  in TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
 
 -- | Convert our Digest to Proto Digest
 toProtoDigest :: Digest -> Proto.ProtoDigest

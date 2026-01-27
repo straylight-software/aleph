@@ -46,6 +46,8 @@ import Control.Monad (forever, unless, void, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Crypto.Number.Serialize (i2osp)
 import Crypto.PubKey.RSA (PrivateKey (..), PublicKey (..), generate)
+import qualified Data.ByteArray as BA
+import qualified Data.ByteArray.Encoding as BA
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import Data.ASN1.BinaryEncoding (DER (..))
 import Data.ASN1.Encoding (decodeASN1', encodeASN1')
@@ -369,7 +371,9 @@ instance ToJSON ContentHash where
   toJSON (ContentHash h) = toJSON h
 
 hashContent :: ByteString -> ContentHash
-hashContent bs = ContentHash $ T.pack $ show $ hashWith SHA256 bs
+hashContent bs = 
+  let digest = hashWith SHA256 bs
+  in ContentHash $ TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
 
 cachePath :: FilePath -> ContentHash -> FilePath
 cachePath baseDir (ContentHash h) =

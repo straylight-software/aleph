@@ -56,8 +56,8 @@ module Armitage.Nix
   , getBuildInputs
   ) where
 
-import Control.Exception (try, SomeException)
-import Control.Monad (forM)
+import Control.Exception (try, SomeException, finally)
+import Control.Monad (forM, forM_)
 import Data.Aeson (ToJSON (..), FromJSON (..), (.=), object, encode, eitherDecode)
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Lazy (ByteString)
@@ -190,15 +190,27 @@ queryPkgConfig pkgConfigPath ref = do
             ExitFailure _ -> pure ["-l" <> basePkg]
         [] -> pure ["-l" <> basePkg]  -- Fall back to package name
 
--- | Run a process with modified environment
+-- | Run an action with modified environment, properly restoring on completion/error
 withEnv :: IO a -> [(String, String)] -> IO a
 withEnv action envVars = do
   oldEnv <- getEnvironment
-  let newEnv = envVars ++ filter (\(k,_) -> k `notElem` map fst envVars) oldEnv
-  bracket_
-    (mapM_ (uncurry setEnv) envVars)
-    (mapM_ (\(k, v) -> setEnv k v) [(k, v) | (k, v) <- oldEnv, k `elem` map fst envVars])
-    action
+  let keysToRestore = map fst envVars
+      savedValues = [(k, v) | (k, v) <- oldEnv, k `elem` keysToRestore]
+  
+  -- Set new environment
+  setEnvVars envVars
+  
+  -- Run action, restore environment regardless of success/failure
+  result <- action `finally` restoreEnv savedValues keysToRestore
+  pure result
+  where
+    setEnvVars = mapM_ (uncurry setEnv)
+    restoreEnv saved keys = do
+      -- Restore original values
+      forM_ saved $ \(k, v) -> setEnv k v
+      -- For keys that weren't in original env, we can't unset easily
+      -- (System.Environment doesn't export unsetEnv in base)
+      -- This is a known limitation
 
 -- | Extract -l flags from pkg-config output
 extractLibFlags :: Text -> [Text]

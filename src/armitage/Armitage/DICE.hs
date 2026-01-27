@@ -68,6 +68,7 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (try, SomeException)
 import Control.Monad (forM, foldM, unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
+import Data.ByteArray.Encoding qualified as BA
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -89,6 +90,7 @@ import System.Process (readProcess, readProcessWithExitCode)
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
+import qualified Armitage.Proto as Proto
 import qualified Armitage.RE as RE
 
 import Data.Aeson (FromJSON)
@@ -106,12 +108,12 @@ import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 newtype ActionKey = ActionKey { unActionKey :: Text }
   deriving stock (Show, Eq, Ord, Generic)
 
--- | Compute action key from action content
+-- | Compute action key from action content (canonical Dhall serialization)
 actionKey :: Action -> ActionKey
 actionKey action = 
-  let content = T.pack $ show action  -- TODO: canonical serialization
+  let content = actionToDhall action  -- Canonical Dhall representation
       hash = hashWith SHA256 (TE.encodeUtf8 content)
-  in ActionKey $ T.pack $ show hash
+  in ActionKey $ TE.decodeUtf8 $ BA.convertToBase BA.Base16 hash
 
 -- -----------------------------------------------------------------------------
 -- Actions
@@ -155,6 +157,69 @@ data Action = Action
   , aCoeffects   :: [Dhall.Resource]        -- what this action requires
   }
   deriving stock (Show, Eq, Generic)
+
+-- -----------------------------------------------------------------------------
+-- Dhall Serialization (canonical, for content-addressing)
+-- -----------------------------------------------------------------------------
+
+-- | Serialize ActionCategory to canonical Dhall
+actionCategoryToDhall :: ActionCategory -> Text
+actionCategoryToDhall = \case
+  CxxCompile   -> "<CxxCompile>"
+  CxxLink      -> "<CxxLink>"
+  CudaCompile  -> "<CudaCompile>"
+  CudaLink     -> "<CudaLink>"
+  Archive      -> "<Archive>"
+  Shell        -> "<Shell>"
+  Custom t     -> "<Custom>.\"" <> escapeTextDice t <> "\""
+
+-- | Serialize ResolvedInput to canonical Dhall
+resolvedInputToDhall :: ResolvedInput -> Text
+resolvedInputToDhall = \case
+  Resolved_Action (ActionKey k) -> "<Resolved_Action>.\"" <> escapeTextDice k <> "\""
+  Resolved_Store path           -> "<Resolved_Store>.\"" <> escapeTextDice path <> "\""
+  Resolved_File path            -> "<Resolved_File>.\"" <> escapeTextDice (T.pack path) <> "\""
+
+-- | Serialize Action to canonical Dhall (deterministic field order)
+actionToDhall :: Action -> Text
+actionToDhall Action{..} = T.unlines
+  [ "{ aCategory = " <> actionCategoryToDhall aCategory
+  , ", aCommand = " <> listToDhall aCommand
+  , ", aCoeffects = [" <> T.intercalate ", " (map Dhall.renderResource aCoeffects) <> "]"
+  , ", aEnv = " <> mapToDhall aEnv
+  , ", aIdentifier = \"" <> escapeTextDice aIdentifier <> "\""
+  , ", aInputs = [" <> T.intercalate ", " (map resolvedInputToDhall aInputs) <> "]"
+  , ", aOutputs = " <> listToDhall aOutputs
+  , ", aToolchain = " <> Dhall.renderToolchain aToolchain
+  , "}"
+  ]
+
+-- | Escape text for Dhall string literal (local to DICE)
+escapeTextDice :: Text -> Text
+escapeTextDice = T.concatMap escapeChar
+  where
+    escapeChar c = case c of
+      '"'  -> "\\\""
+      '\\' -> "\\\\"
+      '\n' -> "\\n"
+      '\t' -> "\\t"
+      '\r' -> "\\r"
+      _    -> T.singleton c
+
+-- | Render list to Dhall
+listToDhall :: [Text] -> Text
+listToDhall [] = "[] : List Text"
+listToDhall xs = "[" <> T.intercalate ", " (map (\x -> "\"" <> escapeTextDice x <> "\"") xs) <> "]"
+
+-- | Render map to Dhall (sorted keys for determinism)
+mapToDhall :: Map Text Text -> Text
+mapToDhall m
+  | Map.null m = "toMap {=}"
+  | otherwise  = "toMap {" <> T.intercalate ", " entries <> "}"
+  where
+    entries = [ "`" <> k <> "` = \"" <> escapeTextDice v <> "\""
+              | (k, v) <- Map.toAscList m  -- sorted for determinism
+              ]
 
 -- -----------------------------------------------------------------------------
 -- Action Graph
@@ -344,15 +409,11 @@ targetToAction Dhall.Target {..} flakes = Action
         ++ libArgs
         ++ linkLibs
     
-    -- Use nixpkgs clang wrapper for proper stdlib support
-    -- The wrapper knows about glibc headers
-    -- TODO: resolve this from toolchain.compiler flake ref
+    -- Compiler command - resolve from PATH or toolchain config
+    -- The actual path should come from environment or be resolved by the executor
     compilerCmd = case Dhall.compiler toolchain of
-      Dhall.Compiler_Clang {} -> 
-        -- Use nixpkgs clang wrapper - resolve at analysis time ideally
-        -- For now, hardcode the known path
-        "/nix/store/351bpjcf2l1n4vm06nwpq3cdhl6vbhx1-clang-wrapper-21.1.7/bin/clang++"
-      Dhall.Compiler_NVClang {} -> "clang++"  -- nv-clang
+      Dhall.Compiler_Clang {} -> "clang++"  -- Executor must have clang in PATH
+      Dhall.Compiler_NVClang {} -> "clang++"
       Dhall.Compiler_GCC {} -> "g++"
       Dhall.Compiler_NVCC {} -> "nvcc"
       _ -> "cc"
@@ -505,8 +566,8 @@ executeOneRemote
 executeOneRemote client graph (outputs, hits, executed, failed, proofs) key = do
   let action = agActions graph Map.! key
   
-  -- Check action cache first
-  let actionDigest = CAS.digestFromBytes $ TE.encodeUtf8 $ T.pack $ show action
+  -- Check action cache first (use canonical Dhall serialization for digest)
+  let actionDigest = CAS.digestFromBytes $ TE.encodeUtf8 $ actionToDhall action
   cached <- RE.getActionResult client actionDigest
   case cached of
     Just result -> do
@@ -561,7 +622,7 @@ executeAction action@Action {..} _depOutputs = do
                 if exists
                   then do
                     content <- BS.readFile outPath
-                    let hash = T.pack $ show $ hashWith SHA256 content
+                    let hash = TE.decodeUtf8 $ BA.convertToBase BA.Base16 $ hashWith SHA256 content
                     pure (out, hash)
                   else pure (out, "missing")
               
@@ -662,7 +723,7 @@ executeActionWitnessed wc action@Action {..} _depOutputs = do
                 if exists
                   then do
                     content <- BS.readFile outPath
-                    let hash = T.pack $ show $ hashWith SHA256 content
+                    let hash = TE.decodeUtf8 $ BA.convertToBase BA.Base16 $ hashWith SHA256 content
                     pure (out, hash)
                   else pure (out, "missing")
               
@@ -730,15 +791,26 @@ executeActionRemote client action@Action {..} _depOutputs = do
         , RE.cmdOutputPaths = aOutputs
         }
   
-  -- 2. Serialize and upload Command to CAS
-  let commandBytes = TE.encodeUtf8 $ T.pack $ show command  -- TODO: proper proto serialization
+  -- 2. Serialize and upload Command to CAS (proper protobuf encoding)
+  let protoCommand = Proto.ProtoCommand
+        { Proto.pcArguments = RE.cmdArguments command
+        , Proto.pcEnvironmentVariables = 
+            [ Proto.ProtoEnvironmentVariable k v 
+            | (k, v) <- RE.cmdEnvironmentVariables command 
+            ]
+        , Proto.pcOutputFiles = RE.cmdOutputFiles command
+        , Proto.pcOutputDirectories = RE.cmdOutputDirectories command
+        , Proto.pcWorkingDirectory = RE.cmdWorkingDirectory command
+        , Proto.pcOutputPaths = RE.cmdOutputPaths command
+        }
+      commandBytes = Proto.encodeCommand protoCommand
       commandDigest = CAS.digestFromBytes commandBytes
   CAS.uploadBlob (RE.recCAS client) commandDigest commandBytes
   
   -- 3. Upload input files and build input root
   inputRootDigest <- uploadInputs client aInputs
   
-  -- 4. Build Action
+  -- 4. Build Action and upload to CAS
   let reAction = RE.Action
         { RE.actionCommandDigest = commandDigest
         , RE.actionInputRootDigest = inputRootDigest
@@ -751,11 +823,27 @@ executeActionRemote client action@Action {..} _depOutputs = do
                 ]
             }
         }
+      -- Upload Action itself to CAS (proper protobuf encoding per REAPI spec)
+      protoAction = Proto.ProtoAction
+        { Proto.paCommandDigest = CAS.toProtoDigest commandDigest
+        , Proto.paInputRootDigest = CAS.toProtoDigest inputRootDigest
+        , Proto.paTimeoutSeconds = fromIntegral <$> RE.actionTimeout reAction
+        , Proto.paDoNotCache = RE.actionDoNotCache reAction
+        , Proto.paPlatform = Just Proto.ProtoPlatform
+            { Proto.ppProperties = 
+                [ Proto.ProtoPlatformProperty (RE.propName p) (RE.propValue p)
+                | p <- RE.platformProperties (RE.actionPlatform reAction)
+                ]
+            }
+        }
+      actionBytes = Proto.encodeAction protoAction
+      actionDigest = CAS.digestFromBytes actionBytes
+  CAS.uploadBlob (RE.recCAS client) actionDigest actionBytes
   
-  -- 5. Execute remotely
+  -- 5. Execute remotely (using Action digest - Action already uploaded to CAS)
   let request = RE.ExecuteRequest
         { RE.erInstanceName = RE.reInstanceName (RE.recConfig client)
-        , RE.erAction = reAction
+        , RE.erActionDigest = actionDigest  -- Pre-computed digest from proper proto serialization
         , RE.erSkipCacheLookup = False
         }
   
@@ -845,14 +933,10 @@ uploadInputs client inputs = do
       CAS.uploadBlob (RE.recCAS client) dirDigest dirBytes
       pure dirDigest
 
--- | Convert Dhall Resource to Builder Coeffect  
+-- | Convert Dhall Resource to Builder Coeffect
+-- Re-export from Dhall module for convenience
 resourceToCoeffect :: Dhall.Resource -> Builder.Coeffect
-resourceToCoeffect = \case
-  Dhall.Resource_Pure -> Builder.Pure
-  Dhall.Resource_Network -> Builder.Network
-  Dhall.Resource_Auth t -> Builder.Auth t
-  Dhall.Resource_Sandbox t -> Builder.Sandbox t
-  Dhall.Resource_Filesystem t -> Builder.Filesystem (T.unpack t)
+resourceToCoeffect = Dhall.resourceToCoeffect
 
 -- | Check if coeffects can be satisfied (non-witnessed execution)
 -- 

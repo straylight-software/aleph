@@ -186,18 +186,18 @@ libsodium_dev = /nix/store/vijkvg4k07mlrb9446yz3pmqh2x62ixj-libsodium-1.0.20-dev
 simdjson = /nix/store/hf1rkb0a4m2a7rn71cqw9bh6bc80qklm-simdjson-4.2.4
 
 # ────────────────────────────────────────────────────────────────────────
-# NativeLink Remote Execution (LRE)
+# Fly.io Remote Execution
 # ────────────────────────────────────────────────────────────────────────
-# Usage: lre-start && buck2 build --prefer-remote //:target
+# Usage: buck2 build --prefer-remote //:target
 
 [build]
 execution_platforms = toolchains//:lre
 
 [buck2_re_client]
-engine_address = grpc://127.0.0.1:50051
-cas_address = grpc://127.0.0.1:50051
-action_cache_address = grpc://127.0.0.1:50051
-tls = false
+engine_address = grpcs://aleph-scheduler.fly.dev:50051
+cas_address = grpcs://aleph-cas.fly.dev:50052
+action_cache_address = grpcs://aleph-cas.fly.dev:50052
+tls = true
 instance_name = main
 
 [buck2_re_client.platform_properties]

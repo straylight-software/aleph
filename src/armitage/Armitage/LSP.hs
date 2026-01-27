@@ -51,6 +51,11 @@ module Armitage.LSP
   , FallbackState (..)
   , initFallback
   
+    -- * Compile Commands (from shims)
+  , CompileCommand (..)
+  , generateCompileCommands
+  , writeCompileCommands
+  
     -- * Protocol Types
   , Request (..)
   , Response (..)
@@ -68,9 +73,12 @@ import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception (SomeException, catch, try)
-import Control.Monad (forever, forM, when, void)
+import Control.Monad (forever, forM, forM_, when, void)
 import Data.Aeson (ToJSON (..), FromJSON (..), (.=), (.:), (.:?))
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as AesonKM
+import Data.Function ((&))
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.ByteString.Lazy as BL
@@ -87,12 +95,13 @@ import Data.Time.Clock (UTCTime, getCurrentTime, diffUTCTime)
 import GHC.Generics (Generic)
 import System.Exit (ExitCode (..))
 import System.FilePath (takeExtension, takeFileName)
-import System.IO (Handle, hFlush, hGetLine, hPutStr, stdin, stdout)
+import System.IO (Handle, hFlush, hGetLine, hPutStr, stdin, stdout, stderr)
 import System.Process (ProcessHandle, CreateProcess (..), StdStream (..), 
                        createProcess, proc, terminateProcess, waitForProcess,
                        getProcessExitCode)
 import System.Timeout (timeout)
 
+import qualified Armitage.Shim as Shim
 import qualified Armitage.Trace as Trace
 
 -- -----------------------------------------------------------------------------
@@ -881,20 +890,15 @@ parseContentLength t
 parseRequest :: Aeson.Value -> (Maybe Int, Request)
 parseRequest = \case
   Aeson.Object obj -> 
-    let reqId = case Map.lookup "id" (toMap obj) of
+    let reqId = case AesonKM.lookup "id" obj of
           Just (Aeson.Number n) -> Just (round n)
           _ -> Nothing
-        method = case Map.lookup "method" (toMap obj) of
+        method = case AesonKM.lookup "method" obj of
           Just (Aeson.String m) -> m
           _ -> ""
-        params = Map.findWithDefault Aeson.Null "params" (toMap obj)
+        params = fromMaybe Aeson.Null $ AesonKM.lookup "params" obj
     in (reqId, methodToRequest method params)
   _ -> (Nothing, UnknownRequest "" Aeson.Null)
-  where
-    toMap (Aeson.Object o) = Map.fromList $ map (\(k, v) -> (k, v)) $ toList o
-    toMap _ = Map.empty
-    toList = foldrWithKey (\k v acc -> (k, v) : acc) []
-    foldrWithKey f z = foldr (uncurry f) z . Map.toList
 
 methodToRequest :: Text -> Aeson.Value -> Request
 methodToRequest method params = case method of
@@ -922,32 +926,25 @@ methodToRequest method params = case method of
       Nothing -> UnknownRequest method params
   "workspace/symbol" ->
     case params of
-      Aeson.Object obj | Just (Aeson.String q) <- Map.lookup "query" (objToMap obj) ->
+      Aeson.Object obj | Just (Aeson.String q) <- AesonKM.lookup "query" obj ->
         WorkspaceSymbol q
       _ -> UnknownRequest method params
   _ -> UnknownRequest method params
-  where
-    objToMap (Aeson.Object o) = Map.fromList $ foldr (\(k,v) acc -> (k,v):acc) [] o
-    objToMap _ = Map.empty
 
 extractUri :: Aeson.Value -> Maybe Text
 extractUri (Aeson.Object obj) = do
-  Aeson.Object td <- Map.lookup "textDocument" (objToMap obj)
-  Aeson.String uri <- Map.lookup "uri" (objToMap td)
+  Aeson.Object td <- AesonKM.lookup "textDocument" obj
+  Aeson.String uri <- AesonKM.lookup "uri" td
   pure uri
-  where
-    objToMap o = Map.fromList $ foldr (\(k,v) acc -> (k,v):acc) [] o
 extractUri _ = Nothing
 
 extractUriPos :: Aeson.Value -> Maybe (Text, Position)
 extractUriPos (Aeson.Object obj) = do
   uri <- extractUri (Aeson.Object obj)
-  Aeson.Object posObj <- Map.lookup "position" (objToMap obj)
-  Aeson.Number line <- Map.lookup "line" (objToMap posObj)
-  Aeson.Number char <- Map.lookup "character" (objToMap posObj)
+  Aeson.Object posObj <- AesonKM.lookup "position" obj
+  Aeson.Number line <- AesonKM.lookup "line" posObj
+  Aeson.Number char <- AesonKM.lookup "character" posObj
   pure (uri, Position (round line) (round char))
-  where
-    objToMap o = Map.fromList $ foldr (\(k,v) acc -> (k,v):acc) [] o
 extractUriPos _ = Nothing
 
 writeResponse :: Handle -> Maybe Int -> Response -> IO ()
@@ -979,12 +976,96 @@ responseToJson reqId resp = Aeson.object $
 -- Logging
 -- -----------------------------------------------------------------------------
 
+-- | Log to stderr (not stdout, which is used by LSP protocol)
 logError :: LSPState -> Text -> IO ()
 logError state msg = when (lcVerbose (lsConfig state)) $
   TIO.hPutStrLn stderr $ "[ERROR] " <> msg
-  where stderr = stdout  -- LSP uses stdout, log to stderr
 
 logInfo :: LSPState -> Text -> IO ()
 logInfo state msg = when (lcVerbose (lsConfig state)) $
   TIO.hPutStrLn stderr $ "[INFO] " <> msg
-  where stderr = stdout
+
+-- -----------------------------------------------------------------------------
+-- Compile Commands (from shim metadata)
+-- -----------------------------------------------------------------------------
+
+-- | A compile command for compile_commands.json
+data CompileCommand = CompileCommand
+  { ccDirectory :: !Text      -- ^ Working directory
+  , ccFile :: !Text           -- ^ Source file (absolute path)
+  , ccArguments :: ![Text]    -- ^ Compile command as list
+  , ccOutput :: !(Maybe Text) -- ^ Output file
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance ToJSON CompileCommand where
+  toJSON CompileCommand{..} = Aeson.object $
+    [ "directory" .= ccDirectory
+    , "file" .= ccFile
+    , "arguments" .= ccArguments
+    ] ++ maybe [] (\o -> ["output" .= o]) ccOutput
+
+-- | Generate compile_commands.json from shim build output
+-- Reads the final executable and extracts all compile info from metadata
+generateCompileCommands :: FilePath -> FilePath -> IO [CompileCommand]
+generateCompileCommands workDir targetPath = do
+  meta <- Shim.readBuildMetadata targetPath
+  case meta of
+    Nothing -> pure []
+    Just bm -> do
+      -- Each source file becomes a compile command
+      let sources = Shim.bmSources bm
+          includes = Shim.bmIncludes bm
+          defines = Shim.bmDefines bm
+          flags = Shim.bmFlags bm
+      
+      pure [ CompileCommand
+               { ccDirectory = T.pack workDir
+               , ccFile = src
+               , ccArguments = buildArgs src includes defines flags
+               , ccOutput = Just $ T.replace (T.pack ".c") (T.pack ".o") $
+                            T.replace (T.pack ".cpp") (T.pack ".o") $
+                            T.replace (T.pack ".cc") (T.pack ".o") src
+               }
+           | src <- sources
+           ]
+  where
+    buildArgs src includes defines flags =
+      ["clang++"]  -- Assume clang++, could be extracted from shim
+      ++ ["-c", src]
+      ++ map ("-I" <>) includes
+      ++ map ("-D" <>) defines
+      ++ flags
+
+-- | Write compile_commands.json to a file
+writeCompileCommands :: FilePath -> [CompileCommand] -> IO ()
+writeCompileCommands path cmds = do
+  let json = Aeson.encode cmds
+  BL.writeFile path json
+
+-- | Update fallback state from shim build output
+updateFromShimBuild :: FallbackState -> FilePath -> IO ()
+updateFromShimBuild fs targetPath = do
+  meta <- Shim.readBuildMetadata targetPath
+  case meta of
+    Nothing -> pure ()
+    Just bm -> do
+      -- Update file graph: each source depends on includes
+      let sources = Shim.bmSources bm
+          includes = Shim.bmIncludes bm
+      
+      -- For each source, record its "imports" (the includes it uses)
+      forM_ sources $ \src -> do
+        now <- getCurrentTime
+        atomically $ modifyTVar (fsFiles fs) $ \files ->
+          case Map.lookup src files of
+            Just existing -> 
+              Map.insert src existing { fsImports = map T.pack (filter isHeader (map T.unpack includes)) } files
+            Nothing -> files
+      
+      -- Update dependency graph
+      atomically $ modifyTVar (fsGraph fs) $ \g ->
+        Map.insert (Shim.bmTarget bm) (Set.fromList sources) g
+  where
+    isHeader path = any (`isSuffixOf` path) [".h", ".hpp", ".hxx", ".H"]
+    isSuffixOf suffix s = suffix == drop (length s - length suffix) s

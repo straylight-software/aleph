@@ -61,6 +61,10 @@ module Armitage.Dhall
   , renderGpu
   , renderCFlag
   , renderLDFlag
+  
+    -- * Dhall Serialization (canonical)
+  , renderResource
+  , renderToolchain
   ) where
 
 import Control.Exception (throwIO)
@@ -738,5 +742,232 @@ renderLDFlag = \case
   LDFlag_VersionScript p -> "-Wl,--version-script," <> p
   LDFlag_LTOJobs n -> "-flto-jobs=" <> T.pack (show n)
   LDFlag_Raw r -> r
+
+-- -----------------------------------------------------------------------------
+-- Canonical Dhall Serialization (for content-addressing)
+-- -----------------------------------------------------------------------------
+
+-- | Render Resource to canonical Dhall
+renderResource :: Resource -> Text
+renderResource = \case
+  Resource_Pure           -> "<Pure>"
+  Resource_Network        -> "<Network>"
+  Resource_Auth provider  -> "<Auth>.\"" <> escapeText provider <> "\""
+  Resource_Sandbox name   -> "<Sandbox>.\"" <> escapeText name <> "\""
+  Resource_Filesystem path -> "<Filesystem>.\"" <> escapeText path <> "\""
+
+-- | Render Toolchain to canonical Dhall (deterministic field order)
+renderToolchain :: Toolchain -> Text
+renderToolchain Toolchain{..} = T.unlines
+  [ "{ compiler = " <> renderCompiler compiler
+  , ", cflags = " <> renderCFlagList cflags
+  , ", cxxflags = " <> renderCFlagList cxxflags
+  , ", host = " <> renderTripleDhall host
+  , ", ldflags = " <> renderLDFlagList ldflags
+  , ", sysroot = " <> renderMaybeText sysroot
+  , ", target = " <> renderTripleDhall target
+  , "}"
+  ]
+
+-- | Render Compiler to canonical Dhall
+renderCompiler :: Compiler -> Text
+renderCompiler = \case
+  Compiler_Clang v   -> "<Clang>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_NVClang v -> "<NVClang>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_GCC v     -> "<GCC>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_NVCC v    -> "<NVCC>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_Rustc v   -> "<Rustc>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_GHC v     -> "<GHC>.{ version = \"" <> escapeText v <> "\" }"
+  Compiler_Lean v    -> "<Lean>.{ version = \"" <> escapeText v <> "\" }"
+
+-- | Render Triple to canonical Dhall record
+renderTripleDhall :: Triple -> Text
+renderTripleDhall Triple{..} = T.concat
+  [ "{ arch = <", renderArchDhall arch, ">"
+  , ", vendor = <", renderVendorDhall vendor, ">"
+  , ", os = <", renderOSDhall os, ">"
+  , ", abi = <", renderABIDhall abi, ">"
+  , ", cpu = <", renderCpuDhall cpu, ">"
+  , ", gpu = <", renderGpuDhall gpu, ">"
+  , " }"
+  ]
+
+renderArchDhall :: Arch -> Text
+renderArchDhall = \case
+  Arch_x86_64  -> "x86_64"
+  Arch_aarch64 -> "aarch64"
+  Arch_riscv64 -> "riscv64"
+  Arch_wasm32  -> "wasm32"
+  Arch_armv7   -> "armv7"
+
+renderVendorDhall :: Vendor -> Text
+renderVendorDhall = \case
+  Vendor_unknown -> "unknown"
+  Vendor_pc      -> "pc"
+  Vendor_apple   -> "apple"
+  Vendor_nvidia  -> "nvidia"
+
+renderOSDhall :: OS -> Text
+renderOSDhall = \case
+  OS_linux   -> "linux"
+  OS_darwin  -> "darwin"
+  OS_windows -> "windows"
+  OS_wasi    -> "wasi"
+  OS_none    -> "none"
+
+renderABIDhall :: ABI -> Text
+renderABIDhall = \case
+  ABI_gnu    -> "gnu"
+  ABI_musl   -> "musl"
+  ABI_eabi   -> "eabi"
+  ABI_eabihf -> "eabihf"
+  ABI_msvc   -> "msvc"
+  ABI_none   -> "none"
+
+renderCpuDhall :: Cpu -> Text
+renderCpuDhall = \case
+  Cpu_generic        -> "generic"
+  Cpu_native         -> "native"
+  Cpu_x86_64_v2      -> "x86_64_v2"
+  Cpu_x86_64_v3      -> "x86_64_v3"
+  Cpu_x86_64_v4      -> "x86_64_v4"
+  Cpu_znver3         -> "znver3"
+  Cpu_znver4         -> "znver4"
+  Cpu_znver5         -> "znver5"
+  Cpu_sapphirerapids -> "sapphirerapids"
+  Cpu_alderlake      -> "alderlake"
+  Cpu_neoverse_v2    -> "neoverse_v2"
+  Cpu_neoverse_n2    -> "neoverse_n2"
+  Cpu_cortex_a78ae   -> "cortex_a78ae"
+  Cpu_cortex_a78c    -> "cortex_a78c"
+  Cpu_apple_m1       -> "apple_m1"
+  Cpu_apple_m2       -> "apple_m2"
+  Cpu_apple_m3       -> "apple_m3"
+  Cpu_apple_m4       -> "apple_m4"
+
+renderGpuDhall :: Gpu -> Text
+renderGpuDhall = \case
+  Gpu_none    -> "none"
+  Gpu_sm_80   -> "sm_80"
+  Gpu_sm_86   -> "sm_86"
+  Gpu_sm_87   -> "sm_87"
+  Gpu_sm_89   -> "sm_89"
+  Gpu_sm_90   -> "sm_90"
+  Gpu_sm_90a  -> "sm_90a"
+  Gpu_sm_100  -> "sm_100"
+  Gpu_sm_100a -> "sm_100a"
+  Gpu_sm_120  -> "sm_120"
+
+-- | Render CFlag list to canonical Dhall
+renderCFlagList :: [CFlag] -> Text
+renderCFlagList [] = "[] : List CFlag"
+renderCFlagList flags = "[" <> T.intercalate ", " (map renderCFlagDhall flags) <> "]"
+
+-- | Render single CFlag to Dhall union syntax
+renderCFlagDhall :: CFlag -> Text
+renderCFlagDhall = \case
+  CFlag_Opt lvl      -> "<Opt>.<" <> renderOptLevelDhall lvl <> ">"
+  CFlag_LTO mode     -> "<LTO>.<" <> renderLTOModeDhall mode <> ">"
+  CFlag_StdC std     -> "<StdC>.<" <> renderCStdDhall std <> ">"
+  CFlag_StdCxx std   -> "<StdCxx>.<" <> renderCxxStdDhall std <> ">"
+  CFlag_Wall         -> "<Wall>"
+  CFlag_Wextra       -> "<Wextra>"
+  CFlag_Werror       -> "<Werror>"
+  CFlag_Wpedantic    -> "<Wpedantic>"
+  CFlag_Wno w        -> "<Wno>.\"" <> escapeText w <> "\""
+  CFlag_Define n v   -> "<Define>.{ name = \"" <> escapeText n <> "\", value = " <> renderMaybeText v <> " }"
+  CFlag_Undef u      -> "<Undef>.\"" <> escapeText u <> "\""
+  CFlag_Include p    -> "<Include>.\"" <> escapeText p <> "\""
+  CFlag_System p     -> "<System>.\"" <> escapeText p <> "\""
+  CFlag_PIC          -> "<PIC>"
+  CFlag_PIE          -> "<PIE>"
+  CFlag_Static       -> "<Static>"
+  CFlag_Shared       -> "<Shared>"
+  CFlag_March a      -> "<March>.\"" <> escapeText a <> "\""
+  CFlag_Mtune t      -> "<Mtune>.\"" <> escapeText t <> "\""
+  CFlag_Native       -> "<Native>"
+  CFlag_Debug lvl    -> "<Debug>.<" <> renderDebugLevelDhall lvl <> ">"
+  CFlag_Sanitize san -> "<Sanitize>.<" <> renderSanitizerDhall san <> ">"
+  CFlag_FunctionSections -> "<FunctionSections>"
+  CFlag_DataSections -> "<DataSections>"
+  CFlag_NoExceptions -> "<NoExceptions>"
+  CFlag_NoRTTI       -> "<NoRTTI>"
+  CFlag_Pthread      -> "<Pthread>"
+  CFlag_Raw r        -> "<Raw>.\"" <> escapeText r <> "\""
+
+renderOptLevelDhall :: OptLevel -> Text
+renderOptLevelDhall = \case
+  O0 -> "O0"; O1 -> "O1"; O2 -> "O2"; O3 -> "O3"; Os -> "Os"; Oz -> "Oz"; Og -> "Og"
+
+renderLTOModeDhall :: LTOMode -> Text
+renderLTOModeDhall = \case
+  LTO_off -> "off"; LTO_thin -> "thin"; LTO_full -> "full"
+
+renderCStdDhall :: CStd -> Text
+renderCStdDhall = \case
+  C89 -> "c89"; C99 -> "c99"; C11 -> "c11"; C17 -> "c17"; C23 -> "c23"
+
+renderCxxStdDhall :: CxxStd -> Text
+renderCxxStdDhall = \case
+  Cxx11 -> "cxx11"; Cxx14 -> "cxx14"; Cxx17 -> "cxx17"; Cxx20 -> "cxx20"; Cxx23 -> "cxx23"
+
+renderDebugLevelDhall :: DebugLevel -> Text
+renderDebugLevelDhall = \case
+  G0 -> "g0"; G1 -> "g1"; G2 -> "g2"; G3 -> "g3"
+
+renderSanitizerDhall :: Sanitizer -> Text
+renderSanitizerDhall = \case
+  San_address   -> "address"
+  San_memory    -> "memory"
+  San_thread    -> "thread"
+  San_undefined -> "undefined"
+  San_leak      -> "leak"
+
+-- | Render LDFlag list to canonical Dhall
+renderLDFlagList :: [LDFlag] -> Text
+renderLDFlagList [] = "[] : List LDFlag"
+renderLDFlagList flags = "[" <> T.intercalate ", " (map renderLDFlagDhall flags) <> "]"
+
+-- | Render single LDFlag to Dhall union syntax
+renderLDFlagDhall :: LDFlag -> Text
+renderLDFlagDhall = \case
+  LDFlag_Static          -> "<Static>"
+  LDFlag_Shared          -> "<Shared>"
+  LDFlag_Pie             -> "<Pie>"
+  LDFlag_NoPie           -> "<NoPie>"
+  LDFlag_Relocatable     -> "<Relocatable>"
+  LDFlag_Lib l           -> "<Lib>.\"" <> escapeText l <> "\""
+  LDFlag_LibPath p       -> "<LibPath>.\"" <> escapeText p <> "\""
+  LDFlag_Rpath p         -> "<Rpath>.\"" <> escapeText p <> "\""
+  LDFlag_RpathLink p     -> "<RpathLink>.\"" <> escapeText p <> "\""
+  LDFlag_Strip           -> "<Strip>"
+  LDFlag_StripDebug      -> "<StripDebug>"
+  LDFlag_ExportDynamic   -> "<ExportDynamic>"
+  LDFlag_AsNeeded        -> "<AsNeeded>"
+  LDFlag_NoAsNeeded      -> "<NoAsNeeded>"
+  LDFlag_GcSections      -> "<GcSections>"
+  LDFlag_NoGcSections    -> "<NoGcSections>"
+  LDFlag_PrintGcSections -> "<PrintGcSections>"
+  LDFlag_Soname n        -> "<Soname>.\"" <> escapeText n <> "\""
+  LDFlag_VersionScript p -> "<VersionScript>.\"" <> escapeText p <> "\""
+  LDFlag_LTOJobs n       -> "<LTOJobs>." <> T.pack (show n)
+  LDFlag_Raw r           -> "<Raw>.\"" <> escapeText r <> "\""
+
+-- | Render Maybe Text to Dhall
+renderMaybeText :: Maybe Text -> Text
+renderMaybeText Nothing  = "None Text"
+renderMaybeText (Just t) = "Some \"" <> escapeText t <> "\""
+
+-- | Escape text for Dhall string literal
+escapeText :: Text -> Text
+escapeText = T.concatMap escapeChar
+  where
+    escapeChar c = case c of
+      '"'  -> "\\\""
+      '\\' -> "\\\\"
+      '\n' -> "\\n"
+      '\t' -> "\\t"
+      '\r' -> "\\r"
+      _    -> T.singleton c
 
 -- (unit is imported from Dhall)

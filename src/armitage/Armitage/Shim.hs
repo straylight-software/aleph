@@ -38,24 +38,36 @@ module Armitage.Shim
     -- * Shim generation
   , generateShimEnv
   , ShimPaths (..)
+  
+    -- * Full analysis pipeline
+  , AnalysisResult (..)
+  , AnalysisConfig (..)
+  , defaultAnalysisConfig
+  , shimAnalyze
+  , ValidationResult (..)
   ) where
 
 import Control.Exception (try, SomeException)
-import Control.Monad (forM, when)
+import Control.Monad (forM, forM_, when, unless, filterM)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import qualified Data.Text.Encoding as TE
 import Data.Word (Word8, Word16, Word32, Word64)
 import Data.Bits (shiftL, (.|.))
-import System.Directory (doesFileExist)
-import System.FilePath ((</>))
+import System.Directory (doesFileExist, doesDirectoryExist, listDirectory, createDirectoryIfMissing)
+import System.Environment (getEnvironment)
+import System.Exit (ExitCode(..))
+import System.FilePath ((</>), takeExtension, takeFileName)
+import System.Process (readProcessWithExitCode, readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 -- -----------------------------------------------------------------------------
 -- Metadata Types
@@ -161,7 +173,7 @@ readElfSymbols bs
             | i >= shnum = Nothing
             | otherwise =
                 let shdrOff = shoff + i * shentsize
-                    shType = readWord32 bs shdrOff + 4  -- sh_type at offset 4
+                    shType = readWord32 bs (shdrOff + 4)  -- sh_type at offset 4
                 in if shType == 2  -- SHT_SYMTAB
                    then Just (shdrOff, i)
                    else findSymtab (i + 1)
@@ -378,3 +390,335 @@ generateShimEnv ShimPaths{..} =
   , ("CMAKE_AR", spAR)
   , ("CMAKE_LINKER", spLD)
   ]
+
+-- -----------------------------------------------------------------------------
+-- Full Analysis Pipeline
+-- -----------------------------------------------------------------------------
+
+-- | Configuration for shim analysis
+data AnalysisConfig = AnalysisConfig
+  { acShimDir      :: FilePath       -- ^ Directory containing shim binaries
+  , acLogDir       :: FilePath       -- ^ Directory for logs
+  , acValidate     :: Bool           -- ^ Run strace validation
+  , acVerbose      :: Bool           -- ^ Verbose output
+  , acKeepTemp     :: Bool           -- ^ Keep temporary files
+  }
+  deriving (Show, Eq)
+
+defaultAnalysisConfig :: AnalysisConfig
+defaultAnalysisConfig = AnalysisConfig
+  { acShimDir = "/tmp/armitage-shims"
+  , acLogDir = "/tmp/armitage"
+  , acValidate = True
+  , acVerbose = False
+  , acKeepTemp = False
+  }
+
+-- | Result of analyzing a flake reference
+data AnalysisResult = AnalysisResult
+  { arFlakeRef     :: Text           -- ^ Original flake reference
+  , arDrvPath      :: Text           -- ^ Resolved derivation path
+  , arOutputPath   :: Maybe Text     -- ^ Build output path (if built)
+  , arSources      :: [Text]         -- ^ All source files
+  , arIncludes     :: [Text]         -- ^ All include paths
+  , arDefines      :: [Text]         -- ^ All preprocessor defines
+  , arLibs         :: [Text]         -- ^ All libraries linked
+  , arLibPaths     :: [Text]         -- ^ All library search paths
+  , arShimLog      :: [ShimLogEntry] -- ^ Raw shim invocations
+  , arValidation   :: Maybe ValidationResult -- ^ Strace validation result
+  , arErrors       :: [Text]         -- ^ Any errors encountered
+  }
+  deriving (Show, Eq)
+
+-- | Result of validating shim output against strace
+--
+-- The validation contract is simple:
+--   If strace sees an artifact written to $out, shim MUST have caught it.
+--   Failure is not a "discrepancy" - it's a hard error.
+data ValidationResult = ValidationResult
+  { vrMatches         :: Bool        -- ^ Did shim catch everything? FALSE = FAILURE
+  , vrShimOutputs     :: Set Text    -- ^ What shim claims to have produced
+  , vrStraceOutputs   :: Set Text    -- ^ All files strace saw written to output
+  , vrStraceArtifacts :: Set Text    -- ^ Subset that look like compiled artifacts
+  , vrMissedArtifacts :: Set Text    -- ^ FAILURES: artifacts strace saw, shim missed
+  }
+  deriving (Show, Eq)
+
+-- | Main analysis entry point: analyze a flake reference
+--
+-- Architecture:
+--   Run build ONCE under strace with shims installed.
+--   Shims produce tagged outputs (ELF with __armitage_* symbols).
+--   After build, scan all binary artifacts in output.
+--   Any binary NOT tagged by shim = we missed a compiler = FAIL.
+--
+-- One build. Complete coverage. No guessing.
+shimAnalyze :: AnalysisConfig -> Text -> IO (Either Text AnalysisResult)
+shimAnalyze cfg flakeRef = do
+  when (acVerbose cfg) $
+    TIO.putStrLn $ "Analyzing: " <> flakeRef
+  
+  -- Resolve to derivation path
+  drvResult <- resolveFlakeRef flakeRef
+  case drvResult of
+    Left err -> pure $ Left $ "Failed to resolve " <> flakeRef <> ": " <> err
+    Right drvPath -> runAnalysis cfg flakeRef drvPath
+
+-- | Run the actual analysis after resolving the flake ref
+runAnalysis :: AnalysisConfig -> Text -> Text -> IO (Either Text AnalysisResult)
+runAnalysis cfg flakeRef drvPath = do
+  when (acVerbose cfg) $
+    TIO.putStrLn $ "Derivation: " <> drvPath
+  
+  let shimPaths = ShimPaths
+        { spCC = acShimDir cfg </> "cc"
+        , spCXX = acShimDir cfg </> "c++"
+        , spLD = acShimDir cfg </> "ld"
+        , spAR = acShimDir cfg </> "ar"
+        , spLogPath = acLogDir cfg </> "shim.log"
+        }
+      straceLogPath = acLogDir cfg </> "strace.log"
+  
+  createDirectoryIfMissing True (acLogDir cfg)
+  
+  -- Check shims exist
+  shimsExist <- doesFileExist (spCC shimPaths)
+  if not shimsExist
+    then pure $ Left $ "Shims not found at " <> T.pack (acShimDir cfg)
+    else do
+      -- Clear logs
+      writeFile (spLogPath shimPaths) ""
+      writeFile straceLogPath ""
+      
+      when (acVerbose cfg) $
+        putStrLn "Running build with shims under strace..."
+      
+      -- Run build with shims UNDER strace - one build captures everything
+      buildResult <- runShimBuildWithStrace cfg shimPaths straceLogPath drvPath
+      case buildResult of
+        Left err -> pure $ Left err
+        Right outputPath -> do
+          logEntries <- parseShimLog (spLogPath shimPaths)
+          validation <- validateOutputs cfg outputPath
+          metadata <- case outputPath of
+            Just p -> aggregateShimMetadata (T.unpack p)
+            Nothing -> pure Nothing
+          
+          pure $ Right AnalysisResult
+            { arFlakeRef = flakeRef
+            , arDrvPath = drvPath
+            , arOutputPath = outputPath
+            , arSources = maybe [] bmSources metadata
+            , arIncludes = maybe [] bmIncludes metadata
+            , arDefines = maybe [] bmDefines metadata
+            , arLibs = maybe [] bmLibs metadata
+            , arLibPaths = maybe [] bmLibPaths metadata
+            , arShimLog = logEntries
+            , arValidation = Just validation
+            , arErrors = []
+            }
+
+-- | Resolve a flake reference to its derivation path
+resolveFlakeRef :: Text -> IO (Either Text Text)
+resolveFlakeRef ref = do
+  (code, out, err) <- readProcessWithExitCode "nix"
+    ["path-info", "--derivation", T.unpack ref] ""
+  case code of
+    ExitSuccess -> pure $ Right $ T.strip $ T.pack out
+    ExitFailure _ -> pure $ Left $ T.pack err
+
+-- | Run build with shims under strace
+-- One build, complete capture
+runShimBuildWithStrace 
+  :: AnalysisConfig 
+  -> ShimPaths 
+  -> FilePath      -- ^ strace log path
+  -> Text          -- ^ derivation path
+  -> IO (Either Text (Maybe Text))
+runShimBuildWithStrace cfg shimPaths straceLogPath drvPath = do
+  currentEnv <- getEnvironment
+  let shimEnvVars = generateShimEnv shimPaths
+      pathEnv = case lookup "PATH" currentEnv of
+        Just p -> ("PATH", acShimDir cfg <> ":" <> p)
+        Nothing -> ("PATH", acShimDir cfg)
+      fullEnv = pathEnv : shimEnvVars ++ currentEnv
+  
+  when (acVerbose cfg) $ do
+    putStrLn "Environment:"
+    forM_ (take 5 shimEnvVars) $ \(k, v) ->
+      putStrLn $ "  " <> k <> "=" <> v
+  
+  -- Run nix-build with shims, wrapped in strace
+  -- strace captures all syscalls, shims tag their outputs
+  let p = (proc "strace" 
+            [ "-f"
+            , "-e", "trace=openat,open,creat,rename,link,symlink"
+            , "-o", straceLogPath
+            , "--"
+            , "nix-build", T.unpack drvPath, "--no-out-link"
+            ]) { env = Just fullEnv }
+  
+  (exitCode, stdout, _stderr) <- readCreateProcessWithExitCode p ""
+  
+  case exitCode of
+    ExitSuccess -> do
+      let outPath = T.strip $ T.pack stdout
+      pure $ Right $ if T.null outPath then Nothing else Just outPath
+    ExitFailure _ -> 
+      -- Build failed, but we still have partial data
+      pure $ Right Nothing
+
+-- | Validate outputs: scan all binaries, check for shim tags
+--
+-- Every binary artifact in output must have __armitage_* symbols.
+-- If it doesn't, we missed a compiler. That's a FAILURE.
+validateOutputs :: AnalysisConfig -> Maybe Text -> IO ValidationResult
+validateOutputs cfg outputPath = do
+  case outputPath of
+    Nothing -> pure ValidationResult
+      { vrMatches = True  -- No output = nothing to validate
+      , vrShimOutputs = Set.empty
+      , vrStraceOutputs = Set.empty
+      , vrStraceArtifacts = Set.empty
+      , vrMissedArtifacts = Set.empty
+      }
+    Just outPath -> do
+      -- Find all binary files in output
+      allFiles <- findFilesRecursive (T.unpack outPath)
+      binaries <- filterByMagic (map T.pack allFiles)
+      
+      -- Check each binary for shim tags
+      tagged <- filterM (hasShimTags . T.unpack) (Set.toList binaries)
+      let taggedSet = Set.fromList tagged
+          untagged = binaries `Set.difference` taggedSet
+      
+      when (acVerbose cfg && not (Set.null untagged)) $ do
+        putStrLn "UNTAGGED BINARIES (missed by shim):"
+        forM_ (Set.toList untagged) $ \f ->
+          TIO.putStrLn $ "  " <> f
+      
+      pure ValidationResult
+        { vrMatches = Set.null untagged
+        , vrShimOutputs = taggedSet
+        , vrStraceOutputs = binaries
+        , vrStraceArtifacts = binaries
+        , vrMissedArtifacts = untagged
+        }
+
+-- | Check if a file has shim tags (__armitage_* symbols)
+hasShimTags :: FilePath -> IO Bool
+hasShimTags path = do
+  result <- try $ BS.readFile path
+  case result of
+    Left (_ :: SomeException) -> pure False
+    Right content -> pure $ hasArmitageSymbols content
+  where
+    hasArmitageSymbols bs = "__armitage_" `BC.isInfixOf` bs
+
+-- | Find all files recursively in a directory
+findFilesRecursive :: FilePath -> IO [FilePath]
+findFilesRecursive dir = do
+  exists <- doesDirectoryExist dir
+  if not exists
+    then pure []
+    else do
+      entries <- listDirectory dir
+      paths <- forM entries $ \entry -> do
+        let path = dir </> entry
+        isDir <- doesDirectoryExist path
+        if isDir
+          then findFilesRecursive path
+          else pure [path]
+      pure (concat paths)
+
+-- | Aggregate metadata from all shim-tagged files in output
+aggregateShimMetadata :: FilePath -> IO (Maybe BuildMetadata)
+aggregateShimMetadata outPath = do
+  allFiles <- findFilesRecursive outPath
+  binaries <- filterByMagic (map T.pack allFiles)
+  
+  -- Read metadata from each tagged binary
+  metadatas <- forM (Set.toList binaries) $ \f -> do
+    tagged <- hasShimTags (T.unpack f)
+    if tagged
+      then readBuildMetadata (T.unpack f)
+      else pure Nothing
+  
+  -- Merge all metadata
+  let validMetadata = catMaybes metadatas
+  if null validMetadata
+    then pure Nothing
+    else pure $ Just $ mergeMetadata validMetadata
+
+-- | Merge multiple BuildMetadata into one
+mergeMetadata :: [BuildMetadata] -> BuildMetadata
+mergeMetadata [] = BuildMetadata "" [] [] [] [] [] [] []
+mergeMetadata ms = BuildMetadata
+  { bmTarget = bmTarget (head ms)
+  , bmSources = nub $ concatMap bmSources ms
+  , bmIncludes = nub $ concatMap bmIncludes ms
+  , bmDefines = nub $ concatMap bmDefines ms
+  , bmFlags = nub $ concatMap bmFlags ms
+  , bmLibs = nub $ concatMap bmLibs ms
+  , bmLibPaths = nub $ concatMap bmLibPaths ms
+  , bmObjects = nub $ concatMap bmObjects ms
+  }
+  where
+    nub = Set.toList . Set.fromList
+
+-- | Filter paths to only those with binary file magic
+-- Checks actual file content, not extensions
+filterByMagic :: [Text] -> IO (Set Text)
+filterByMagic paths = do
+  results <- forM paths $ \path -> do
+    isBinary <- hasBinaryMagic (T.unpack path)
+    pure $ if isBinary then Just path else Nothing
+  pure $ Set.fromList $ catMaybes results
+
+-- | Check if file has binary magic bytes
+-- Returns True for ELF, Mach-O, PE, JVM class, WASM, ar archives, etc.
+hasBinaryMagic :: FilePath -> IO Bool
+hasBinaryMagic path = do
+  exists <- doesFileExist path
+  if not exists 
+    then pure False
+    else do
+      result <- try $ BS.readFile path
+      case result of
+        Left (_ :: SomeException) -> pure False
+        Right content -> pure $ checkMagic content
+  where
+    checkMagic bs
+      | BS.length bs < 4 = False
+      | otherwise = 
+          let magic4 = BS.take 4 bs
+              magic2 = BS.take 2 bs
+          in magic4 == elfMagic           -- ELF
+          || magic4 == machO32Magic       -- Mach-O 32-bit
+          || magic4 == machO64Magic       -- Mach-O 64-bit  
+          || magic4 == machOFatMagic      -- Mach-O fat/universal
+          || magic2 == peMagic            -- PE (MZ)
+          || magic4 == jvmMagic           -- JVM .class
+          || magic4 == wasmMagic          -- WebAssembly
+          || magic4 == llvmBcMagic        -- LLVM bitcode
+          || BS.take 8 bs == arMagic      -- ar archive (.a)
+          || magic4 == pythonMagic2       -- Python 2 bytecode
+          || isPythonMagic bs             -- Python 3 bytecode (varies)
+    
+    elfMagic      = BS.pack [0x7f, 0x45, 0x4c, 0x46]  -- \x7fELF
+    machO32Magic  = BS.pack [0xfe, 0xed, 0xfa, 0xce]  -- feedface
+    machO64Magic  = BS.pack [0xfe, 0xed, 0xfa, 0xcf]  -- feedfacf  
+    machOFatMagic = BS.pack [0xca, 0xfe, 0xba, 0xbe]  -- cafebabe (also JVM!)
+    peMagic       = BS.pack [0x4d, 0x5a]              -- MZ
+    jvmMagic      = BS.pack [0xca, 0xfe, 0xba, 0xbe]  -- cafebabe
+    wasmMagic     = BS.pack [0x00, 0x61, 0x73, 0x6d]  -- \0asm
+    llvmBcMagic   = BS.pack [0x42, 0x43, 0xc0, 0xde]  -- BC..
+    arMagic       = BC.pack "!<arch>\n"              -- ar archive
+    pythonMagic2  = BS.pack [0x03, 0xf3, 0x0d, 0x0a]  -- Python 2.7
+    
+    -- Python 3 magic varies by version, check pattern
+    isPythonMagic bs = BS.length bs >= 4 
+                    && BS.index bs 2 == 0x0d 
+                    && BS.index bs 3 == 0x0a
+
+

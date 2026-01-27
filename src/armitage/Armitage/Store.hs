@@ -60,6 +60,9 @@ import Control.Exception (bracket, try)
 import System.IO.Error (IOError)
 import Control.Monad (unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
+import qualified Data.ByteArray as BA
+import qualified Data.ByteArray.Encoding as BA
+import qualified Data.Text.Encoding as TE
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -274,7 +277,9 @@ computeStoreHash content =
 
 -- | Hash bytes to hex string
 hashBytes :: ByteString -> Text
-hashBytes bs = T.pack $ show $ hashWith SHA256 bs
+hashBytes bs = 
+  let digest = hashWith SHA256 bs
+  in TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
 
 -- | Hash a filesystem path (file or directory)
 hashPath :: FilePath -> IO Text

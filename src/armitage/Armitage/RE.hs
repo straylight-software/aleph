@@ -233,9 +233,11 @@ data ExecutionMetadata = ExecutionMetadata
   deriving (Show, Eq, Generic)
 
 -- | Execute request
+-- Note: Action must already be uploaded to CAS before calling execute.
+-- Pass the digest of the uploaded Action, not the Action itself.
 data ExecuteRequest = ExecuteRequest
   { erInstanceName :: Text
-  , erAction :: Action
+  , erActionDigest :: CAS.Digest  -- Digest of Action already in CAS
   , erSkipCacheLookup :: Bool
   }
   deriving (Show, Eq, Generic)
@@ -330,14 +332,11 @@ withREClient config action = do
 
 -- | Execute an action (non-blocking, returns operation)
 -- Uses Execution.Execute RPC which is server-streaming (returns Operations)
+-- NOTE: The Action must already be uploaded to CAS before calling this.
 execute :: REClient -> ExecuteRequest -> IO ExecuteResponse
 execute client req = do
-  let action = erAction req
-      -- Convert to proto types
-      protoActionDigest = Proto.ProtoDigest
-        { Proto.pdHash = CAS.digestHash (actionCommandDigest action)
-        , Proto.pdSizeBytes = fromIntegral (CAS.digestSize (actionCommandDigest action))
-        }
+  let -- Use the pre-computed digest (Action already in CAS)
+      protoActionDigest = CAS.toProtoDigest (erActionDigest req)
       protoReq = Proto.ExecuteRequest
         { Proto.exrInstanceName = reInstanceName (recConfig client)
         , Proto.exrActionDigest = protoActionDigest
@@ -384,43 +383,19 @@ execute client req = do
     collectOps
 
 -- | Execute and wait for completion (blocking)
+-- Uses the streaming response from Execute - it continues until done=true
 executeAndWait :: REClient -> ExecuteRequest -> IO (Either Text ActionResult)
 executeAndWait client req = do
-  putStrLn $ "RE: executeAndWait"
-  
-  -- 1. Start execution
+  -- Execute already streams until completion due to collectOps recursion
   response <- execute client req
-  
-  -- 2. Poll until done
-  let poll opName = do
-        threadDelay 100000  -- 100ms
-        -- TODO: call Operations.GetOperation
-        -- For now, simulate completion
-        pure $ Right ActionResult
-          { arOutputFiles = []
-          , arOutputDirectories = []
-          , arExitCode = 0
-          , arStdoutDigest = Nothing
-          , arStderrDigest = Nothing
-          , arExecutionMetadata = ExecutionMetadata
-              { emWorker = "local-stub"
-              , emQueuedTime = Nothing
-              , emWorkerStartTime = Nothing
-              , emWorkerCompletedTime = Nothing
-              , emInputFetchStartTime = Nothing
-              , emInputFetchCompletedTime = Nothing
-              , emExecutionStartTime = Nothing
-              , emExecutionCompletedTime = Nothing
-              , emOutputUploadStartTime = Nothing
-              , emOutputUploadCompletedTime = Nothing
-              }
-          }
   
   if exDone response
     then case exResult response of
       Just result -> pure $ Right result
-      Nothing -> pure $ Left $ fromMaybe "Unknown error" (exError response)
-    else poll (exOperationName response)
+      Nothing -> pure $ Left $ fromMaybe "Execution failed (no result)" (exError response)
+    else 
+      -- If execute returned without done=true, the stream ended prematurely
+      pure $ Left "Execution stream ended before completion"
 
 -- | Get cached action result (if exists)
 -- Uses ActionCache.GetActionResult RPC (non-streaming)
@@ -615,7 +590,7 @@ decodeExecuteResponseResult anyBytes = do
   resultField <- lookup 1 execRespFields  -- field 1 is ActionResult
   Proto.decodeActionResult resultField >>= protoToActionResult
   where
-    -- Simple field parser (reusing Proto's wire format)
+    -- Simple field parser using Proto module's varint functions
     parseAnyFields :: ByteString -> [(Int, ByteString)]
     parseAnyFields bs
       | BS.null bs = []
@@ -626,38 +601,15 @@ decodeExecuteResponseResult anyBytes = do
     
     parseField :: ByteString -> Maybe (Int, ByteString, ByteString)
     parseField bs = do
-      (key, rest1) <- decodeVarint bs
+      (key, rest1) <- Proto.decodeVarint bs
       let fieldNum = fromIntegral (key `Data.Bits.shiftR` 3)
           wireType = key Data.Bits..&. 0x07
       case wireType of
         0 -> do  -- varint - encode it back for lookup
-          (val, rest2) <- decodeVarint rest1
-          Just (fieldNum, encodeVarint val, rest2)
+          (val, rest2) <- Proto.decodeVarint rest1
+          Just (fieldNum, Proto.encodeVarint val, rest2)
         2 -> do  -- length-delimited
-          (len, rest2) <- decodeVarint rest1
+          (len, rest2) <- Proto.decodeVarint rest1
           let (content, rest3) = BS.splitAt (fromIntegral len) rest2
           Just (fieldNum, content, rest3)
         _ -> Nothing
-    
-    decodeVarint :: ByteString -> Maybe (Word64, ByteString)
-    decodeVarint bs = go bs (0 :: Word64) (0 :: Int)
-      where
-        go :: ByteString -> Word64 -> Int -> Maybe (Word64, ByteString)
-        go remaining acc shift
-          | BS.null remaining = Nothing
-          | otherwise =
-              let byte = BS.head remaining
-                  rest = BS.tail remaining
-                  val  = fromIntegral (byte Data.Bits..&. 0x7F) `Data.Bits.shiftL` shift
-                  acc' = acc Data.Bits..|. val
-              in if byte Data.Bits..&. 0x80 == 0
-                 then Just (acc', rest)
-                 else if shift >= 63
-                      then Nothing
-                      else go rest acc' (shift + 7)
-    
-    encodeVarint :: Word64 -> ByteString
-    encodeVarint n
-      | n < 128   = BS.singleton (fromIntegral n)
-      | otherwise = BS.cons (fromIntegral (n Data.Bits..&. 0x7F) Data.Bits..|. 0x80)
-                            (encodeVarint (n `Data.Bits.shiftR` 7))
