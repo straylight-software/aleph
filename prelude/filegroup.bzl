@@ -2,7 +2,7 @@
 #
 # Extracted from buck2-prelude filegroup.bzl
 
-load("@prelude//:artifacts.bzl", "ArtifactGroupInfo")
+load("@straylight_prelude//:artifacts.bzl", "ArtifactGroupInfo")
 
 def filegroup_impl(ctx):
     """

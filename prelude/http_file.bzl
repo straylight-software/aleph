@@ -3,8 +3,8 @@
 # Extracted from buck2-prelude http_file.bzl
 # Stripped: materialization_test dependency, vpnless_urls
 
-load("@prelude//utils:expect.bzl", "expect")
-load("@prelude//utils:utils.bzl", "value_or")
+load("@straylight_prelude//utils:expect.bzl", "expect")
+load("@straylight_prelude//utils:utils.bzl", "value_or")
 
 def http_file_shared(
         actions: AnalysisActions,

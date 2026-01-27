@@ -3,9 +3,9 @@
 # Extracted from buck2-prelude artifacts.bzl
 # Stripped: DistInfo dependency, simplified for our use case
 
-load("@prelude//:paths.bzl", "paths")
-load("@prelude//utils:expect.bzl", "expect")
-load("@prelude//utils:arglike.bzl", "ArgLike")  # @unused Used as a type
+load("@straylight_prelude//:paths.bzl", "paths")
+load("@straylight_prelude//utils:expect.bzl", "expect")
+load("@straylight_prelude//utils:arglike.bzl", "ArgLike")  # @unused Used as a type
 
 # A group of artifacts.
 ArtifactGroupInfo = provider(
