@@ -231,4 +231,5 @@ CxxToolchainInfo = provider(
 
 CxxPlatformInfo = provider(fields = {
     "name": provider_field(typing.Any, default = None),
+    "deps_aliases": provider_field(typing.Any, default = None),
 })
