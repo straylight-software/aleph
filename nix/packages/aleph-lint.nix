@@ -35,29 +35,9 @@ write-shell-application {
       --config ${sgconfig-yml} \
       test
   '';
-  text = ''
-    # Use unique config file per invocation to avoid race conditions
-    # when treefmt runs multiple aleph-lint instances in parallel
-    SGCONFIG_TMP="$(mktemp -t aleph-lint-XXXXXX.yml)"
-    cp --no-preserve=mode ${sgconfig-yml} "$SGCONFIG_TMP"
-    trap 'rm -f "$SGCONFIG_TMP"' EXIT
-
-    # Convert absolute paths to relative paths for glob pattern matching
-    # treefmt passes absolute paths, but our ignores use relative globs
-    declare -a REL_ARGS=()
-    for arg in "$@"; do
-      if [[ "$arg" = /* ]] && [[ -f "$arg" ]]; then
-        REL_ARGS+=("$(realpath --relative-to=. "$arg")")
-      else
-        REL_ARGS+=("$arg")
-      fi
-    done
-
-    ${lib.getExe ast-grep} \
-      --config "$SGCONFIG_TMP" \
-      scan \
-      --context 2 \
-      --color always \
-      "''${REL_ARGS[@]}"
-  '';
+  text =
+    builtins.replaceStrings
+      [ "$SGCONFIG_YML" "$AST_GREP_BIN" ]
+      [ "${sgconfig-yml}" "${lib.getExe ast-grep}" ]
+      (builtins.readFile ../../linter/aleph-lint.bash);
 }

@@ -4,7 +4,10 @@ severity: error
 # Legitimate uses:
 #   - prelude: implements Maybe-style safe accessors (get-attr, get-path, catAttrs)
 ignores:
+  - nix/prelude/*.nix
   - nix/prelude/**/*.nix
+  - nix/lib/*.nix
+  - nix/lib/**/*.nix
 rule:
   kind: select_expression
   has:

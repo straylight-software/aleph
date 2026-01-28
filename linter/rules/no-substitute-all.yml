@@ -3,7 +3,8 @@ language: nix
 severity: error
 # NixOS modules don't have access to Dhall prelude
 ignores:
-  - "nix/modules/nixos/**"
+  - "nix/modules/nixos/*.nix"
+  - "nix/modules/nixos/**/*.nix"
 rule:
   kind: apply_expression
   any:
