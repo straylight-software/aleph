@@ -310,10 +310,10 @@ wheelUrl spec@WheelSpec{..} =
 download :: WheelSpec -> FilePath -> Sh FilePath
 download spec outputPath = do
     let url = wheelUrl spec
-        filename = wheelFilename spec
-        dest = outputPath </> fromText filename
+        fname = wheelFilename spec
+        dest = outputPath </> fromText fname
 
-    echoErr $ ":: Downloading " <> filename
+    echoErr $ ":: Downloading " <> fname
     run_ "curl" ["-fsSL", "-o", toTextIgnore dest, url]
 
     pure dest

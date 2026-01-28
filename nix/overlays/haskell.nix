@@ -14,15 +14,14 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { inputs }:
-final: prev:
+_final: prev:
 let
-  inherit (prev.haskell.lib)
-    doJailbreak
-    dontCheck
-    appendPatch
-    addBuildDepends
-    overrideCabal
-    ;
+  # Access haskell.lib functions via attribute access (linter allows camelCase in attrpaths)
+  haskell-lib = prev.haskell.lib;
+  do-jailbreak = haskell-lib.doJailbreak;
+  dont-check = haskell-lib.dontCheck;
+  append-patch = haskell-lib.appendPatch;
+  add-build-depends = haskell-lib.addBuildDepends;
 
   # CUDA libraries needed for libtorch at runtime
   # Use nvidia-sdk (CUDA 13.0) which has SONAME 12 matching libtorch 2.9.0
@@ -45,11 +44,21 @@ let
       #   1. jailbreak for GHC 9.12 (base 4.21, ghc-prim 0.13)
       #   2. patch for Cabal 3.14+ SymbolicPath API (proto-lens-setup only)
       # ────────────────────────────────────────────────────────────────────────
-      proto-lens = doJailbreak hsuper.proto-lens;
-      proto-lens-runtime = doJailbreak hsuper.proto-lens-runtime;
-      proto-lens-protoc = doJailbreak hsuper.proto-lens-protoc;
-      proto-lens-setup = appendPatch (doJailbreak hsuper.proto-lens-setup) proto-lens-setup-patch;
-      proto-lens-protobuf-types = doJailbreak hsuper.proto-lens-protobuf-types;
+      proto-lens = do-jailbreak hsuper.proto-lens;
+      proto-lens-runtime = do-jailbreak hsuper.proto-lens-runtime;
+      proto-lens-protoc = do-jailbreak hsuper.proto-lens-protoc;
+      proto-lens-setup = append-patch (do-jailbreak hsuper.proto-lens-setup) proto-lens-setup-patch;
+      proto-lens-protobuf-types = do-jailbreak hsuper.proto-lens-protobuf-types;
+
+      # ────────────────────────────────────────────────────────────────────────
+      # tree-sitter stack - jailbreak for GHC 9.12 (containers/filepath bounds)
+      # ────────────────────────────────────────────────────────────────────────
+      tree-sitter = do-jailbreak hsuper.tree-sitter;
+      tree-sitter-python = do-jailbreak hsuper.tree-sitter-python;
+      tree-sitter-typescript = do-jailbreak hsuper.tree-sitter-typescript;
+      tree-sitter-tsx = do-jailbreak hsuper.tree-sitter-tsx;
+      tree-sitter-haskell = do-jailbreak hsuper.tree-sitter-haskell;
+      tree-sitter-rust = do-jailbreak hsuper.tree-sitter-rust;
 
       # ────────────────────────────────────────────────────────────────────────
       # grapesy stack - specific versions required for compatibility
@@ -78,7 +87,7 @@ let
         sha256 = "sha256-IhfECyq50ipDvbAMhNuhmLu5F6lLYH8q+/jotcPlUog=";
       } { };
 
-      grapesy = dontCheck (
+      grapesy = dont-check (
         hself.callHackageDirect {
           pkg = "grapesy";
           ver = "1.0.0";
@@ -98,18 +107,18 @@ let
       #   libtorch.so, which needs CUDA libs. We set LD_LIBRARY_PATH at the
       #   derivation level to point to nvidia-sdk/lib.
       # ────────────────────────────────────────────────────────────────────────
-      libtorch-ffi-helper = doJailbreak hsuper.libtorch-ffi-helper;
+      libtorch-ffi-helper = do-jailbreak hsuper.libtorch-ffi-helper;
 
       libtorch-ffi =
         let
-          base = doJailbreak hsuper.libtorch-ffi;
-          with-deps = addBuildDepends base [ nvidia-sdk ];
+          base = do-jailbreak hsuper.libtorch-ffi;
+          with-deps = add-build-depends base [ nvidia-sdk ];
         in
-        dontCheck with-deps;
+        dont-check with-deps;
 
       hasktorch =
-        (dontCheck (doJailbreak (addBuildDepends hsuper.hasktorch [ nvidia-sdk ]))).overrideAttrs
-          (old: {
+        (dont-check (do-jailbreak (add-build-depends hsuper.hasktorch [ nvidia-sdk ]))).overrideAttrs
+          (_old: {
             LD_LIBRARY_PATH = cuda-lib-path;
           });
     };

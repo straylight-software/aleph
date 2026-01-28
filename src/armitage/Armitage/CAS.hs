@@ -22,43 +22,40 @@ The CAS stores blobs by their SHA256 digest. This module provides:
 All operations use the standard Remote Execution API:
   https://github.com/bazelbuild/remote-apis
 -}
-module Armitage.CAS
-  ( -- * Configuration
-    CASConfig (..)
-  , defaultConfig
-  , flyConfig
+module Armitage.CAS (
+    -- * Configuration
+    CASConfig (..),
+    defaultConfig,
+    flyConfig,
 
     -- * Client
-  , CASClient
-  , withCASClient
+    CASClient,
+    withCASClient,
 
     -- * Digest
-  , Digest (..)
-  , digestFromBytes
-  , digestToResourceName
-  , toProtoDigest
-  , fromProtoDigest
+    Digest (..),
+    digestFromBytes,
+    digestToResourceName,
+    toProtoDigest,
+    fromProtoDigest,
 
     -- * Operations
-  , uploadBlob
-  , downloadBlob
-  , findMissingBlobs
-  , blobExists
+    uploadBlob,
+    downloadBlob,
+    findMissingBlobs,
+    blobExists,
 
     -- * Utilities
-  , hashBytes
-  ) where
+    hashBytes,
+) where
 
-import Control.Exception (try, SomeException)
-import System.IO (hPutStrLn, hFlush, stderr)
+import Control.Exception (SomeException, try)
 import Control.Monad (forM_)
 import Crypto.Hash (SHA256 (..), hashWith)
-import qualified Data.ByteArray as BA
 import qualified Data.ByteArray.Encoding as BA
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
-import Data.Proxy (Proxy(..))
+import Data.Proxy (Proxy (..))
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
@@ -66,21 +63,21 @@ import GHC.Generics (Generic)
 import Network.Socket (PortNumber)
 
 -- grapesy imports
-import Network.GRPC.Client
-  ( Connection
-  , Server (..)
-  , Address (..)
-  , ServerValidation (..)
-  , certStoreFromSystem
-  , withConnection
-  , withRPC
-  , sendFinalInput
-  , recvFinalOutput
-  , sendNextInput
-  , sendEndOfInput
-  , recvNextOutputElem
-  )
-import Network.GRPC.Common (def, NextElem(..))
+import Network.GRPC.Client (
+    Address (..),
+    Connection,
+    Server (..),
+    ServerValidation (..),
+    certStoreFromSystem,
+    recvFinalOutput,
+    recvNextOutputElem,
+    sendEndOfInput,
+    sendFinalInput,
+    sendNextInput,
+    withConnection,
+    withRPC,
+ )
+import Network.GRPC.Common (NextElem (..), def)
 
 -- Our hand-written protobuf types
 import qualified Armitage.Proto as Proto
@@ -91,93 +88,98 @@ import qualified Armitage.Proto as Proto
 
 -- | CAS client configuration
 data CASConfig = CASConfig
-  { casHost :: String
-  -- ^ CAS server hostname (e.g., "localhost" or "cas.straylight.cx")
-  , casPort :: PortNumber
-  -- ^ CAS server port (e.g., 50052 for local, 443 for TLS)
-  , casUseTLS :: Bool
-  -- ^ Use TLS (required for production endpoints)
-  , casInstanceName :: Text
-  -- ^ Remote execution instance name (usually "main")
-  }
-  deriving (Show, Eq, Generic)
+    { casHost :: String
+    -- ^ CAS server hostname (e.g., "localhost" or "cas.straylight.cx")
+    , casPort :: PortNumber
+    -- ^ CAS server port (e.g., 50052 for local, 443 for TLS)
+    , casUseTLS :: Bool
+    -- ^ Use TLS (required for production endpoints)
+    , casInstanceName :: Text
+    -- ^ Remote execution instance name (usually "main")
+    }
+    deriving (Show, Eq, Generic)
 
--- | Default configuration for local NativeLink
--- NativeLink runs all services (CAS, Execution, ActionCache) on the same port
--- Use 127.0.0.1 explicitly because localhost may resolve to IPv6 (::1)
--- and NativeLink typically only listens on IPv4
+{- | Default configuration for local NativeLink
+NativeLink runs all services (CAS, Execution, ActionCache) on the same port
+Use 127.0.0.1 explicitly because localhost may resolve to IPv6 (::1)
+and NativeLink typically only listens on IPv4
+-}
 defaultConfig :: CASConfig
 defaultConfig =
-  CASConfig
-    { casHost = "127.0.0.1"
-    , casPort = 50051
-    , casUseTLS = False
-    , casInstanceName = ""  -- Empty works with default NativeLink config
-    }
+    CASConfig
+        { casHost = "127.0.0.1"
+        , casPort = 50051
+        , casUseTLS = False
+        , casInstanceName = "" -- Empty works with default NativeLink config
+        }
 
 -- | Configuration for Fly.io deployment
 flyConfig :: CASConfig
 flyConfig =
-  CASConfig
-    { casHost = "aleph-cas.fly.dev"
-    , casPort = 443
-    , casUseTLS = True
-    , casInstanceName = "main"
-    }
+    CASConfig
+        { casHost = "aleph-cas.fly.dev"
+        , casPort = 443
+        , casUseTLS = True
+        , casInstanceName = "main"
+        }
 
 -- -----------------------------------------------------------------------------
 -- Digest
 -- -----------------------------------------------------------------------------
 
--- | Content digest (hash + size)
---
--- This matches the Remote Execution API Digest message:
---   message Digest {
---     string hash = 1;      // SHA256 hex
---     int64 size_bytes = 2;
---   }
-data Digest = Digest
-  { digestHash :: Text
-  -- ^ SHA256 hash as lowercase hex string (64 chars)
-  , digestSize :: Int
-  -- ^ Size in bytes
+{- | Content digest (hash + size)
+
+This matches the Remote Execution API Digest message:
+  message Digest {
+    string hash = 1;      // SHA256 hex
+    int64 size_bytes = 2;
   }
-  deriving (Show, Eq, Generic)
+-}
+data Digest = Digest
+    { digestHash :: Text
+    -- ^ SHA256 hash as lowercase hex string (64 chars)
+    , digestSize :: Int
+    -- ^ Size in bytes
+    }
+    deriving (Show, Eq, Generic)
 
 -- | Compute digest from bytes
 digestFromBytes :: ByteString -> Digest
 digestFromBytes bs =
-  Digest
-    { digestHash = hashBytes bs
-    , digestSize = BS.length bs
-    }
+    Digest
+        { digestHash = hashBytes bs
+        , digestSize = BS.length bs
+        }
 
--- | Convert digest to ByteStream resource name
---
--- Format: {instance_name}/blobs/{hash}/{size}
+{- | Convert digest to ByteStream resource name
+
+Format: {instance_name}/blobs/{hash}/{size}
+-}
 digestToResourceName :: Text -> Digest -> Text
-digestToResourceName instanceName Digest {..} =
-  instanceName <> "/blobs/" <> digestHash <> "/" <> T.pack (show digestSize)
+digestToResourceName instanceName Digest{..} =
+    instanceName <> "/blobs/" <> digestHash <> "/" <> T.pack (show digestSize)
 
 -- | Hash bytes to SHA256 hex string
 hashBytes :: ByteString -> Text
-hashBytes bs = 
-  let digest = hashWith SHA256 bs
-  in TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
+hashBytes bs =
+    let digest = hashWith SHA256 bs
+     in TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
 
 -- | Convert our Digest to Proto Digest
 toProtoDigest :: Digest -> Proto.ProtoDigest
-toProtoDigest Digest{..} = Proto.ProtoDigest
-  { Proto.pdHash = digestHash
-  , Proto.pdSizeBytes = fromIntegral digestSize
-  }
+toProtoDigest Digest{..} =
+    Proto.ProtoDigest
+        { Proto.pdHash = digestHash
+        , Proto.pdSizeBytes = fromIntegral digestSize
+        }
 
 -- | Convert Proto Digest to our Digest
 fromProtoDigest :: Proto.ProtoDigest -> Digest
-fromProtoDigest Proto.ProtoDigest{..} = Digest
-  { digestHash = pdHash
-  , digestSize = fromIntegral pdSizeBytes
-  }
+fromProtoDigest Proto.ProtoDigest{..} =
+    Digest
+        { digestHash = pdHash
+        , digestSize = fromIntegral pdSizeBytes
+        }
 
 -- -----------------------------------------------------------------------------
 -- Client
@@ -185,203 +187,218 @@ fromProtoDigest Proto.ProtoDigest{..} = Digest
 
 -- | Opaque CAS client handle
 data CASClient = CASClient
-  { clientConfig :: CASConfig
-  , clientConn :: Connection
-  }
+    { clientConfig :: CASConfig
+    , clientConn :: Connection
+    }
 
--- | Create CAS client and run action
---
--- Example:
---   withCASClient config $ \client -> do
---     let digest = digestFromBytes content
---     uploadBlob client digest content
+{- | Create CAS client and run action
+
+Example:
+  withCASClient config $ \client -> do
+    let digest = digestFromBytes content
+    uploadBlob client digest content
+-}
 withCASClient :: CASConfig -> (CASClient -> IO a) -> IO a
 withCASClient config action = do
-  let addr = Address
-        { addressHost = casHost config
-        , addressPort = casPort config
-        , addressAuthority = Nothing
-        }
-      -- Use system certificate store for TLS validation
-      -- NoServerValidation would skip verification (insecure)
-      serverValidation = ValidateServer certStoreFromSystem
-      server = if casUseTLS config
-        then ServerSecure serverValidation def addr
-        else ServerInsecure addr
-      params = def
-  withConnection params server $ \conn ->
-    action CASClient
-      { clientConfig = config
-      , clientConn = conn
-      }
+    let addr =
+            Address
+                { addressHost = casHost config
+                , addressPort = casPort config
+                , addressAuthority = Nothing
+                }
+        -- Use system certificate store for TLS validation
+        -- NoServerValidation would skip verification (insecure)
+        serverValidation = ValidateServer certStoreFromSystem
+        server =
+            if casUseTLS config
+                then ServerSecure serverValidation def addr
+                else ServerInsecure addr
+        params = def
+    withConnection params server $ \conn ->
+        action
+            CASClient
+                { clientConfig = config
+                , clientConn = conn
+                }
 
 -- -----------------------------------------------------------------------------
 -- Operations
 -- -----------------------------------------------------------------------------
 
--- | Upload blob to CAS
---
--- Uses BatchUpdateBlobs for small blobs (<4MB),
--- ByteStream.Write for large blobs.
+{- | Upload blob to CAS
+
+Uses BatchUpdateBlobs for small blobs (<4MB),
+ByteStream.Write for large blobs.
+-}
 uploadBlob :: CASClient -> Digest -> ByteString -> IO ()
 uploadBlob client digest content
-  | BS.length content < 4 * 1024 * 1024 = batchUpload client digest content
-  | otherwise = streamUpload client digest content
+    | BS.length content < 4 * 1024 * 1024 = batchUpload client digest content
+    | otherwise = streamUpload client digest content
 
 -- | Batch upload (for blobs < 4MB)
 batchUpload :: CASClient -> Digest -> ByteString -> IO ()
 batchUpload client digest content = do
-  let request = Proto.BatchUpdateBlobsRequest
-        { Proto.bubrInstanceName = casInstanceName (clientConfig client)
-        , Proto.bubrRequests =
-            [ Proto.BlobRequest
-                { Proto.brDigest = toProtoDigest digest
-                , Proto.brData = content
+    let request =
+            Proto.BatchUpdateBlobsRequest
+                { Proto.bubrInstanceName = casInstanceName (clientConfig client)
+                , Proto.bubrRequests =
+                    [ Proto.BlobRequest
+                        { Proto.brDigest = toProtoDigest digest
+                        , Proto.brData = content
+                        }
+                    ]
                 }
-            ]
-        }
-      reqBytes = Proto.encodeBatchUpdateBlobsRequest request
+        reqBytes = Proto.encodeBatchUpdateBlobsRequest request
 
-  result <- try @SomeException $
-    withRPC (clientConn client) def (Proxy @Proto.CASBatchUpdateBlobs) $ \call -> do
-      sendFinalInput call reqBytes
-      (respBytes, _trailers) <- recvFinalOutput call
-      pure respBytes
+    result <- try @SomeException $
+        withRPC (clientConn client) def (Proxy @Proto.CASBatchUpdateBlobs) $ \call -> do
+            sendFinalInput call reqBytes
+            (respBytes, _trailers) <- recvFinalOutput call
+            pure respBytes
 
-  case result of
-    Left err -> do
-      putStrLn $ "CAS: batch upload failed: " <> show err
-    Right respBytes -> do
-      case Proto.decodeBatchUpdateBlobsResponse respBytes of
-        Nothing ->
-          putStrLn $ "CAS: batch upload response decode failed"
-        Just resp -> do
-          let responses = Proto.bubrResponses resp
-          forM_ responses $ \r -> do
-            if Proto.brespStatusCode r == 0
-              then putStrLn $ "CAS: uploaded " <> T.unpack (Proto.pdHash (Proto.brespDigest r))
-              else putStrLn $ "CAS: upload failed with status " <> show (Proto.brespStatusCode r)
+    case result of
+        Left err -> do
+            putStrLn $ "CAS: batch upload failed: " <> show err
+        Right respBytes -> do
+            case Proto.decodeBatchUpdateBlobsResponse respBytes of
+                Nothing ->
+                    putStrLn $ "CAS: batch upload response decode failed"
+                Just resp -> do
+                    let responses = Proto.bubrResponses resp
+                    forM_ responses $ \r -> do
+                        if Proto.brespStatusCode r == 0
+                            then putStrLn $ "CAS: uploaded " <> T.unpack (Proto.pdHash (Proto.brespDigest r))
+                            else putStrLn $ "CAS: upload failed with status " <> show (Proto.brespStatusCode r)
 
 -- | Stream upload (for blobs >= 4MB)
 streamUpload :: CASClient -> Digest -> ByteString -> IO ()
 streamUpload client digest content = do
-  let resourceName = casInstanceName (clientConfig client)
-        <> "/uploads/armitage-" <> T.pack (show $ BS.length content)
-        <> "/blobs/" <> digestHash digest
-        <> "/" <> T.pack (show (digestSize digest))
+    let resourceName =
+            casInstanceName (clientConfig client)
+                <> "/uploads/armitage-"
+                <> T.pack (show $ BS.length content)
+                <> "/blobs/"
+                <> digestHash digest
+                <> "/"
+                <> T.pack (show (digestSize digest))
 
-      -- Split content into 1MB chunks
-      chunkSize = 1024 * 1024
-      chunks = chunksOf chunkSize content
+        -- Split content into 1MB chunks
+        chunkSize = 1024 * 1024
+        chunks = chunksOf chunkSize content
 
-      makeRequest offset isLast chunk = Proto.WriteRequest
-        { Proto.wrResourceName = resourceName
-        , Proto.wrWriteOffset = offset
-        , Proto.wrFinishWrite = isLast
-        , Proto.wrData = chunk
-        }
+        makeRequest offset isLast chunk =
+            Proto.WriteRequest
+                { Proto.wrResourceName = resourceName
+                , Proto.wrWriteOffset = offset
+                , Proto.wrFinishWrite = isLast
+                , Proto.wrData = chunk
+                }
 
-  result <- try @SomeException $
-    withRPC (clientConn client) def (Proxy @Proto.ByteStreamWrite) $ \call -> do
-      -- Send all chunks
-      let sendChunks [] _ = sendEndOfInput call
-          sendChunks [c] offset = do
-            let req = makeRequest offset True c
-            sendFinalInput call (Proto.encodeWriteRequest req)
-          sendChunks (c:cs) offset = do
-            let req = makeRequest offset False c
-            sendNextInput call (Proto.encodeWriteRequest req)
-            sendChunks cs (offset + fromIntegral (BS.length c))
-      sendChunks chunks 0
-      (respBytes, _trailers) <- recvFinalOutput call
-      pure respBytes
+    result <- try @SomeException $
+        withRPC (clientConn client) def (Proxy @Proto.ByteStreamWrite) $ \call -> do
+            -- Send all chunks
+            let sendChunks [] _ = sendEndOfInput call
+                sendChunks [c] offset = do
+                    let req = makeRequest offset True c
+                    sendFinalInput call (Proto.encodeWriteRequest req)
+                sendChunks (c : cs) offset = do
+                    let req = makeRequest offset False c
+                    sendNextInput call (Proto.encodeWriteRequest req)
+                    sendChunks cs (offset + fromIntegral (BS.length c))
+            sendChunks chunks 0
+            (respBytes, _trailers) <- recvFinalOutput call
+            pure respBytes
 
-  case result of
-    Left err ->
-      putStrLn $ "CAS: stream upload failed: " <> show err
-    Right respBytes ->
-      case Proto.decodeWriteResponse respBytes of
-        Nothing ->
-          putStrLn $ "CAS: stream upload response decode failed"
-        Just resp ->
-          putStrLn $ "CAS: stream uploaded " <> show (Proto.wrCommittedSize resp) <> " bytes"
+    case result of
+        Left err ->
+            putStrLn $ "CAS: stream upload failed: " <> show err
+        Right respBytes ->
+            case Proto.decodeWriteResponse respBytes of
+                Nothing ->
+                    putStrLn $ "CAS: stream upload response decode failed"
+                Just resp ->
+                    putStrLn $ "CAS: stream uploaded " <> show (Proto.wrCommittedSize resp) <> " bytes"
 
 -- | Split bytestring into chunks
 chunksOf :: Int -> ByteString -> [ByteString]
 chunksOf n bs
-  | BS.null bs = []
-  | otherwise =
-      let (chunk, rest) = BS.splitAt n bs
-      in chunk : chunksOf n rest
+    | BS.null bs = []
+    | otherwise =
+        let (chunk, rest) = BS.splitAt n bs
+         in chunk : chunksOf n rest
 
--- | Download blob from CAS
---
--- Returns Nothing if blob not found.
+{- | Download blob from CAS
+
+Returns Nothing if blob not found.
+-}
 downloadBlob :: CASClient -> Digest -> IO (Maybe ByteString)
 downloadBlob client digest = do
-  let resourceName = digestToResourceName (casInstanceName $ clientConfig client) digest
-      request = Proto.ReadRequest
-        { Proto.rrResourceName = resourceName
-        , Proto.rrReadOffset = 0
-        , Proto.rrReadLimit = 0  -- 0 means no limit
-        }
-      reqBytes = Proto.encodeReadRequest request
+    let resourceName = digestToResourceName (casInstanceName $ clientConfig client) digest
+        request =
+            Proto.ReadRequest
+                { Proto.rrResourceName = resourceName
+                , Proto.rrReadOffset = 0
+                , Proto.rrReadLimit = 0 -- 0 means no limit
+                }
+        reqBytes = Proto.encodeReadRequest request
 
-  result <- try @SomeException $
-    withRPC (clientConn client) def (Proxy @Proto.ByteStreamRead) $ \call -> do
-      sendFinalInput call reqBytes
-      -- Collect all response chunks
-      let collectChunks acc = do
-            next <- recvNextOutputElem call
-            case next of
-              NoNextElem -> pure acc
-              NextElem chunk ->
-                case Proto.decodeReadResponse chunk of
-                  Nothing -> collectChunks acc  -- skip bad chunk
-                  Just resp -> collectChunks (acc <> Proto.rrData resp)
-      collectChunks BS.empty
+    result <- try @SomeException $
+        withRPC (clientConn client) def (Proxy @Proto.ByteStreamRead) $ \call -> do
+            sendFinalInput call reqBytes
+            -- Collect all response chunks
+            let collectChunks acc = do
+                    next <- recvNextOutputElem call
+                    case next of
+                        NoNextElem -> pure acc
+                        NextElem chunk ->
+                            case Proto.decodeReadResponse chunk of
+                                Nothing -> collectChunks acc -- skip bad chunk
+                                Just resp -> collectChunks (acc <> Proto.rrData resp)
+            collectChunks BS.empty
 
-  case result of
-    Left err -> do
-      putStrLn $ "CAS: download failed: " <> show err
-      pure Nothing
-    Right content ->
-      if BS.null content
-        then pure Nothing
-        else pure (Just content)
+    case result of
+        Left err -> do
+            putStrLn $ "CAS: download failed: " <> show err
+            pure Nothing
+        Right content ->
+            if BS.null content
+                then pure Nothing
+                else pure (Just content)
 
--- | Check which blobs are missing from CAS
---
--- Returns list of digests not present in the store.
+{- | Check which blobs are missing from CAS
+
+Returns list of digests not present in the store.
+-}
 findMissingBlobs :: CASClient -> [Digest] -> IO [Digest]
 findMissingBlobs client digests = do
-  let request = Proto.FindMissingBlobsRequest
-        { Proto.fmbrInstanceName = casInstanceName (clientConfig client)
-        , Proto.fmbrBlobDigests = map toProtoDigest digests
-        }
-      reqBytes = Proto.encodeFindMissingBlobsRequest request
+    let request =
+            Proto.FindMissingBlobsRequest
+                { Proto.fmbrInstanceName = casInstanceName (clientConfig client)
+                , Proto.fmbrBlobDigests = map toProtoDigest digests
+                }
+        reqBytes = Proto.encodeFindMissingBlobsRequest request
 
-  result <- try @SomeException $
-    withRPC (clientConn client) def (Proxy @Proto.CASFindMissingBlobs) $ \call -> do
-      sendFinalInput call reqBytes
-      (respBytes, _trailers) <- recvFinalOutput call
-      pure respBytes
+    result <- try @SomeException $
+        withRPC (clientConn client) def (Proxy @Proto.CASFindMissingBlobs) $ \call -> do
+            sendFinalInput call reqBytes
+            (respBytes, _trailers) <- recvFinalOutput call
+            pure respBytes
 
-  case result of
-    Left err -> do
-      putStrLn $ "CAS: findMissingBlobs failed: " <> show err
-      -- On error, assume all are missing (safe fallback)
-      pure digests
-    Right respBytes ->
-      case Proto.decodeFindMissingBlobsResponse respBytes of
-        Nothing -> do
-          putStrLn $ "CAS: findMissingBlobs response decode failed"
-          pure digests
-        Just resp ->
-          pure $ map fromProtoDigest (Proto.fmbrMissingBlobDigests resp)
+    case result of
+        Left err -> do
+            putStrLn $ "CAS: findMissingBlobs failed: " <> show err
+            -- On error, assume all are missing (safe fallback)
+            pure digests
+        Right respBytes ->
+            case Proto.decodeFindMissingBlobsResponse respBytes of
+                Nothing -> do
+                    putStrLn $ "CAS: findMissingBlobs response decode failed"
+                    pure digests
+                Just resp ->
+                    pure $ map fromProtoDigest (Proto.fmbrMissingBlobDigests resp)
 
 -- | Check if a single blob exists
 blobExists :: CASClient -> Digest -> IO Bool
 blobExists client digest = do
-  missing <- findMissingBlobs client [digest]
-  pure (null missing)
+    missing <- findMissingBlobs client [digest]
+    pure (null missing)

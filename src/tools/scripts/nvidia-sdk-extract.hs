@@ -30,12 +30,12 @@ import qualified Control.Monad as M
 import Data.Aeson (Object, Value (..), decode)
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as BL
+import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Maybe (fromMaybe, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
-import qualified Data.Vector as V
 import System.Environment (getArgs)
 import Prelude hiding (FilePath, lines, unlines, unwords, words)
 
@@ -80,8 +80,8 @@ main = do
         ShowHelp -> printHelp
         ExtractContainer imageRef outputDir ->
             script $ verbosely $ extractFromContainer (pack imageRef) (fromText $ pack outputDir)
-        ExtractTarball url outputDir strip ->
-            script $ verbosely $ extractFromTarball (pack url) (fromText $ pack outputDir) strip
+        ExtractTarball url outputDir stripCount ->
+            script $ verbosely $ extractFromTarball (pack url) (fromText $ pack outputDir) stripCount
         ExtractTritonserver imageRef outputDir ->
             script $ verbosely $ extractTritonserver (pack imageRef) (fromText $ pack outputDir)
         ExtractNccl imageRef outputDir ->
@@ -532,7 +532,7 @@ getContainerVersions imageRef = do
     extractEnv :: Object -> [(Text, Text)]
     extractEnv obj = case KM.lookup "config" obj of
         Just (Object cfg) -> case KM.lookup "Env" cfg of
-            Just (Array arr) -> mapMaybe parseEnvVar (V.toList arr)
+            Just (Array arr) -> mapMaybe parseEnvVar (toList arr)
             _ -> []
         _ -> []
 

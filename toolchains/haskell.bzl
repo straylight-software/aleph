@@ -26,6 +26,13 @@ load("@prelude//haskell:toolchain.bzl", "HaskellToolchainInfo", "HaskellPlatform
 # CONFIGURATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Mandatory compiler flags - applied to all Haskell compilation
+# These are non-negotiable and cannot be overridden by targets
+MANDATORY_GHC_FLAGS = [
+    "-Wall",
+    "-Werror",
+]
+
 def _get_ghc() -> str:
     return read_root_config("haskell", "ghc", "bin/ghc")
 
@@ -155,8 +162,11 @@ def _haskell_library_impl(ctx: AnalysisContext) -> list[Provider]:
     cmd.add("-hidir", hi_dir.as_output())
     cmd.add("-stubdir", stub_dir.as_output())
     
+    # Mandatory flags (non-negotiable)
+    cmd.add(MANDATORY_GHC_FLAGS)
+    
     # Language extensions
-    cmd.add("-XHaskell2010")
+    cmd.add("-XGHC2024")
     for ext in ctx.attrs.language_extensions:
         cmd.add("-X{}".format(ext))
     
@@ -247,6 +257,10 @@ def _haskell_binary_impl(ctx: AnalysisContext) -> list[Provider]:
     cmd = cmd_args([ghc])
     cmd.add("-package-env=-")
     cmd.add("-O2")
+    
+    # Mandatory flags (non-negotiable)
+    cmd.add(MANDATORY_GHC_FLAGS)
+    cmd.add("-XGHC2024")
     
     if package_db:
         cmd.add("-package-db", package_db)
@@ -352,8 +366,11 @@ def _haskell_c_library_impl(ctx: AnalysisContext) -> list[Provider]:
             cmd.add("-o", obj.as_output())
             cmd.add("-ohi", hi.as_output())
             
+            # Mandatory flags (non-negotiable)
+            cmd.add(MANDATORY_GHC_FLAGS)
+            
             # Language extensions (ForeignFunctionInterface is required)
-            cmd.add("-XHaskell2010")
+            cmd.add("-XGHC2024")
             cmd.add("-XForeignFunctionInterface")
             for ext in ctx.attrs.language_extensions:
                 cmd.add("-X{}".format(ext))
@@ -487,6 +504,10 @@ def _haskell_ffi_binary_impl(ctx: AnalysisContext) -> list[Provider]:
     ghc_cmd = cmd_args([ghc])
     ghc_cmd.add("-O2", "-threaded")
     
+    # Mandatory flags (non-negotiable)
+    ghc_cmd.add(MANDATORY_GHC_FLAGS)
+    ghc_cmd.add("-XGHC2024")
+    
     if gcc_lib_base:
         ghc_cmd.add("-optl", "-L" + gcc_lib_base)
     
@@ -535,6 +556,11 @@ def _haskell_script_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output(ctx.attrs.name)
     
     cmd = cmd_args([ghc])
+    
+    # Mandatory flags (non-negotiable)
+    cmd.add(MANDATORY_GHC_FLAGS)
+    cmd.add("-XGHC2024")
+    
     cmd.add(ctx.attrs.compiler_flags)
     cmd.add("-o", out.as_output())
     

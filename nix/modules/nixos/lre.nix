@@ -51,8 +51,8 @@ let
   mk-option = lib.mkOption;
   mk-enable-option = lib.mkEnableOption;
   mk-if = lib.mkIf;
-  optional = lib.optional;
-  optionals = lib.optionals;
+  inherit (lib) optional;
+  inherit (lib) optionals;
   map-attrs = lib.mapAttrs;
   literal-expression = lib.literalExpression;
   to-json = builtins.toJSON;
@@ -87,7 +87,7 @@ let
             name = "CAS_R2_STORE";
             "experimental_s3_store" = {
               region = "auto";
-              bucket = cfg.r2.bucket;
+              inherit (cfg.r2) bucket;
               "key_prefix" = cfg.r2.key-prefix;
               retry = {
                 "max_retries" = 6;

@@ -18,8 +18,8 @@
   _class = "flake";
 
   # Legacy names for compatibility with default.nix
-  fc-run-init = builtins.readFile ./scripts/isospin-run-init.sh;
-  fc-build-init = builtins.readFile ./scripts/isospin-build-init.sh;
+  isospin-run-init = builtins.readFile ./scripts/isospin-run-init.sh;
+  isospin-build-init = builtins.readFile ./scripts/isospin-build-init.sh;
   ch-run-init = builtins.readFile ./scripts/cloud-hypervisor-run-init.sh;
   ch-gpu-init = builtins.readFile ./scripts/cloud-hypervisor-gpu-init.sh;
 }

@@ -46,13 +46,13 @@ import Control.Monad (forever, unless, void, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Crypto.Number.Serialize (i2osp)
 import Crypto.PubKey.RSA (PrivateKey (..), PublicKey (..), generate)
-import qualified Data.ByteArray as BA
-import qualified Data.ByteArray.Encoding as BA
+
 import qualified Crypto.PubKey.RSA.PKCS15 as PKCS15
 import Data.ASN1.BinaryEncoding (DER (..))
 import Data.ASN1.Encoding (decodeASN1', encodeASN1')
 import Data.ASN1.Types
 import Data.Aeson (ToJSON (..), encode, object, (.=))
+import qualified Data.ByteArray.Encoding as BA
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
@@ -90,215 +90,218 @@ import Time.Types (Date (..))
 -- -----------------------------------------------------------------------------
 
 data Config = Config
-  { cfgPort :: Int
-  , cfgCacheDir :: FilePath
-  , cfgLogDir :: FilePath
-  , cfgCertDir :: FilePath
-  , cfgAllowlist :: [Text]
-  }
-  deriving (Show)
+    { cfgPort :: Int
+    , cfgCacheDir :: FilePath
+    , cfgLogDir :: FilePath
+    , cfgCertDir :: FilePath
+    , cfgAllowlist :: [Text]
+    }
+    deriving (Show)
 
 loadConfig :: IO Config
 loadConfig = do
-  cfgPort <- maybe 8080 id . (>>= readMaybe) <$> lookupEnv "PROXY_PORT"
-  cfgCacheDir <- maybe "/data/cache" id <$> lookupEnv "PROXY_CACHE_DIR"
-  cfgLogDir <- maybe "/data/logs" id <$> lookupEnv "PROXY_LOG_DIR"
-  cfgCertDir <- maybe "/data/certs" id <$> lookupEnv "PROXY_CERT_DIR"
-  allowlistRaw <- maybe "" id <$> lookupEnv "PROXY_ALLOWLIST"
-  let cfgAllowlist = filter (not . T.null) $ T.splitOn "," (T.pack allowlistRaw)
-  pure Config {..}
+    cfgPort <- maybe 8080 id . (>>= readMaybe) <$> lookupEnv "PROXY_PORT"
+    cfgCacheDir <- maybe "/data/cache" id <$> lookupEnv "PROXY_CACHE_DIR"
+    cfgLogDir <- maybe "/data/logs" id <$> lookupEnv "PROXY_LOG_DIR"
+    cfgCertDir <- maybe "/data/certs" id <$> lookupEnv "PROXY_CERT_DIR"
+    allowlistRaw <- maybe "" id <$> lookupEnv "PROXY_ALLOWLIST"
+    let cfgAllowlist = filter (not . T.null) $ T.splitOn "," (T.pack allowlistRaw)
+    pure Config{..}
 
 -- -----------------------------------------------------------------------------
 -- Certificate Authority
 -- -----------------------------------------------------------------------------
 
 data CA = CA
-  { caCert :: SignedCertificate
-  , caKey :: PrivateKey
-  , caCertPEM :: ByteString
-  }
+    { caCert :: SignedCertificate
+    , caKey :: PrivateKey
+    , caCertPEM :: ByteString
+    }
 
 -- | Generate or load CA certificate
 initCA :: FilePath -> IO CA
 initCA certDir = do
-  createDirectoryIfMissing True certDir
-  let caKeyPath = certDir </> "ca-key.pem"
-      caCertPath = certDir </> "ca.pem"
+    createDirectoryIfMissing True certDir
+    let caKeyPath = certDir </> "ca-key.pem"
+        caCertPath = certDir </> "ca.pem"
 
-  exists <- doesFileExist caCertPath
-  if exists
-    then loadCA caKeyPath caCertPath
-    else generateCA caKeyPath caCertPath
+    exists <- doesFileExist caCertPath
+    if exists
+        then loadCA caKeyPath caCertPath
+        else generateCA caKeyPath caCertPath
 
 generateCA :: FilePath -> FilePath -> IO CA
 generateCA keyPath certPath = do
-  putStrLn "Generating CA certificate..."
+    putStrLn "Generating CA certificate..."
 
-  -- Generate RSA key pair (2048 bits)
-  (pubKey, privKey) <- generate 256 65537
+    -- Generate RSA key pair (2048 bits)
+    (pubKey, privKey) <- generate 256 65537
 
-  -- Create self-signed CA certificate
-  now <- dateCurrent
-  let notBefore = now
-      notAfter = addYears 10 now
+    -- Create self-signed CA certificate
+    now <- dateCurrent
+    let notBefore = now
+        notAfter = addYears 10 now
 
-      dn =
-        DistinguishedName
-          [ (getObjectID DnCommonName, ASN1CharacterString UTF8 "Armitage Proxy CA")
-          , (getObjectID DnOrganization, ASN1CharacterString UTF8 "Straylight")
-          ]
+        dn =
+            DistinguishedName
+                [ (getObjectID DnCommonName, ASN1CharacterString UTF8 "Armitage Proxy CA")
+                , (getObjectID DnOrganization, ASN1CharacterString UTF8 "Straylight")
+                ]
 
-      cert =
-        Certificate
-          { certVersion = 2
-          , certSerial = 1
-          , certSignatureAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
-          , certIssuerDN = dn
-          , certValidity = (notBefore, notAfter)
-          , certSubjectDN = dn
-          , certPubKey = PubKeyRSA pubKey
-          , certExtensions = Extensions $ Just [extensionEncode True basicConstraintsCA]
-          }
+        cert =
+            Certificate
+                { certVersion = 2
+                , certSerial = 1
+                , certSignatureAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
+                , certIssuerDN = dn
+                , certValidity = (notBefore, notAfter)
+                , certSubjectDN = dn
+                , certPubKey = PubKeyRSA pubKey
+                , certExtensions = Extensions $ Just [extensionEncode True basicConstraintsCA]
+                }
 
-      basicConstraintsCA = ExtBasicConstraints True (Just 0)
+        basicConstraintsCA = ExtBasicConstraints True (Just 0)
 
-  signedCert <- signCertificate privKey cert
+    signedCert <- signCertificate privKey cert
 
-  -- Write to files
-  let keyPEM = pemWriteBS $ PEM "RSA PRIVATE KEY" [] (encodePrivKey privKey)
-      certPEM = pemWriteBS $ PEM "CERTIFICATE" [] (encodeSignedObject signedCert)
+    -- Write to files
+    let keyPEM = pemWriteBS $ PEM "RSA PRIVATE KEY" [] (encodePrivKey privKey)
+        certPEM = pemWriteBS $ PEM "CERTIFICATE" [] (encodeSignedObject signedCert)
 
-  BS.writeFile keyPath keyPEM
-  BS.writeFile certPath certPEM
-  putStrLn $ "CA certificate written to: " <> certPath
+    BS.writeFile keyPath keyPEM
+    BS.writeFile certPath certPEM
+    putStrLn $ "CA certificate written to: " <> certPath
 
-  pure CA {caCert = signedCert, caKey = privKey, caCertPEM = certPEM}
+    pure CA{caCert = signedCert, caKey = privKey, caCertPEM = certPEM}
 
 loadCA :: FilePath -> FilePath -> IO CA
 loadCA keyPath certPath = do
-  putStrLn "Loading existing CA certificate..."
-  keyPEM <- BS.readFile keyPath
-  certPEM <- BS.readFile certPath
+    putStrLn "Loading existing CA certificate..."
+    keyPEM <- BS.readFile keyPath
+    certPEM <- BS.readFile certPath
 
-  -- Parse the PEM-encoded private key
-  case pemParseBS keyPEM of
-    Left err -> do
-      putStrLn $ "Failed to parse CA key PEM: " <> err
-      generateCA keyPath certPath
-    Right pems -> case pems of
-      [] -> do
-        putStrLn "No PEM blocks found in CA key file"
-        generateCA keyPath certPath
-      (pem : _) -> case decodePrivKey (pemContent pem) of
+    -- Parse the PEM-encoded private key
+    case pemParseBS keyPEM of
         Left err -> do
-          putStrLn $ "Failed to decode CA private key: " <> err
-          generateCA keyPath certPath
-        Right privKey -> do
-          -- Parse the certificate
-          case pemParseBS certPEM of
-            Left err -> do
-              putStrLn $ "Failed to parse CA cert PEM: " <> err
-              generateCA keyPath certPath
-            Right certPems -> case certPems of
-              [] -> do
-                putStrLn "No PEM blocks found in CA cert file"
+            putStrLn $ "Failed to parse CA key PEM: " <> err
+            generateCA keyPath certPath
+        Right pems -> case pems of
+            [] -> do
+                putStrLn "No PEM blocks found in CA key file"
                 generateCA keyPath certPath
-              (certPem : _) -> case decodeSignedCertificate (pemContent certPem) of
+            (pem : _) -> case decodePrivKey (pemContent pem) of
                 Left err -> do
-                  putStrLn $ "Failed to decode CA certificate: " <> err
-                  generateCA keyPath certPath
-                Right signedCert -> do
-                  putStrLn "CA certificate loaded successfully"
-                  pure CA {caCert = signedCert, caKey = privKey, caCertPEM = certPEM}
+                    putStrLn $ "Failed to decode CA private key: " <> err
+                    generateCA keyPath certPath
+                Right privKey -> do
+                    -- Parse the certificate
+                    case pemParseBS certPEM of
+                        Left err -> do
+                            putStrLn $ "Failed to parse CA cert PEM: " <> err
+                            generateCA keyPath certPath
+                        Right certPems -> case certPems of
+                            [] -> do
+                                putStrLn "No PEM blocks found in CA cert file"
+                                generateCA keyPath certPath
+                            (certPem : _) -> case decodeSignedCertificate (pemContent certPem) of
+                                Left err -> do
+                                    putStrLn $ "Failed to decode CA certificate: " <> err
+                                    generateCA keyPath certPath
+                                Right signedCert -> do
+                                    putStrLn "CA certificate loaded successfully"
+                                    pure CA{caCert = signedCert, caKey = privKey, caCertPEM = certPEM}
 
--- | Sign a certificate with an RSA private key using SHA256
---
--- Uses objectToSignedExact from Data.X509 with PKCS#15 RSA signing
+{- | Sign a certificate with an RSA private key using SHA256
+
+Uses objectToSignedExact from Data.X509 with PKCS#15 RSA signing
+-}
 signCertificate :: PrivateKey -> Certificate -> IO SignedCertificate
 signCertificate privKey cert = do
-  let sigAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
+    let sigAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
 
-      -- The signing function: takes DER-encoded TBSCertificate,
-      -- returns (signature, algorithm, ())
-      signFunction :: ByteString -> (ByteString, SignatureALG, ())
-      signFunction tbsData =
-        case PKCS15.sign Nothing (Just SHA256) privKey tbsData of
-          Left err -> error $ "RSA signing failed: " <> show err
-          Right sig -> (sig, sigAlg, ())
+        -- The signing function: takes DER-encoded TBSCertificate,
+        -- returns (signature, algorithm, ())
+        signFunction :: ByteString -> (ByteString, SignatureALG, ())
+        signFunction tbsData =
+            case PKCS15.sign Nothing (Just SHA256) privKey tbsData of
+                Left err -> error $ "RSA signing failed: " <> show err
+                Right sig -> (sig, sigAlg, ())
 
-      -- Sign the certificate
-      (signedCert, ()) = objectToSignedExact signFunction cert
+        -- Sign the certificate
+        (signedCert, ()) = objectToSignedExact signFunction cert
 
-  pure signedCert
+    pure signedCert
 
--- | Encode RSA private key to PKCS#1 DER format
---
--- RSAPrivateKey ::= SEQUENCE {
---   version           Version,
---   modulus           INTEGER,  -- n
---   publicExponent    INTEGER,  -- e
---   privateExponent   INTEGER,  -- d
---   prime1            INTEGER,  -- p
---   prime2            INTEGER,  -- q
---   exponent1         INTEGER,  -- d mod (p-1)
---   exponent2         INTEGER,  -- d mod (q-1)
---   coefficient       INTEGER   -- (inverse of q) mod p
--- }
+{- | Encode RSA private key to PKCS#1 DER format
+
+RSAPrivateKey ::= SEQUENCE {
+  version           Version,
+  modulus           INTEGER,  -- n
+  publicExponent    INTEGER,  -- e
+  privateExponent   INTEGER,  -- d
+  prime1            INTEGER,  -- p
+  prime2            INTEGER,  -- q
+  exponent1         INTEGER,  -- d mod (p-1)
+  exponent2         INTEGER,  -- d mod (q-1)
+  coefficient       INTEGER   -- (inverse of q) mod p
+}
+-}
 encodePrivKey :: PrivateKey -> ByteString
 encodePrivKey pk =
-  encodeASN1' DER
-    [ Start Sequence
-    , IntVal 0 -- version
-    , IntVal (public_n $ private_pub pk) -- modulus
-    , IntVal (public_e $ private_pub pk) -- public exponent
-    , IntVal (private_d pk) -- private exponent
-    , IntVal (private_p pk) -- prime1
-    , IntVal (private_q pk) -- prime2
-    , IntVal (private_dP pk) -- exponent1
-    , IntVal (private_dQ pk) -- exponent2
-    , IntVal (private_qinv pk) -- coefficient
-    , End Sequence
-    ]
+    encodeASN1'
+        DER
+        [ Start Sequence
+        , IntVal 0 -- version
+        , IntVal (public_n $ private_pub pk) -- modulus
+        , IntVal (public_e $ private_pub pk) -- public exponent
+        , IntVal (private_d pk) -- private exponent
+        , IntVal (private_p pk) -- prime1
+        , IntVal (private_q pk) -- prime2
+        , IntVal (private_dP pk) -- exponent1
+        , IntVal (private_dQ pk) -- exponent2
+        , IntVal (private_qinv pk) -- coefficient
+        , End Sequence
+        ]
 
 -- | Decode RSA private key from PKCS#1 DER format
 decodePrivKey :: ByteString -> Either String PrivateKey
 decodePrivKey bs = do
-  asn1 <- either (Left . show) Right $ decodeASN1' DER bs
-  case asn1 of
-    [ Start Sequence
-      , IntVal _ver
-      , IntVal n
-      , IntVal e
-      , IntVal d
-      , IntVal p
-      , IntVal q
-      , IntVal dP
-      , IntVal dQ
-      , IntVal qinv
-      , End Sequence
-      ] ->
-        Right
-          PrivateKey
-            { private_pub =
-                PublicKey
-                  { public_size = (fromIntegral (BS.length (i2osp n)))
-                  , public_n = n
-                  , public_e = e
-                  }
-            , private_d = d
-            , private_p = p
-            , private_q = q
-            , private_dP = dP
-            , private_dQ = dQ
-            , private_qinv = qinv
-            }
-    _ -> Left "Invalid PKCS#1 RSA private key format"
+    asn1 <- either (Left . show) Right $ decodeASN1' DER bs
+    case asn1 of
+        [ Start Sequence
+            , IntVal _ver
+            , IntVal n
+            , IntVal e
+            , IntVal d
+            , IntVal p
+            , IntVal q
+            , IntVal dP
+            , IntVal dQ
+            , IntVal qinv
+            , End Sequence
+            ] ->
+                Right
+                    PrivateKey
+                        { private_pub =
+                            PublicKey
+                                { public_size = (fromIntegral (BS.length (i2osp n)))
+                                , public_n = n
+                                , public_e = e
+                                }
+                        , private_d = d
+                        , private_p = p
+                        , private_q = q
+                        , private_dP = dP
+                        , private_dQ = dQ
+                        , private_qinv = qinv
+                        }
+        _ -> Left "Invalid PKCS#1 RSA private key format"
 
 -- | Add years to DateTime
 addYears :: Int -> DateTime -> DateTime
-addYears n dt@DateTime {..} =
-  let Date y m d = dtDate
-   in dt {dtDate = Date (y + n) m d}
+addYears n dt@DateTime{..} =
+    let Date y m d = dtDate
+     in dt{dtDate = Date (y + n) m d}
 
 -- -----------------------------------------------------------------------------
 -- Per-Host Certificate Generation
@@ -310,114 +313,114 @@ type CertCache = IORef (Map String (SignedCertificate, PrivateKey))
 -- | Get or generate certificate for a host
 getHostCert :: CA -> CertCache -> String -> IO (SignedCertificate, PrivateKey)
 getHostCert ca cache host = do
-  cached <- Map.lookup host <$> readIORef cache
-  case cached of
-    Just pair -> pure pair
-    Nothing -> do
-      pair <- generateHostCert ca host
-      atomicModifyIORef' cache $ \m -> (Map.insert host pair m, ())
-      pure pair
+    cached <- Map.lookup host <$> readIORef cache
+    case cached of
+        Just pair -> pure pair
+        Nothing -> do
+            pair <- generateHostCert ca host
+            atomicModifyIORef' cache $ \m -> (Map.insert host pair m, ())
+            pure pair
 
 -- | Generate a certificate for a specific host
 generateHostCert :: CA -> String -> IO (SignedCertificate, PrivateKey)
-generateHostCert CA {..} host = do
-  -- Generate new RSA key for this host
-  (pubKey, privKey) <- generate 256 65537
+generateHostCert CA{..} host = do
+    -- Generate new RSA key for this host
+    (pubKey, privKey) <- generate 256 65537
 
-  now <- dateCurrent
-  utcNow <- getCurrentTime
-  
-  let notBefore = now
-      notAfter = addYears 1 now
+    now <- dateCurrent
+    utcNow <- getCurrentTime
 
-      issuerDN = certSubjectDN $ signedObject $ getSigned caCert
+    let notBefore = now
+        notAfter = addYears 1 now
 
-      subjectDN =
-        DistinguishedName
-          [(getObjectID DnCommonName, ASN1CharacterString UTF8 (BC.pack host))]
+        issuerDN = certSubjectDN $ signedObject $ getSigned caCert
 
-      -- Subject Alternative Name for the host
-      san = ExtSubjectAltName [AltNameDNS host]
-      
-      -- Generate unique serial from SHA256(host ++ timestamp)
-      -- Use first 8 bytes of hash as 64-bit positive integer
-      serialInput = BC.pack host <> BC.pack (iso8601Show utcNow)
-      serialHash = BS.pack $ map (fromIntegral . fromEnum) $ show $ hashWith SHA256 serialInput
-      serialNum = abs $ foldr (\b acc -> acc * 256 + fromIntegral b) 1 (BS.unpack $ BS.take 8 serialHash)
+        subjectDN =
+            DistinguishedName
+                [(getObjectID DnCommonName, ASN1CharacterString UTF8 (BC.pack host))]
 
-      cert =
-        Certificate
-          { certVersion = 2
-          , certSerial = serialNum
-          , certSignatureAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
-          , certIssuerDN = issuerDN
-          , certValidity = (notBefore, notAfter)
-          , certSubjectDN = subjectDN
-          , certPubKey = PubKeyRSA pubKey
-          , certExtensions = Extensions $ Just [extensionEncode False san]
-          }
+        -- Subject Alternative Name for the host
+        san = ExtSubjectAltName [AltNameDNS host]
 
-  signedCert <- signCertificate caKey cert
-  pure (signedCert, privKey)
+        -- Generate unique serial from SHA256(host ++ timestamp)
+        -- Use first 8 bytes of hash as 64-bit positive integer
+        serialInput = BC.pack host <> BC.pack (iso8601Show utcNow)
+        serialHash = BS.pack $ map (fromIntegral . fromEnum) $ show $ hashWith SHA256 serialInput
+        serialNum = abs $ foldr (\b acc -> acc * 256 + fromIntegral b) 1 (BS.unpack $ BS.take 8 serialHash)
+
+        cert =
+            Certificate
+                { certVersion = 2
+                , certSerial = serialNum
+                , certSignatureAlg = SignatureALG X509.HashSHA256 PubKeyALG_RSA
+                , certIssuerDN = issuerDN
+                , certValidity = (notBefore, notAfter)
+                , certSubjectDN = subjectDN
+                , certPubKey = PubKeyRSA pubKey
+                , certExtensions = Extensions $ Just [extensionEncode False san]
+                }
+
+    signedCert <- signCertificate caKey cert
+    pure (signedCert, privKey)
 
 -- -----------------------------------------------------------------------------
 -- Content-Addressed Store
 -- -----------------------------------------------------------------------------
 
 newtype ContentHash = ContentHash {unHash :: Text}
-  deriving (Show, Eq, Generic)
+    deriving (Show, Eq, Generic)
 
 instance ToJSON ContentHash where
-  toJSON (ContentHash h) = toJSON h
+    toJSON (ContentHash h) = toJSON h
 
 hashContent :: ByteString -> ContentHash
-hashContent bs = 
-  let digest = hashWith SHA256 bs
-  in ContentHash $ TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
+hashContent bs =
+    let digest = hashWith SHA256 bs
+     in ContentHash $ TE.decodeUtf8 $ BA.convertToBase BA.Base16 digest
 
 cachePath :: FilePath -> ContentHash -> FilePath
 cachePath baseDir (ContentHash h) =
-  baseDir </> T.unpack (T.take 2 h) </> T.unpack (T.drop 2 h)
+    baseDir </> T.unpack (T.take 2 h) </> T.unpack (T.drop 2 h)
 
 cacheStore :: FilePath -> ContentHash -> ByteString -> IO ()
 cacheStore baseDir hash content = do
-  let path = cachePath baseDir hash
-      dir = takeDirectory path
-  createDirectoryIfMissing True dir
-  BS.writeFile path content
+    let path = cachePath baseDir hash
+        dir = takeDirectory path
+    createDirectoryIfMissing True dir
+    BS.writeFile path content
 
 -- -----------------------------------------------------------------------------
 -- Attestation
 -- -----------------------------------------------------------------------------
 
 data Attestation = Attestation
-  { attUrl :: Text
-  , attHost :: Text
-  , attContentHash :: Maybe ContentHash
-  , attSize :: Int
-  , attTimestamp :: UTCTime
-  , attMethod :: Text
-  , attCached :: Bool
-  }
-  deriving (Show, Generic)
+    { attUrl :: Text
+    , attHost :: Text
+    , attContentHash :: Maybe ContentHash
+    , attSize :: Int
+    , attTimestamp :: UTCTime
+    , attMethod :: Text
+    , attCached :: Bool
+    }
+    deriving (Show, Generic)
 
 instance ToJSON Attestation where
-  toJSON Attestation {..} =
-    object
-      [ "url" .= attUrl
-      , "host" .= attHost
-      , "sha256" .= fmap unHash attContentHash
-      , "size" .= attSize
-      , "timestamp" .= iso8601Show attTimestamp
-      , "method" .= attMethod
-      , "cached" .= attCached
-      ]
+    toJSON Attestation{..} =
+        object
+            [ "url" .= attUrl
+            , "host" .= attHost
+            , "sha256" .= fmap unHash attContentHash
+            , "size" .= attSize
+            , "timestamp" .= iso8601Show attTimestamp
+            , "method" .= attMethod
+            , "cached" .= attCached
+            ]
 
 logAttestation :: FilePath -> Attestation -> IO ()
 logAttestation logDir att = do
-  createDirectoryIfMissing True logDir
-  let logFile = logDir </> "fetches.jsonl"
-  LBS.appendFile logFile (encode att <> "\n")
+    createDirectoryIfMissing True logDir
+    let logFile = logDir </> "fetches.jsonl"
+    LBS.appendFile logFile (encode att <> "\n")
 
 -- -----------------------------------------------------------------------------
 -- Allowlist
@@ -426,8 +429,8 @@ logAttestation logDir att = do
 checkAllowlist :: [Text] -> Text -> Bool
 checkAllowlist [] _ = True
 checkAllowlist allowed hostWithPort =
-  let host = T.takeWhile (/= ':') hostWithPort
-   in any (\a -> host == a || ("." <> a) `T.isSuffixOf` host) allowed
+    let host = T.takeWhile (/= ':') hostWithPort
+     in any (\a -> host == a || ("." <> a) `T.isSuffixOf` host) allowed
 
 -- -----------------------------------------------------------------------------
 -- HTTP Parsing
@@ -435,14 +438,14 @@ checkAllowlist allowed hostWithPort =
 
 parseRequestLine :: ByteString -> Maybe (ByteString, ByteString, ByteString)
 parseRequestLine line =
-  case BC.words line of
-    [method, path, version] -> Just (method, path, version)
-    _ -> Nothing
+    case BC.words line of
+        [method, path, version] -> Just (method, path, version)
+        _ -> Nothing
 
 parseHost :: [ByteString] -> Maybe ByteString
 parseHost headers =
-  fmap (stripBS . BC.drop 5) $
-    find (BC.isPrefixOf "Host:") headers
+    fmap (stripBS . BC.drop 5) $
+        find (BC.isPrefixOf "Host:") headers
 
 stripBS :: ByteString -> ByteString
 stripBS = BC.dropWhile isSpace . BC.reverse . BC.dropWhile isSpace . BC.reverse
@@ -451,16 +454,16 @@ stripBS = BC.dropWhile isSpace . BC.reverse . BC.dropWhile isSpace . BC.reverse
 
 parseUrl :: ByteString -> Maybe (ByteString, Int, ByteString)
 parseUrl url
-  | "http://" `BC.isPrefixOf` url =
-      let rest = BC.drop 7 url
-          (hostPort, pathQuery) = BC.break (== '/') rest
-          path = if BS.null pathQuery then "/" else pathQuery
-          (hostPart, portPart) = BC.break (== ':') hostPort
-          port = case BC.uncons portPart of
-            Just (':', p) -> maybe 80 id $ readMaybe $ BC.unpack p
-            _ -> 80
-       in Just (hostPart, port, path)
-  | otherwise = Nothing
+    | "http://" `BC.isPrefixOf` url =
+        let rest = BC.drop 7 url
+            (hostPort, pathQuery) = BC.break (== '/') rest
+            path = if BS.null pathQuery then "/" else pathQuery
+            (hostPart, portPart) = BC.break (== ':') hostPort
+            port = case BC.uncons portPart of
+                Just (':', p) -> maybe 80 id $ readMaybe $ BC.unpack p
+                _ -> 80
+         in Just (hostPart, port, path)
+    | otherwise = Nothing
 
 -- -----------------------------------------------------------------------------
 -- Logger
@@ -479,62 +482,62 @@ recvHttpRequest :: Socket -> IO ByteString
 recvHttpRequest sock = go BS.empty
   where
     go acc = do
-      chunk <- SBS.recv sock 4096
-      if BS.null chunk
-        then return acc
-        else do
-          let newAcc = acc <> chunk
-          if "\r\n\r\n" `BC.isInfixOf` newAcc
-            then do
-              let (headers, _) = BC.breakSubstring "\r\n\r\n" newAcc
-              case parseContentLength headers of
-                Just len -> do
-                  let bodyLen = BS.length newAcc - BS.length headers - 4
-                  if bodyLen >= len
-                    then return newAcc
+        chunk <- SBS.recv sock 4096
+        if BS.null chunk
+            then return acc
+            else do
+                let newAcc = acc <> chunk
+                if "\r\n\r\n" `BC.isInfixOf` newAcc
+                    then do
+                        let (headers, _) = BC.breakSubstring "\r\n\r\n" newAcc
+                        case parseContentLength headers of
+                            Just len -> do
+                                let bodyLen = BS.length newAcc - BS.length headers - 4
+                                if bodyLen >= len
+                                    then return newAcc
+                                    else go newAcc
+                            Nothing -> return newAcc
                     else go newAcc
-                Nothing -> return newAcc
-            else go newAcc
 
     parseContentLength :: ByteString -> Maybe Int
     parseContentLength headers =
-      case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
-        (line : _) ->
-          readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
-        [] -> Nothing
+        case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
+            (line : _) ->
+                readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
+            [] -> Nothing
 
 recvHttpResponse :: Socket -> IO ByteString
 recvHttpResponse sock = go BS.empty
   where
     go acc = do
-      chunk <- SBS.recv sock 65536
-      if BS.null chunk
-        then return acc
-        else do
-          let newAcc = acc <> chunk
-          if "\r\n\r\n" `BC.isInfixOf` newAcc
-            then do
-              let (headers, body) = BC.breakSubstring "\r\n\r\n" newAcc
-                  bodyStart = BC.drop 4 body
-              case parseContentLength headers of
-                Just len
-                  | BS.length bodyStart >= len -> return newAcc
-                  | otherwise -> go newAcc
-                Nothing ->
-                  if "Transfer-Encoding: chunked" `BC.isInfixOf` headers
-                    then
-                      if "\r\n0\r\n\r\n" `BC.isInfixOf` newAcc
-                        then return newAcc
-                        else go newAcc
+        chunk <- SBS.recv sock 65536
+        if BS.null chunk
+            then return acc
+            else do
+                let newAcc = acc <> chunk
+                if "\r\n\r\n" `BC.isInfixOf` newAcc
+                    then do
+                        let (headers, body) = BC.breakSubstring "\r\n\r\n" newAcc
+                            bodyStart = BC.drop 4 body
+                        case parseContentLength headers of
+                            Just len
+                                | BS.length bodyStart >= len -> return newAcc
+                                | otherwise -> go newAcc
+                            Nothing ->
+                                if "Transfer-Encoding: chunked" `BC.isInfixOf` headers
+                                    then
+                                        if "\r\n0\r\n\r\n" `BC.isInfixOf` newAcc
+                                            then return newAcc
+                                            else go newAcc
+                                    else go newAcc
                     else go newAcc
-            else go newAcc
 
     parseContentLength :: ByteString -> Maybe Int
     parseContentLength headers =
-      case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
-        (line : _) ->
-          readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
-        [] -> Nothing
+        case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
+            (line : _) ->
+                readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
+            [] -> Nothing
 
 -- -----------------------------------------------------------------------------
 -- Proxy Handlers
@@ -543,305 +546,305 @@ recvHttpResponse sock = go BS.empty
 -- | Handle client connection
 handleClient :: Config -> CA -> CertCache -> Logger -> Socket -> IO ()
 handleClient cfg ca certCache logger clientSock = do
-  request <- recvHttpRequest clientSock
-  when (BS.null request) $ return ()
+    request <- recvHttpRequest clientSock
+    when (BS.null request) $ return ()
 
-  let reqLines = BC.lines request
-  case reqLines of
-    [] -> return ()
-    (firstLine : headerLines) -> do
-      case parseRequestLine firstLine of
-        Nothing -> do
-          withLogger logger $ putStrLn $ "Invalid request: " <> BC.unpack firstLine
-        Just (method, path, _version) -> do
-          let host = maybe "unknown" id $ parseHost headerLines
-              hostText = TE.decodeUtf8 host
-              pathText = TE.decodeUtf8 path
-              checkHost = if method == "CONNECT" then pathText else hostText
+    let reqLines = BC.lines request
+    case reqLines of
+        [] -> return ()
+        (firstLine : headerLines) -> do
+            case parseRequestLine firstLine of
+                Nothing -> do
+                    withLogger logger $ putStrLn $ "Invalid request: " <> BC.unpack firstLine
+                Just (method, path, _version) -> do
+                    let host = maybe "unknown" id $ parseHost headerLines
+                        hostText = TE.decodeUtf8 host
+                        pathText = TE.decodeUtf8 path
+                        checkHost = if method == "CONNECT" then pathText else hostText
 
-          if not (checkAllowlist (cfgAllowlist cfg) checkHost)
-            then do
-              withLogger logger $ putStrLn $ "BLOCKED: " <> T.unpack checkHost
-              SBS.sendAll clientSock "HTTP/1.1 403 Forbidden\r\n\r\nBlocked\n"
-            else do
-              now <- getCurrentTime
-              withLogger logger $ putStrLn $ BC.unpack method <> " " <> T.unpack checkHost
+                    if not (checkAllowlist (cfgAllowlist cfg) checkHost)
+                        then do
+                            withLogger logger $ putStrLn $ "BLOCKED: " <> T.unpack checkHost
+                            SBS.sendAll clientSock "HTTP/1.1 403 Forbidden\r\n\r\nBlocked\n"
+                        else do
+                            now <- getCurrentTime
+                            withLogger logger $ putStrLn $ BC.unpack method <> " " <> T.unpack checkHost
 
-              if method == "CONNECT"
-                then handleConnect cfg ca certCache logger clientSock host path now
-                else handleHttp cfg logger clientSock method host path request now
+                            if method == "CONNECT"
+                                then handleConnect cfg ca certCache logger clientSock host path now
+                                else handleHttp cfg logger clientSock method host path request now
 
 -- | Handle CONNECT (HTTPS interception via TLS MITM)
 handleConnect :: Config -> CA -> CertCache -> Logger -> Socket -> ByteString -> ByteString -> UTCTime -> IO ()
-handleConnect cfg ca certCache logger clientSock host path now = do
-  let (targetHost, targetPort) = case BC.split ':' path of
-        [h, p] -> (BC.unpack h, maybe 443 id $ readMaybe $ BC.unpack p)
-        [h] -> (BC.unpack h, 443)
-        _ -> (BC.unpack path, 443)
+handleConnect cfg ca certCache logger clientSock _host path now = do
+    let (targetHost, targetPort) = case BC.split ':' path of
+            [h, p] -> (BC.unpack h, maybe 443 id $ readMaybe $ BC.unpack p)
+            [h] -> (BC.unpack h, 443)
+            _ -> (BC.unpack path, 443)
 
-  -- Send 200 Connection Established to tell client we're ready for TLS
-  SBS.sendAll clientSock "HTTP/1.1 200 Connection Established\r\n\r\n"
+    -- Send 200 Connection Established to tell client we're ready for TLS
+    SBS.sendAll clientSock "HTTP/1.1 200 Connection Established\r\n\r\n"
 
-  -- Get/generate certificate for this host
-  (hostCert, hostKey) <- getHostCert ca certCache targetHost
+    -- Get/generate certificate for this host
+    (hostCert, hostKey) <- getHostCert ca certCache targetHost
 
-  -- Create TLS server context for client connection (we act as server to client)
-  let serverCredential = (CertificateChain [hostCert], PrivKeyRSA hostKey)
-      serverParams =
-        def
-          { TLS.serverShared =
-              def
-                { TLS.sharedCredentials = TLS.Credentials [serverCredential]
-                }
-          , TLS.serverSupported =
-              def
-                { TLS.supportedCiphers = ciphersuite_default
-                , TLS.supportedVersions = [TLS.TLS13, TLS.TLS12]
-                }
-          }
-
-  -- Perform TLS handshake with client
-  result <- try $ do
-    clientCtx <- TLS.contextNew clientSock serverParams
-    TLS.handshake clientCtx
-
-    -- Connect to origin server
-    let hints = defaultHints {addrSocketType = Stream}
-    addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
-    case addrs of
-      [] -> do
-        TLS.sendData clientCtx "HTTP/1.1 502 Bad Gateway\r\n\r\nCannot resolve host\n"
-        TLS.bye clientCtx
-      (addr : _) -> do
-        targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-        connect targetSock (addrAddress addr)
-
-        -- Create TLS client context for origin connection (we act as client to origin)
-        let clientParams =
-              (TLS.defaultParamsClient targetHost (BC.pack $ show targetPort))
-                { TLS.clientSupported =
+    -- Create TLS server context for client connection (we act as server to client)
+    let serverCredential = (CertificateChain [hostCert], PrivKeyRSA hostKey)
+        serverParams =
+            def
+                { TLS.serverShared =
                     def
-                      { TLS.supportedCiphers = ciphersuite_default
-                      , TLS.supportedVersions = [TLS.TLS13, TLS.TLS12]
-                      }
-                , TLS.clientShared =
+                        { TLS.sharedCredentials = TLS.Credentials [serverCredential]
+                        }
+                , TLS.serverSupported =
                     def
-                      { -- Accept all certificates (we're proxying, not validating)
-                        TLS.sharedValidationCache =
-                          TLS.ValidationCache
-                            (\_ _ _ -> return TLS.ValidationCachePass)
-                            (\_ _ _ -> return ())
-                      }
+                        { TLS.supportedCiphers = ciphersuite_default
+                        , TLS.supportedVersions = [TLS.TLS13, TLS.TLS12]
+                        }
                 }
 
-        targetCtx <- TLS.contextNew targetSock clientParams
-        TLS.handshake targetCtx
+    -- Perform TLS handshake with client
+    result <- try $ do
+        clientCtx <- TLS.contextNew clientSock serverParams
+        TLS.handshake clientCtx
 
-        -- Now proxy HTTP requests over both TLS connections
-        proxyHttpsRequests cfg logger clientCtx targetCtx targetHost now
-          `finally` do
-            TLS.bye targetCtx `catch` \(_ :: SomeException) -> pure ()
-            close targetSock
+        -- Connect to origin server
+        let hints = defaultHints{addrSocketType = Stream}
+        addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
+        case addrs of
+            [] -> do
+                TLS.sendData clientCtx "HTTP/1.1 502 Bad Gateway\r\n\r\nCannot resolve host\n"
+                TLS.bye clientCtx
+            (addr : _) -> do
+                targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+                connect targetSock (addrAddress addr)
 
-        TLS.bye clientCtx `catch` \(_ :: SomeException) -> pure ()
+                -- Create TLS client context for origin connection (we act as client to origin)
+                let clientParams =
+                        (TLS.defaultParamsClient targetHost (BC.pack $ show targetPort))
+                            { TLS.clientSupported =
+                                def
+                                    { TLS.supportedCiphers = ciphersuite_default
+                                    , TLS.supportedVersions = [TLS.TLS13, TLS.TLS12]
+                                    }
+                            , TLS.clientShared =
+                                def
+                                    { -- Accept all certificates (we're proxying, not validating)
+                                      TLS.sharedValidationCache =
+                                        TLS.ValidationCache
+                                            (\_ _ _ -> return TLS.ValidationCachePass)
+                                            (\_ _ _ -> return ())
+                                    }
+                            }
 
-  case result of
-    Left (e :: SomeException) -> do
-      withLogger logger $ putStrLn $ "HTTPS interception error for " <> targetHost <> ": " <> show e
-      -- Fall back to simple tunnel for incompatible clients
-      fallbackTunnel clientSock targetHost targetPort
-    Right () -> pure ()
+                targetCtx <- TLS.contextNew targetSock clientParams
+                TLS.handshake targetCtx
+
+                -- Now proxy HTTP requests over both TLS connections
+                proxyHttpsRequests cfg logger clientCtx targetCtx targetHost now
+                    `finally` do
+                        TLS.bye targetCtx `catch` \(_ :: SomeException) -> pure ()
+                        close targetSock
+
+                TLS.bye clientCtx `catch` \(_ :: SomeException) -> pure ()
+
+    case result of
+        Left (e :: SomeException) -> do
+            withLogger logger $ putStrLn $ "HTTPS interception error for " <> targetHost <> ": " <> show e
+            -- Fall back to simple tunnel for incompatible clients
+            fallbackTunnel clientSock targetHost targetPort
+        Right () -> pure ()
 
 -- | Proxy HTTP requests over intercepted TLS connections
 proxyHttpsRequests :: Config -> Logger -> Context -> Context -> String -> UTCTime -> IO ()
 proxyHttpsRequests cfg logger clientCtx targetCtx targetHost startTime = do
-  -- Read HTTP request from client over TLS
-  requestData <- TLS.recvData clientCtx
-  unless (BS.null requestData) $ do
-    let reqLines = BC.lines requestData
-    case reqLines of
-      [] -> pure ()
-      (firstLine : headerLines) -> do
-        case parseRequestLine firstLine of
-          Nothing -> do
-            withLogger logger $ putStrLn $ "Invalid HTTPS request: " <> BC.unpack firstLine
-          Just (method, path, _version) -> do
-            now <- getCurrentTime
-            let hostHeader = maybe (BC.pack targetHost) id $ parseHost headerLines
-                url = "https://" <> hostHeader <> path
+    -- Read HTTP request from client over TLS
+    requestData <- TLS.recvData clientCtx
+    unless (BS.null requestData) $ do
+        let reqLines = BC.lines requestData
+        case reqLines of
+            [] -> pure ()
+            (firstLine : headerLines) -> do
+                case parseRequestLine firstLine of
+                    Nothing -> do
+                        withLogger logger $ putStrLn $ "Invalid HTTPS request: " <> BC.unpack firstLine
+                    Just (method, path, _version) -> do
+                        now <- getCurrentTime
+                        let hostHeader = maybe (BC.pack targetHost) id $ parseHost headerLines
+                            url = "https://" <> hostHeader <> path
 
-            withLogger logger $
-              putStrLn $
-                "HTTPS " <> BC.unpack method <> " " <> BC.unpack url
+                        withLogger logger $
+                            putStrLn $
+                                "HTTPS " <> BC.unpack method <> " " <> BC.unpack url
 
-            -- Forward request to origin
-            TLS.sendData targetCtx (LBS.fromStrict requestData)
+                        -- Forward request to origin
+                        TLS.sendData targetCtx (LBS.fromStrict requestData)
 
-            -- Read response from origin
-            responseData <- recvTlsResponse targetCtx
+                        -- Read response from origin
+                        responseData <- recvTlsResponse targetCtx
 
-            -- Cache GET responses
-            let contentHash =
-                  if method == "GET" && "200 OK" `BC.isInfixOf` responseData
-                    then
-                      let (_, body) = BC.breakSubstring "\r\n\r\n" responseData
-                          bodyContent = BC.drop 4 body
-                       in if BS.null bodyContent then Nothing else Just (hashContent bodyContent)
-                    else Nothing
+                        -- Cache GET responses
+                        let contentHash =
+                                if method == "GET" && "200 OK" `BC.isInfixOf` responseData
+                                    then
+                                        let (_, body) = BC.breakSubstring "\r\n\r\n" responseData
+                                            bodyContent = BC.drop 4 body
+                                         in if BS.null bodyContent then Nothing else Just (hashContent bodyContent)
+                                    else Nothing
 
-            case contentHash of
-              Just hash -> do
-                let (_, body) = BC.breakSubstring "\r\n\r\n" responseData
-                    bodyContent = BC.drop 4 body
-                cacheStore (cfgCacheDir cfg) hash bodyContent
-                withLogger logger $ putStrLn $ "HTTPS CACHED: " <> T.unpack (unHash hash)
-              Nothing -> pure ()
+                        case contentHash of
+                            Just hash -> do
+                                let (_, body) = BC.breakSubstring "\r\n\r\n" responseData
+                                    bodyContent = BC.drop 4 body
+                                cacheStore (cfgCacheDir cfg) hash bodyContent
+                                withLogger logger $ putStrLn $ "HTTPS CACHED: " <> T.unpack (unHash hash)
+                            Nothing -> pure ()
 
-            -- Log attestation
-            let att =
-                  Attestation
-                    { attUrl = TE.decodeUtf8 url
-                    , attHost = TE.decodeUtf8 hostHeader
-                    , attContentHash = contentHash
-                    , attSize = BS.length responseData
-                    , attTimestamp = now
-                    , attMethod = TE.decodeUtf8 method
-                    , attCached = False
-                    }
-            logAttestation (cfgLogDir cfg) att
+                        -- Log attestation
+                        let att =
+                                Attestation
+                                    { attUrl = TE.decodeUtf8 url
+                                    , attHost = TE.decodeUtf8 hostHeader
+                                    , attContentHash = contentHash
+                                    , attSize = BS.length responseData
+                                    , attTimestamp = now
+                                    , attMethod = TE.decodeUtf8 method
+                                    , attCached = False
+                                    }
+                        logAttestation (cfgLogDir cfg) att
 
-            -- Forward response to client
-            TLS.sendData clientCtx (LBS.fromStrict responseData)
+                        -- Forward response to client
+                        TLS.sendData clientCtx (LBS.fromStrict responseData)
 
-            -- Continue proxying (HTTP keep-alive)
-            proxyHttpsRequests cfg logger clientCtx targetCtx targetHost startTime
+                        -- Continue proxying (HTTP keep-alive)
+                        proxyHttpsRequests cfg logger clientCtx targetCtx targetHost startTime
 
 -- | Read HTTP response from TLS context
 recvTlsResponse :: Context -> IO ByteString
 recvTlsResponse ctx = go BS.empty
   where
     go acc = do
-      chunk <- TLS.recvData ctx
-      if BS.null chunk
-        then return acc
-        else do
-          let newAcc = acc <> chunk
-          if "\r\n\r\n" `BC.isInfixOf` newAcc
-            then do
-              let (headers, body) = BC.breakSubstring "\r\n\r\n" newAcc
-                  bodyStart = BC.drop 4 body
-              case parseContentLength headers of
-                Just len
-                  | BS.length bodyStart >= len -> return newAcc
-                  | otherwise -> go newAcc
-                Nothing ->
-                  if "Transfer-Encoding: chunked" `BC.isInfixOf` headers
-                    then
-                      if "\r\n0\r\n\r\n" `BC.isInfixOf` newAcc
-                        then return newAcc
-                        else go newAcc
-                    else return newAcc -- Assume complete for now
-            else go newAcc
+        chunk <- TLS.recvData ctx
+        if BS.null chunk
+            then return acc
+            else do
+                let newAcc = acc <> chunk
+                if "\r\n\r\n" `BC.isInfixOf` newAcc
+                    then do
+                        let (headers, body) = BC.breakSubstring "\r\n\r\n" newAcc
+                            bodyStart = BC.drop 4 body
+                        case parseContentLength headers of
+                            Just len
+                                | BS.length bodyStart >= len -> return newAcc
+                                | otherwise -> go newAcc
+                            Nothing ->
+                                if "Transfer-Encoding: chunked" `BC.isInfixOf` headers
+                                    then
+                                        if "\r\n0\r\n\r\n" `BC.isInfixOf` newAcc
+                                            then return newAcc
+                                            else go newAcc
+                                    else return newAcc -- Assume complete for now
+                    else go newAcc
 
     parseContentLength :: ByteString -> Maybe Int
     parseContentLength headers =
-      case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
-        (line : _) ->
-          readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
-        [] -> Nothing
+        case filter (BC.isPrefixOf "Content-Length:") (BC.lines headers) of
+            (line : _) ->
+                readMaybe $ BC.unpack $ BC.dropWhile (== ' ') $ BC.drop 15 line
+            [] -> Nothing
 
 -- | Fallback to simple TCP tunnel when TLS interception fails
 fallbackTunnel :: Socket -> String -> Int -> IO ()
 fallbackTunnel clientSock targetHost targetPort = do
-  let hints = defaultHints {addrSocketType = Stream}
-  addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
-  case addrs of
-    [] -> pure ()
-    (addr : _) -> do
-      targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      connect targetSock (addrAddress addr)
-        `catch` \(_ :: SomeException) -> close targetSock
+    let hints = defaultHints{addrSocketType = Stream}
+    addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
+    case addrs of
+        [] -> pure ()
+        (addr : _) -> do
+            targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+            connect targetSock (addrAddress addr)
+                `catch` \(_ :: SomeException) -> close targetSock
 
-      -- Simple tunnel
-      void $ forkIO $ tunnel clientSock targetSock
-      tunnel targetSock clientSock
-      close targetSock
+            -- Simple tunnel
+            void $ forkIO $ tunnel clientSock targetSock
+            tunnel targetSock clientSock
+            close targetSock
 
 tunnel :: Socket -> Socket -> IO ()
 tunnel from to = do
-  chunk <- SBS.recv from 65536
-  unless (BS.null chunk) $ do
-    SBS.sendAll to chunk
-    tunnel from to
+    chunk <- SBS.recv from 65536
+    unless (BS.null chunk) $ do
+        SBS.sendAll to chunk
+        tunnel from to
 
 -- | Handle HTTP request
 handleHttp :: Config -> Logger -> Socket -> ByteString -> ByteString -> ByteString -> ByteString -> UTCTime -> IO ()
 handleHttp cfg logger clientSock method host path fullRequest now = do
-  let (targetHost, targetPort, targetPath) = case parseUrl path of
-        Just (h, p, pth) -> (BC.unpack h, p, pth)
-        Nothing -> (BC.unpack host, 80, path)
+    let (targetHost, targetPort, targetPath) = case parseUrl path of
+            Just (h, p, pth) -> (BC.unpack h, p, pth)
+            Nothing -> (BC.unpack host, 80, path)
 
-      url = "http://" <> BC.pack targetHost <> ":" <> BC.pack (show targetPort) <> targetPath
+        url = "http://" <> BC.pack targetHost <> ":" <> BC.pack (show targetPort) <> targetPath
 
-  let hints = defaultHints {addrSocketType = Stream}
-  addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
-  case addrs of
-    [] -> SBS.sendAll clientSock "HTTP/1.1 502 Bad Gateway\r\n\r\n"
-    (addr : _) -> do
-      targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-      connect targetSock (addrAddress addr)
-        `catch` \(_ :: SomeException) -> do
-          SBS.sendAll clientSock "HTTP/1.1 502 Bad Gateway\r\n\r\n"
-          close targetSock
-          return ()
+    let hints = defaultHints{addrSocketType = Stream}
+    addrs <- getAddrInfo (Just hints) (Just targetHost) (Just $ show targetPort)
+    case addrs of
+        [] -> SBS.sendAll clientSock "HTTP/1.1 502 Bad Gateway\r\n\r\n"
+        (addr : _) -> do
+            targetSock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+            connect targetSock (addrAddress addr)
+                `catch` \(_ :: SomeException) -> do
+                    SBS.sendAll clientSock "HTTP/1.1 502 Bad Gateway\r\n\r\n"
+                    close targetSock
+                    return ()
 
-      -- Rewrite request
-      let reqLines = BC.lines fullRequest
-      case reqLines of
-        (firstLine : rest) -> do
-          case parseRequestLine firstLine of
-            Just (m, p, v) -> do
-              let newPath = case parseUrl p of
-                    Just (_, _, pth) -> pth
-                    Nothing -> p
-                  rewritten = m <> " " <> newPath <> " " <> v <> "\r\n" <> BC.unlines rest
-              SBS.sendAll targetSock rewritten
-            Nothing -> SBS.sendAll targetSock fullRequest
-        _ -> SBS.sendAll targetSock fullRequest
+            -- Rewrite request
+            let reqLines = BC.lines fullRequest
+            case reqLines of
+                (firstLine : rest) -> do
+                    case parseRequestLine firstLine of
+                        Just (m, p, v) -> do
+                            let newPath = case parseUrl p of
+                                    Just (_, _, pth) -> pth
+                                    Nothing -> p
+                                rewritten = m <> " " <> newPath <> " " <> v <> "\r\n" <> BC.unlines rest
+                            SBS.sendAll targetSock rewritten
+                        Nothing -> SBS.sendAll targetSock fullRequest
+                _ -> SBS.sendAll targetSock fullRequest
 
-      response <- recvHttpResponse targetSock
+            response <- recvHttpResponse targetSock
 
-      -- Cache GET responses
-      let contentHash =
-            if method == "GET" && "200 OK" `BC.isInfixOf` response
-              then
-                let (_, body) = BC.breakSubstring "\r\n\r\n" response
-                    bodyContent = BC.drop 4 body
-                 in if BS.null bodyContent then Nothing else Just (hashContent bodyContent)
-              else Nothing
+            -- Cache GET responses
+            let contentHash =
+                    if method == "GET" && "200 OK" `BC.isInfixOf` response
+                        then
+                            let (_, body) = BC.breakSubstring "\r\n\r\n" response
+                                bodyContent = BC.drop 4 body
+                             in if BS.null bodyContent then Nothing else Just (hashContent bodyContent)
+                        else Nothing
 
-      case contentHash of
-        Just hash -> do
-          let (_, body) = BC.breakSubstring "\r\n\r\n" response
-              bodyContent = BC.drop 4 body
-          cacheStore (cfgCacheDir cfg) hash bodyContent
-          withLogger logger $ putStrLn $ "CACHED: " <> T.unpack (unHash hash)
-        Nothing -> return ()
+            case contentHash of
+                Just hash -> do
+                    let (_, body) = BC.breakSubstring "\r\n\r\n" response
+                        bodyContent = BC.drop 4 body
+                    cacheStore (cfgCacheDir cfg) hash bodyContent
+                    withLogger logger $ putStrLn $ "CACHED: " <> T.unpack (unHash hash)
+                Nothing -> return ()
 
-      let att =
-            Attestation
-              { attUrl = TE.decodeUtf8 url
-              , attHost = TE.decodeUtf8 host
-              , attContentHash = contentHash
-              , attSize = BS.length response
-              , attTimestamp = now
-              , attMethod = TE.decodeUtf8 method
-              , attCached = False
-              }
-      logAttestation (cfgLogDir cfg) att
+            let att =
+                    Attestation
+                        { attUrl = TE.decodeUtf8 url
+                        , attHost = TE.decodeUtf8 host
+                        , attContentHash = contentHash
+                        , attSize = BS.length response
+                        , attTimestamp = now
+                        , attMethod = TE.decodeUtf8 method
+                        , attCached = False
+                        }
+            logAttestation (cfgLogDir cfg) att
 
-      SBS.sendAll clientSock response
-      close targetSock
+            SBS.sendAll clientSock response
+            close targetSock
 
 -- -----------------------------------------------------------------------------
 -- Main
@@ -849,46 +852,46 @@ handleHttp cfg logger clientSock method host path fullRequest now = do
 
 main :: IO ()
 main = do
-  hSetBuffering stdout LineBuffering
-  hSetBuffering stderr LineBuffering
+    hSetBuffering stdout LineBuffering
+    hSetBuffering stderr LineBuffering
 
-  putStrLn "======================================"
-  putStrLn "  Armitage Witness Proxy (TLS MITM)"
-  putStrLn "======================================"
+    putStrLn "======================================"
+    putStrLn "  Armitage Witness Proxy (TLS MITM)"
+    putStrLn "======================================"
 
-  cfg <- loadConfig
-  putStrLn $ "Port:      " <> show (cfgPort cfg)
-  putStrLn $ "Cache:     " <> cfgCacheDir cfg
-  putStrLn $ "Logs:      " <> cfgLogDir cfg
-  putStrLn $ "Certs:     " <> cfgCertDir cfg
-  putStrLn $ "Allowlist: " <> show (length (cfgAllowlist cfg)) <> " domains"
+    cfg <- loadConfig
+    putStrLn $ "Port:      " <> show (cfgPort cfg)
+    putStrLn $ "Cache:     " <> cfgCacheDir cfg
+    putStrLn $ "Logs:      " <> cfgLogDir cfg
+    putStrLn $ "Certs:     " <> cfgCertDir cfg
+    putStrLn $ "Allowlist: " <> show (length (cfgAllowlist cfg)) <> " domains"
 
-  createDirectoryIfMissing True (cfgCacheDir cfg)
-  createDirectoryIfMissing True (cfgLogDir cfg)
+    createDirectoryIfMissing True (cfgCacheDir cfg)
+    createDirectoryIfMissing True (cfgLogDir cfg)
 
-  -- Initialize CA
-  ca <- initCA (cfgCertDir cfg)
-  certCache <- newIORef Map.empty
-  logger <- newMVar ()
+    -- Initialize CA
+    ca <- initCA (cfgCertDir cfg)
+    certCache <- newIORef Map.empty
+    logger <- newMVar ()
 
-  putStrLn ""
-  putStrLn $ "Trust the CA certificate at: " <> cfgCertDir cfg </> "ca.pem"
-  putStrLn ""
+    putStrLn ""
+    putStrLn $ "Trust the CA certificate at: " <> cfgCertDir cfg </> "ca.pem"
+    putStrLn ""
 
-  -- Create server socket
-  let hints = defaultHints {addrFlags = [AI_PASSIVE], addrSocketType = Stream}
-  addr : _ <- getAddrInfo (Just hints) Nothing (Just $ show $ cfgPort cfg)
-  sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
-  setSocketOption sock ReuseAddr 1
-  bind sock (addrAddress addr)
-  listen sock 128
+    -- Create server socket
+    let hints = defaultHints{addrFlags = [AI_PASSIVE], addrSocketType = Stream}
+    addr : _ <- getAddrInfo (Just hints) Nothing (Just $ show $ cfgPort cfg)
+    sock <- socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)
+    setSocketOption sock ReuseAddr 1
+    bind sock (addrAddress addr)
+    listen sock 128
 
-  putStrLn $ "Listening on :" <> show (cfgPort cfg)
-  putStrLn ""
+    putStrLn $ "Listening on :" <> show (cfgPort cfg)
+    putStrLn ""
 
-  forever $ do
-    (clientSock, _) <- accept sock
-    void $
-      forkIO $
-        handleClient cfg ca certCache logger clientSock
-          `finally` close clientSock
+    forever $ do
+        (clientSock, _) <- accept sock
+        void $
+            forkIO $
+                handleClient cfg ca certCache logger clientSock
+                    `finally` close clientSock

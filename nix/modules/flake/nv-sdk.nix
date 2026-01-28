@@ -138,8 +138,10 @@ in
           cfg.nvidia-driver
         else if pkgs ? linuxPackages && pkgs.linuxPackages ? nvidia_x11 then
           pkgs.linuxPackages.nvidia_x11
+        else if pkgs ? nvidia_x11 then
+          pkgs.nvidia_x11
         else
-          pkgs.nvidia_x11 or null;
+          null;
 
       driver-pkg-final = if cfg.with-driver then driver-pkg else null;
 
@@ -147,118 +149,29 @@ in
       cuda-version = nv-packages.cudatoolkit.version;
       gcc-version = pkgs.stdenv.cc.cc.version or "unknown";
 
-      # symlinkJoin postBuild script
-      post-build = ''
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # CRITICAL: lib64 -> lib symlink
-        # Many NVIDIA tools expect lib64, but Nix uses lib
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        if [ ! -e $out/lib64 ]; then
-          ln -s lib $out/lib64
-        fi
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # CUDA 13 removed texture_fetch_functions.h (deprecated)
-        # but clang's wrapper still expects it - symlink to replacement
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        if [ ! -e $out/include/texture_fetch_functions.h ] && [ -e $out/include/texture_indirect_functions.h ]; then
-          ln -s texture_indirect_functions.h $out/include/texture_fetch_functions.h
-        fi
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # NVIDIA USER-SPACE DRIVER + NVML (and friends)
-        # - Keep real driver libs available for runtime/debugging.
-        # - Keep link-time stubs under $out/stubs like it was designed.
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        DRIVER_PKG="${if driver-pkg-final != null then driver-pkg-final else ""}"
-
-        if [ -n "$DRIVER_PKG" ]; then
-
-          # Expose the full driver bundle under a stable prefix.
-          if [ ! -e $out/driver ]; then
-            ln -s "$DRIVER_PKG" $out/driver
-          fi
-
-          # Prefer putting driver runtime libs on the standard lib path.
-          for libdir in "$DRIVER_PKG/lib" "$DRIVER_PKG/lib64"; do
-            if [ -d "$libdir" ]; then
-              for soname in \
-                libcuda.so.1 libcuda.so \
-                libnvidia-ml.so.1 libnvidia-ml.so \
-                libnvidia-ptxjitcompiler.so.1 libnvidia-ptxjitcompiler.so \
-                libnvidia-fatbinaryloader.so.1 libnvidia-fatbinaryloader.so \
-                libnvidia-compiler.so.1 libnvidia-compiler.so \
-                ; do
-                if [ -e "$libdir/$soname" ] && [ ! -e "$out/lib64/$soname" ]; then
-                  ln -s "$libdir/$soname" "$out/lib64/$soname"
-                fi
-              done
-            fi
-          done
-        fi
-
-        # Link-time stubs (compile/link against these; runtime comes from driver).
-        mkdir -p $out/stubs/lib
-        if [ ! -e $out/stubs/lib64 ]; then
-          ln -s lib $out/stubs/lib64
-        fi
-
-        # Collect stubs from CUDA toolkit and (optionally) the driver package.
-        STUB_DIRS=(
-          "${nv-packages.cudatoolkit}/lib/stubs"
-          "${nv-packages.cudatoolkit}/lib64/stubs"
-        )
-
-        if [ -n "$DRIVER_PKG" ]; then
-          STUB_DIRS+=("$DRIVER_PKG/lib/stubs" "$DRIVER_PKG/lib64/stubs")
-        fi
-
-        for stubdir in "''${STUB_DIRS[@]}"; do
-          if [ -d "$stubdir" ]; then
-            # Symlink all stubs into $out/stubs/lib (flat).
-            for f in "$stubdir"/*; do
-              if [ -e "$f" ]; then
-                ln -sf "$f" "$out/stubs/lib/$(basename "$f")"
-              fi
-            done
-          fi
-        done
-
-        # ensure common link names exist in stubs dir...
-        if [ -e "$out/stubs/lib/libcuda.so.1" ] && [ ! -e "$out/stubs/lib/libcuda.so" ]; then
-          ln -s libcuda.so.1 $out/stubs/lib/libcuda.so
-        fi
-
-        if [ -e "$out/stubs/lib/libnvidia-ml.so.1" ] && [ ! -e "$out/stubs/lib/libnvidia-ml.so" ]; then
-          ln -s libnvidia-ml.so.1 $out/stubs/lib/libnvidia-ml.so
-        fi
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # Create pkg-config files if they don't exist
-        # (files are generated via writeText, no heredocs)
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        mkdir -p $out/lib/pkgconfig
-        sed "s|@PREFIX@|$out|g" ${cuda-pc} > $out/lib/pkgconfig/cuda.pc
-        sed "s|@PREFIX@|$out|g" ${cudnn-pc} > $out/lib/pkgconfig/cudnn.pc
-        sed "s|@PREFIX@|$out|g" ${tensorrt-pc} > $out/lib/pkgconfig/tensorrt.pc
-        sed "s|@PREFIX@|$out|g" ${nccl-pc} > $out/lib/pkgconfig/nccl.pc
-
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        # // version // manifest
-        # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-        cp ${sdk-manifest} $out/NVIDIA_SDK_MANIFEST
-        echo "" >> $out/NVIDIA_SDK_MANIFEST
-        echo "Contents:" >> $out/NVIDIA_SDK_MANIFEST
-        echo "$(find $out -name '*.so' -o -name '*.a' 2>/dev/null | wc -l) libraries" >> $out/NVIDIA_SDK_MANIFEST
-        echo "$(find $out/include -name '*.h' -o -name '*.hpp' -o -name '*.cuh' 2>/dev/null | wc -l) headers" >> $out/NVIDIA_SDK_MANIFEST
-
-        echo "NVIDIA SDK build complete. See $out/NVIDIA_SDK_MANIFEST for details."
-      '';
+      # symlinkJoin postBuild script (loaded from external file)
+      post-build-script = builtins.readFile ./nv-sdk/scripts/sdk-post-build.sh;
+      post-build =
+        builtins.replaceStrings
+          [
+            "@driverPkg@"
+            "@cudatoolkit@"
+            "@cudaPc@"
+            "@cudnnPc@"
+            "@tensorrtPc@"
+            "@ncclPc@"
+            "@sdkManifest@"
+          ]
+          [
+            (if driver-pkg-final != null then "${driver-pkg-final}" else "")
+            "${nv-packages.cudatoolkit}"
+            "${cuda-pc}"
+            "${cudnn-pc}"
+            "${tensorrt-pc}"
+            "${nccl-pc}"
+            "${sdk-manifest}"
+          ]
+          post-build-script;
 
       # ──────────────────────────────────────────────────────────────────────────
       # // cutlass //
@@ -278,23 +191,9 @@ in
 
         "dontBuild" = true;
         "dontConfigure" = true;
-        "installPhase" = ''
-          runHook preInstall
-
-          mkdir -p $out/include
-          cp -r include/cutlass $out/include/
-          cp -r include/cute $out/include/
-
-          # Tools and examples for reference
-          mkdir -p $out/share/cutlass
-          cp -r tools $out/share/cutlass/
-          cp -r examples $out/share/cutlass/
-          cp -r python $out/share/cutlass/
-
-          echo "${cutlass-version}" > $out/CUTLASS_VERSION
-
-          runHook postInstall
-        '';
+        "installPhase" = builtins.replaceStrings [ "@version@" ] [ cutlass-version ] (
+          builtins.readFile ./nv-sdk/scripts/cutlass-install.sh
+        );
 
         meta = {
           description = "CUDA Templates for Linear Algebra Subroutines";
@@ -323,47 +222,23 @@ in
         Cflags: -I''${includedir}
       '';
 
-      cudnn-pc = write-text "cudnn.pc" ''
-        prefix=@PREFIX@
-        exec_prefix=''${prefix}
-        libdir=''${prefix}/lib
-        includedir=''${prefix}/include
+      cudnn-pc = write-text "cudnn.pc" (
+        builtins.replaceStrings [ "@VERSION@" ] [ nv-packages.cudnn.version ] (
+          builtins.readFile ./nv-sdk/scripts/cudnn.pc.in
+        )
+      );
 
-        Name: cuDNN
-        Description: NVIDIA CUDA Deep Neural Network library
-        Version: ${nv-packages.cudnn.version}
-        Libs: -L''${libdir} -lcudnn
-        Cflags: -I''${includedir}
-        Requires: cuda
-      '';
+      tensorrt-pc = write-text "tensorrt.pc" (
+        builtins.replaceStrings [ "@VERSION@" ] [ nv-packages.tensorrt.version ] (
+          builtins.readFile ./nv-sdk/scripts/tensorrt.pc.in
+        )
+      );
 
-      tensorrt-pc = write-text "tensorrt.pc" ''
-        prefix=@PREFIX@
-        exec_prefix=''${prefix}
-        libdir=''${prefix}/lib
-        includedir=''${prefix}/include
-
-        Name: TensorRT
-        Description: NVIDIA TensorRT inference library
-        Version: ${nv-packages.tensorrt.version}
-        Libs: -L''${libdir} -lnvinfer -lnvinfer_plugin -lnvonnxparser
-        Cflags: -I''${includedir}
-        Requires: cuda cudnn
-      '';
-
-      nccl-pc = write-text "nccl.pc" ''
-        prefix=@PREFIX@
-        exec_prefix=''${prefix}
-        libdir=''${prefix}/lib
-        includedir=''${prefix}/include
-
-        Name: NCCL
-        Description: NVIDIA Collective Communications Library
-        Version: ${nv-packages.nccl.version}
-        Libs: -L''${libdir} -lnccl
-        Cflags: -I''${includedir}
-        Requires: cuda
-      '';
+      nccl-pc = write-text "nccl.pc" (
+        builtins.replaceStrings [ "@VERSION@" ] [ nv-packages.nccl.version ] (
+          builtins.readFile ./nv-sdk/scripts/nccl.pc.in
+        )
+      );
 
       sdk-manifest = write-text "NVIDIA_SDK_MANIFEST" ''
         NVIDIA SDK for Nix (nixpkgs-based)

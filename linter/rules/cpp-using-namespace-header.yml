@@ -1,0 +1,40 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                                          // cpp-using-namespace-header // rule
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# n.b. this rule should only be run on header files (*.h, *.hpp, *.cuh)
+# use: ast-grep scan --rule cpp-using-namespace-header.yml **/*.h **/*.hpp
+#
+id: cpp-using-namespace-header
+language: cpp
+severity: error
+rule:
+  pattern: using namespace $NS;
+message: "ALEPH-CPP-E001: `using namespace` forbidden in headers"
+note: |
+  ## What's wrong?
+
+  `using namespace` statements in header files pollute the global namespace
+  for every translation unit that includes the header.
+
+  ## Why this matters
+
+  - breaks encapsulation — downstream code inherits your namespace pollution
+  - creates ODR violations when headers disagree
+  - makes code review require mental scope tracking
+  - agents pattern-match incorrectly when names are ambiguous
+
+  ## What can I do?
+
+  Fully qualify everything:
+
+  ```cpp
+  // BAD (in header)
+  using namespace std;
+  vector<string> names;
+
+  // GOOD
+  std::vector<std::string> names;
+  ```
+
+  If you must use a namespace, limit scope to a function body in a .cpp file.

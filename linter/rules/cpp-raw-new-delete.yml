@@ -1,0 +1,41 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                                                // cpp-raw-new-delete // rule
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+id: cpp-raw-new-delete
+language: cpp
+severity: error
+# FFI boundary code requires raw new/delete for C interop
+ignores:
+  - src/examples/haskell-cxx/ffi.cpp
+rule:
+  any:
+    - kind: new_expression
+    - kind: delete_expression
+message: "ALEPH-CPP-E003: raw `new`/`delete` forbidden — use RAII wrappers"
+note: |
+  ## What's wrong?
+
+  Raw `new` and `delete` are forbidden outside RAII wrappers. Memory leaks
+  and double-frees are the most common source of production incidents.
+
+  ## Why this matters
+
+  - exception safety requires RAII
+  - agents cannot reliably track ownership across function boundaries
+  - code review cannot verify all paths call delete
+
+  ## What can I do?
+
+  ```cpp
+  // BAD
+  auto* widget = new widget_impl{};
+  // ... code that might throw ...
+  delete widget;
+
+  // GOOD
+  auto widget = std::make_unique<widget_impl>();
+  // ... code that might throw — widget cleaned up automatically
+  ```
+
+  Placement new is exempt — it's used for in-place construction in
+  pre-allocated buffers. Use NOLINT comment to suppress for placement new.

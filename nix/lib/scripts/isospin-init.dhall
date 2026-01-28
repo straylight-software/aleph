@@ -1,4 +1,4 @@
--- nix/lib/scripts/fc-init.dhall
+-- nix/lib/scripts/isospin-init.dhall
 --
 -- Firecracker VM init script
 -- Environment variables are injected by render.dhall-with-vars

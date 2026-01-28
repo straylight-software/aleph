@@ -8,21 +8,13 @@ ignores:
   - "nix/prelude/**"
   # flake-parts modules (TODO: wrap these too)
   - "nix/modules/flake/**"
+  # NixOS modules don't have access to prelude - they're external-facing
+  - "nix/modules/nixos/**"
+  # Overlays that are part of prelude infrastructure
+  - "nix/overlays/script.nix"
+  - "nix/overlays/straylight-nix.nix"
 rule:
   kind: select_expression
   pattern: $OBJ.writeShellApplication
 message: "ALEPH-E012: raw writeShellApplication call"
-note: |
-  ## What's wrong?
-  Direct `writeShellApplication` calls bypass the typed prelude boundary.
-  
-  ## What can I do to fix this?
-  Use `prelude.write-shell-application` instead:
-  
-  ```nix
-  # WRONG
-  pkgs.writeShellApplication { ... }
-  
-  # RIGHT  
-  prelude.write-shell-application { ... }
-  ```
+note: "## What's wrong?\nDirect `writeShellApplication` calls bypass the typed prelude boundary.\n\n## What can I do to fix this?\nUse `prelude.write-shell-application` instead:\n\n```nix\n# WRONG\npkgs.writeShellApplication { ... }\n\n# RIGHT  \nprelude.write-shell-application { ... }\n```\n"

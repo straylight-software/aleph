@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 int main() {
-    // This is a compile-time test - no runtime fetch
-    printf("Built successfully!\n");
-    return 0;
+  // This is a compile-time test - no runtime fetch
+  printf("Built successfully!\n");
+  return 0;
 }

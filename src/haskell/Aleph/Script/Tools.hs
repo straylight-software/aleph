@@ -75,39 +75,18 @@ New tool wrappers can be generated using the clap parser:
 Then review and adjust the generated code as needed.
 -}
 module Aleph.Script.Tools (
-    -- * Re-exports for convenience
+    -- * Qualified imports
 
-    -- | Note: Import qualified to avoid name conflicts between tools.
+    {- | Import tools qualified to avoid name conflicts:
 
-    -- ** Clap-based tools (Rust)
-    module Rg,
-    module Fd,
-    module Bat,
-    module Deadnix,
-    module Delta,
-    module Dust,
-    module Hyperfine,
-    module Statix,
-    module Stylua,
-    module Taplo,
-    module Tokei,
-    module Zoxide,
+    @
+    import qualified Aleph.Script.Tools.Rg as Rg
+    import qualified Aleph.Script.Tools.Fd as Fd
+    @
 
-    -- ** GNU/Classic Unix tools
-    module Ls,
-    module Grep,
-    module Sed,
-    module Find,
-    module Xargs,
-    module Tar,
-    module Gzip,
-    module Wget,
-    module Rsync,
-
-    -- ** Container & JSON tools
-    module Jq,
-    module Crane,
-    module Bwrap,
+    This module only re-exports qualified module names.
+    Use specific tool modules directly for actual functionality.
+    -}
 ) where
 
 -- Clap-based tools (Rust)

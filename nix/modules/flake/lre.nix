@@ -47,7 +47,7 @@ let
   to-upper = lib.toUpper;
   replace-strings = builtins.replaceStrings;
   optional-string = lib.optionalString;
-  optional = lib.optional;
+  inherit (lib) optional;
 
   cfg = config.aleph.lre;
   # Remote execution config (from build module, with defaults if not present)
@@ -56,8 +56,8 @@ let
       enable = false;
       scheduler = "aleph-scheduler.fly.dev";
       cas = "aleph-cas.fly.dev";
-      scheduler-port = 50051;
-      cas-port = 50052;
+      scheduler-port = 443;
+      cas-port = 443;
       tls = true;
       instance-name = "main";
     };
@@ -126,7 +126,6 @@ in
       {
         pkgs,
         system,
-        lib,
         ...
       }:
       let
@@ -154,8 +153,15 @@ in
         # Get nativelink from inputs or nixpkgs
         nativelink =
           if inputs ? nativelink then
-            inputs.nativelink.packages.${system}.default or inputs.nativelink.packages.${system}.nativelink
-              or null
+            let
+              pkgs' = inputs.nativelink.packages.${system};
+            in
+            if pkgs' ? default then
+              pkgs'.default
+            else if pkgs' ? nativelink then
+              pkgs'.nativelink
+            else
+              null
           else
             null;
 
@@ -164,12 +170,12 @@ in
         buckconfig-re-file =
           if remote-cfg.enable then
             render-dhall "lre-buckconfig-remote.ini" ./scripts/lre-buckconfig-remote.dhall {
-              scheduler = remote-cfg.scheduler;
+              inherit (remote-cfg) scheduler;
               scheduler_port = toString remote-cfg.scheduler-port;
-              cas = remote-cfg.cas;
+              inherit (remote-cfg) cas;
               cas_port = toString remote-cfg.cas-port;
               tls = if remote-cfg.tls then "true" else "false";
-              protocol = if remote-cfg.tls then "grpcs" else "grpc";
+              protocol = "grpc"; # Always grpc://, TLS is controlled by tls = true/false
               instance_name = remote-cfg.instance-name;
             }
           else
@@ -211,20 +217,13 @@ in
                 "Fly.io remote (${remote-cfg.scheduler})"
               else
                 "local NativeLink (port ${toString cfg.port})";
+            shell-hook-script =
+              builtins.replaceStrings
+                [ "@buckconfigReFile@" "@modeMsg@" ]
+                [ (toString buckconfig-re-file) mode-msg ]
+                (builtins.readFile ./scripts/lre-shell-hook.bash);
           in
-          optional-string isLinux ''
-            # Append RE configuration to .buckconfig.local
-            # (build.nix shellHook creates .buckconfig.local, we append to it)
-            if [ -f ".buckconfig.local" ]; then
-              # Check if RE config already present
-              if ! grep -q "buck2_re_client" .buckconfig.local 2>/dev/null; then
-                cat ${buckconfig-re-file} >> .buckconfig.local
-                echo "Appended RE config to .buckconfig.local (${mode-msg})"
-              fi
-            else
-              echo "Warning: .buckconfig.local not found, RE config not added"
-            fi
-          '';
+          optional-string isLinux shell-hook-script;
 
       in
       {

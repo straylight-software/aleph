@@ -1,38 +1,38 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
--- | FFI bindings to C++ code.
---
--- This module demonstrates calling C++ from Haskell via the FFI.
--- The C++ code is compiled separately and linked via Buck2's extra_libraries.
-module FFI
-  ( -- * Simple arithmetic
-    add
-  , multiply
+{- | FFI bindings to C++ code.
+
+This module demonstrates calling C++ from Haskell via the FFI.
+The C++ code is compiled separately and linked via Buck2's extra_libraries.
+-}
+module FFI (
+    -- * Simple arithmetic
+    add,
+    multiply,
 
     -- * Vector operations
-  , dotProduct
-  , norm
-  , scaleVector
+    dotProduct,
+    norm,
+    scaleVector,
 
     -- * String operations
-  , greet
+    greet,
 
     -- * Counter (opaque handle)
-  , Counter
-  , newCounter
-  , freeCounter
-  , withCounter
-  , getCounter
-  , incrementCounter
-  , addCounter
-  ) where
+    Counter,
+    newCounter,
+    freeCounter,
+    withCounter,
+    getCounter,
+    incrementCounter,
+    addCounter,
+) where
 
-import Foreign.C.Types
-import Foreign.C.String
-import Foreign.Ptr
-import Foreign.ForeignPtr
-import Foreign.Marshal.Array
 import Control.Exception (bracket)
+import Foreign.C.String
+import Foreign.C.Types
+import Foreign.Marshal.Array
+import Foreign.Ptr
 import System.IO.Unsafe (unsafePerformIO)
 
 -- =============================================================================
@@ -40,10 +40,10 @@ import System.IO.Unsafe (unsafePerformIO)
 -- =============================================================================
 
 foreign import ccall unsafe "ffi_add"
-  c_add :: CInt -> CInt -> CInt
+    c_add :: CInt -> CInt -> CInt
 
 foreign import ccall unsafe "ffi_multiply"
-  c_multiply :: CInt -> CInt -> CInt
+    c_multiply :: CInt -> CInt -> CInt
 
 -- | Add two integers (calls C++).
 add :: Int -> Int -> Int
@@ -58,59 +58,57 @@ multiply a b = fromIntegral $ c_multiply (fromIntegral a) (fromIntegral b)
 -- =============================================================================
 
 foreign import ccall unsafe "ffi_dot_product"
-  c_dot_product :: Ptr CDouble -> Ptr CDouble -> CSize -> CDouble
+    c_dot_product :: Ptr CDouble -> Ptr CDouble -> CSize -> CDouble
 
 foreign import ccall unsafe "ffi_norm"
-  c_norm :: Ptr CDouble -> CSize -> CDouble
+    c_norm :: Ptr CDouble -> CSize -> CDouble
 
 foreign import ccall unsafe "ffi_scale"
-  c_scale :: Ptr CDouble -> CSize -> CDouble -> IO ()
+    c_scale :: Ptr CDouble -> CSize -> CDouble -> IO ()
 
 -- | Compute dot product of two vectors.
 dotProduct :: [Double] -> [Double] -> Double
 dotProduct xs ys
-  | length xs /= length ys = error "dotProduct: vectors must have same length"
-  | otherwise = realToFrac $ unsafePerformIOWithArrays xs ys $ \pxs pys len ->
-      return $ c_dot_product pxs pys (fromIntegral len)
+    | length xs /= length ys = error "dotProduct: vectors must have same length"
+    | otherwise = realToFrac $ unsafePerformIOWithArrays xs ys $ \pxs pys len ->
+        return $ c_dot_product pxs pys (fromIntegral len)
   where
     unsafePerformIOWithArrays :: [Double] -> [Double] -> (Ptr CDouble -> Ptr CDouble -> Int -> IO a) -> a
     unsafePerformIOWithArrays as bs f = unsafePerformIO $
-      withArray (map realToFrac as) $ \pas ->
-        withArray (map realToFrac bs) $ \pbs ->
-          f pas pbs (length as)
-
-
+        withArray (map realToFrac as) $ \pas ->
+            withArray (map realToFrac bs) $ \pbs ->
+                f pas pbs (length as)
 
 -- | Compute L2 norm of a vector.
 norm :: [Double] -> Double
 norm xs = unsafePerformIO $
-  withArray (map realToFrac xs) $ \pxs ->
-    return $ realToFrac $ c_norm pxs (fromIntegral $ length xs)
+    withArray (map realToFrac xs) $ \pxs ->
+        return $ realToFrac $ c_norm pxs (fromIntegral $ length xs)
 
 -- | Scale a vector by a scalar (returns new vector).
 scaleVector :: Double -> [Double] -> [Double]
 scaleVector scalar xs = unsafePerformIO $
-  withArray (map realToFrac xs) $ \pxs -> do
-    c_scale pxs (fromIntegral $ length xs) (realToFrac scalar)
-    map realToFrac <$> peekArray (length xs) pxs
+    withArray (map realToFrac xs) $ \pxs -> do
+        c_scale pxs (fromIntegral $ length xs) (realToFrac scalar)
+        map realToFrac <$> peekArray (length xs) pxs
 
 -- =============================================================================
 -- String operations
 -- =============================================================================
 
 foreign import ccall unsafe "ffi_greet"
-  c_greet :: CString -> IO CString
+    c_greet :: CString -> IO CString
 
 foreign import ccall unsafe "ffi_free_string"
-  c_free_string :: CString -> IO ()
+    c_free_string :: CString -> IO ()
 
 -- | Generate a greeting (calls C++).
 greet :: String -> IO String
 greet name = withCString name $ \cname -> do
-  cresult <- c_greet cname
-  result <- peekCString cresult
-  c_free_string cresult
-  return result
+    cresult <- c_greet cname
+    result <- peekCString cresult
+    c_free_string cresult
+    return result
 
 -- =============================================================================
 -- Counter (opaque handle pattern)
@@ -120,19 +118,19 @@ greet name = withCString name $ \cname -> do
 newtype Counter = Counter (Ptr Counter)
 
 foreign import ccall unsafe "ffi_counter_new"
-  c_counter_new :: CInt -> IO (Ptr Counter)
+    c_counter_new :: CInt -> IO (Ptr Counter)
 
 foreign import ccall unsafe "ffi_counter_free"
-  c_counter_free :: Ptr Counter -> IO ()
+    c_counter_free :: Ptr Counter -> IO ()
 
 foreign import ccall unsafe "ffi_counter_get"
-  c_counter_get :: Ptr Counter -> CInt
+    c_counter_get :: Ptr Counter -> CInt
 
 foreign import ccall unsafe "ffi_counter_increment"
-  c_counter_increment :: Ptr Counter -> IO CInt
+    c_counter_increment :: Ptr Counter -> IO CInt
 
 foreign import ccall unsafe "ffi_counter_add"
-  c_counter_add :: Ptr Counter -> CInt -> IO CInt
+    c_counter_add :: Ptr Counter -> CInt -> IO CInt
 
 -- | Create a new counter with initial value.
 newCounter :: Int -> IO Counter

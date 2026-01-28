@@ -11,8 +11,8 @@ module Main where
 import Aleph.Script
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as LBS
+import Data.Foldable (toList)
 import qualified Data.Text as T
-import qualified Data.Vector as V
 import qualified System.Environment as Env
 import System.Posix.Process (executeFile)
 import Prelude hiding (FilePath)
@@ -147,7 +147,7 @@ getContainerEnv cfg = do
         Object root <- Just val
         Object cfgObj <- KM.lookup "config" root
         Array envArr <- KM.lookup "Env" cfgObj
-        let envPairs = Prelude.map extractEnvVar (V.toList envArr)
+        let envPairs = Prelude.map extractEnvVar (toList envArr)
         Just
             ContainerEnv
                 { cenvPath = Prelude.lookup "PATH" envPairs

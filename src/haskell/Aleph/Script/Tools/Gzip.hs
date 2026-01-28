@@ -34,7 +34,7 @@ data Options = Options
     -- ^ -f: force overwrite of output file and compress links
     , keep :: Bool
     -- ^ -k: keep (don't delete) input files
-    , list :: Bool
+    , listFiles :: Bool
     -- ^ -l: list compressed file contents
     , license :: Bool
     -- ^ -L: display software license
@@ -71,7 +71,7 @@ defaults =
         , decompress = False
         , force = False
         , keep = False
-        , list = False
+        , listFiles = False
         , license = False
         , noName = False
         , name = False
@@ -94,7 +94,7 @@ buildArgs Options{..} =
         , flag decompress "--decompress"
         , flag force "--force"
         , flag keep "--keep"
-        , flag list "--list"
+        , flag listFiles "--list"
         , flag license "--license"
         , flag noName "--no-name"
         , flag name "--name"
@@ -109,12 +109,12 @@ buildArgs Options{..} =
         , flag best "--best"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
+    _optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
+    _optShow Nothing _ = Nothing
 
 -- | Run gzip with options and additional arguments
 gzip :: Options -> [Text] -> Sh Text

@@ -38,7 +38,7 @@ data Options = Options
     -- ^ -e: equivalent to -E END if END is specified;
     , optI :: Maybe Text
     -- ^ -I: same as --replace=R
-    , replace :: Maybe Text
+    , replaceStr :: Maybe Text
     -- ^ -i: replace R in INITIAL-ARGS with names read
     , maxLines :: Maybe Text
     -- ^ -L: use at most MAX-LINES non-blank input lines per
@@ -62,7 +62,7 @@ data Options = Options
     -- ^ show limits on command-line length
     , verbose :: Bool
     -- ^ -t: print commands before executing them
-    , exit :: Bool
+    , exitOnError :: Bool
     -- ^ -x: exit if the size (see -s) is exceeded
     }
     deriving (Show, Eq)
@@ -77,7 +77,7 @@ defaults =
         , optE = Nothing
         , eof = Nothing
         , optI = Nothing
-        , replace = Nothing
+        , replaceStr = Nothing
         , maxLines = Nothing
         , optL = Nothing
         , maxArgs = Nothing
@@ -89,7 +89,7 @@ defaults =
         , maxChars = Nothing
         , showLimits = False
         , verbose = False
-        , exit = False
+        , exitOnError = False
         }
 
 -- | Build command-line arguments from options
@@ -102,7 +102,7 @@ buildArgs Options{..} =
         , opt optE "-E"
         , opt eof "--eof"
         , opt optI "-I"
-        , opt replace "--replace"
+        , opt replaceStr "--replace"
         , opt maxLines "--max-lines"
         , opt optL "-l"
         , opt maxArgs "--max-args"
@@ -114,14 +114,14 @@ buildArgs Options{..} =
         , opt maxChars "--max-chars"
         , flag showLimits "--show-limits"
         , flag verbose "--verbose"
-        , flag exit "--exit"
+        , flag exitOnError "--exit"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
+    optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
     optShow Nothing _ = Nothing
 
 -- | Run xargs with options and additional arguments

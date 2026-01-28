@@ -55,10 +55,10 @@ import Crypto.Hash (SHA256 (..), hashWith)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KM
 import qualified Data.ByteString.Lazy as BL
+import Data.Foldable (toList)
 import Data.Function ((&))
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
-import qualified Data.Vector as V
 
 -- ============================================================================
 -- Types
@@ -173,7 +173,7 @@ parseEnvFromConfig val = case val of
             Just (Aeson.Object cfgObj) ->
                 case KM.lookup "Env" cfgObj of
                     Just (Aeson.Array envArr) ->
-                        let envPairs = map extractEnvVar (V.toList envArr)
+                        let envPairs = map extractEnvVar (toList envArr)
                          in ContainerEnv
                                 { cePath = lookup "PATH" envPairs
                                 , ceLdLibPath = lookup "LD_LIBRARY_PATH" envPairs

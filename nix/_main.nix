@@ -159,7 +159,6 @@ in
     {
       pkgs,
       system,
-      config,
       ...
     }:
     let
@@ -377,11 +376,15 @@ in
       packages = {
         aleph-lint = pkgs.callPackage ./packages/aleph-lint.nix { };
 
-        # Armitage - daemon-free Nix operations
-        # Built via GHC from overlay, not Buck2 (faster for Nix builds)
-        # For Buck2: buck2 build //src/armitage:armitage
-        armitage = pkgs.armitage-cli;
-        armitage-proxy = pkgs.armitage-proxy;
+        # Armitage - daemon-free Nix operations via Buck2
+        armitage = inputs.self.lib.buck2.build pkgs {
+          src = inputs.self;
+          target = "//src/armitage:armitage";
+        };
+        armitage-proxy = inputs.self.lib.buck2.build pkgs {
+          src = inputs.self;
+          target = "//src/armitage:armitage-proxy";
+        };
       }
       // optional-attrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
       // optional-attrs (system == "x86_64-linux" || system == "aarch64-linux") (
@@ -416,45 +419,8 @@ in
     toolchain = {
       cxx.enable = true;
       nv.enable = true;
-      haskell = {
-        enable = true;
-        # Extra packages for Buck2 haskell_binary rules
-        # Note: Core packages (text, bytestring, containers, time, etc.) ship with GHC 9.8+
-        packages = hp: [
-          hp.aeson
-          hp.aeson-pretty
-          hp.optparse-applicative
-          hp.megaparsec
-          hp.prettyprinter
-          hp.shelly
-          hp.foldl
-          hp.dhall
-          hp.crypton
-          hp.memory
-          hp.unordered-containers
-          hp.vector
-          hp.async
-
-          # Armitage proxy (TLS MITM, certificate generation)
-          hp.network
-          hp.tls # version pinned in haskell.nix overlay
-          hp.crypton-x509
-          hp.crypton-x509-store
-          hp.data-default-class
-          hp.pem
-          hp.asn1-types
-          hp.asn1-encoding
-          hp.hourglass
-
-          # gRPC for NativeLink CAS integration
-          # proto-lens-setup patched for Cabal 3.14+ in haskell.nix
-          hp.grapesy
-
-          # Hasktorch - typed tensor bindings to libtorch
-          # Requires nvidia-sdk (CUDA 13.0) for matching SONAME versions
-          hp.hasktorch
-        ];
-      };
+      haskell.enable = true;
+      # Package list is in nix/modules/flake/build/options.nix default
       rust.enable = true;
       lean.enable = true;
       python.enable = true;

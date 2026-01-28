@@ -12,24 +12,4 @@ rule:
   kind: select_expression
   pattern: $OBJ.mkDerivation
 message: "ALEPH-E010: raw mkDerivation call"
-note: |
-  ## What's wrong?
-  Direct `mkDerivation` calls bypass the typed prelude boundary.
-  
-  The prelude is the ONE PLACE that knows about nixpkgs internals.
-  All other code must use the typed interface.
-  
-  ## What can I do to fix this?
-  Use `prelude.mk-derivation` instead:
-  
-  ```nix
-  # WRONG
-  pkgs.stdenv.mkDerivation { ... }
-  stdenv.mkDerivation { ... }
-  
-  # RIGHT  
-  prelude.mk-derivation { ... }
-  ```
-  
-  The prelude handles translation to nixpkgs internally.
-  Your code stays clean and typed.
+note: "## What's wrong?\nDirect `mkDerivation` calls bypass the typed prelude boundary.\n\nThe prelude is the ONE PLACE that knows about nixpkgs internals.\nAll other code must use the typed interface.\n\n## What can I do to fix this?\nUse `prelude.mk-derivation` instead:\n\n```nix\n# WRONG\npkgs.stdenv.mkDerivation { ... }\nstdenv.mkDerivation { ... }\n\n# RIGHT  \nprelude.mk-derivation { ... }\n```\n\nThe prelude handles translation to nixpkgs internally.\nYour code stays clean and typed.\n"

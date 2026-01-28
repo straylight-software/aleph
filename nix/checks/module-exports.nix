@@ -10,17 +10,19 @@
   ...
 }:
 let
+  inherit (pkgs.aleph) run-command;
+
   # Get shortlist packages from config (they're exported via packages output)
   # These will be available as shortlist-fmt, shortlist-spdlog, etc.
   # We verify them by importing directly from the shortlist module
 
   # Test that the module composition works by verifying expected attributes exist
-  test-shortlist-builds = pkgs.runCommand "test-shortlist-builds" { } (
+  test-shortlist-builds = run-command "test-shortlist-builds" { } (
     builtins.readFile ./scripts/test-shortlist-builds.bash
   );
 
   # Test module composition - verify 'full' module has expected submodules
-  test-module-full = pkgs.runCommand "test-module-full" { } (
+  test-module-full = run-command "test-module-full" { } (
     builtins.readFile ./scripts/test-module-full.bash
   );
 

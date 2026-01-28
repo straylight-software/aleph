@@ -101,7 +101,7 @@ runWithConfig cfg@CloudHypervisorConfig{..} = do
 
         -- Bind GPU to vfio-pci
         echoErr ":: Binding GPU to vfio-pci"
-        boundDevices <- Vfio.bindToVfio gpuAddr
+        _boundDevices <- Vfio.bindToVfio gpuAddr
 
         -- Cleanup: unbind on exit
         let cleanup = do

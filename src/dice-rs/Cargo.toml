@@ -5,20 +5,20 @@
 
 [workspace]
 members = [
-    "allocative",
-    "allocative_derive",
-    "bench",
-    "cmp_any",
-    "dice",
-    "dice_error",
-    "dice_examples",
-    "dice_futures",
-    "dupe",
-    "dupe_derive",
-    "gazebo",
-    "gazebo_derive",
-    "lock_free_hashtable",
-    "lock_free_vec",
+  "allocative",
+  "allocative_derive",
+  "bench",
+  "cmp_any",
+  "dice",
+  "dice_error",
+  "dice_examples",
+  "dice_futures",
+  "dupe",
+  "dupe_derive",
+  "gazebo",
+  "gazebo_derive",
+  "lock_free_hashtable",
+  "lock_free_vec",
 ]
 resolver = "2"
 
@@ -29,7 +29,17 @@ repository = "https://github.com/straylight-software/aleph"
 
 [workspace.dependencies]
 # Internal crates
-allocative = { path = "allocative", features = ["anyhow", "dashmap", "futures", "once_cell", "parking_lot", "slab", "sorted_vector_map", "tokio", "triomphe"] }
+allocative = { path = "allocative", features = [
+  "anyhow",
+  "dashmap",
+  "futures",
+  "once_cell",
+  "parking_lot",
+  "slab",
+  "sorted_vector_map",
+  "tokio",
+  "triomphe",
+] }
 allocative_derive = { path = "allocative_derive" }
 cmp_any = { path = "cmp_any" }
 dice = { path = "dice" }

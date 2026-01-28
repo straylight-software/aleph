@@ -1,6 +1,9 @@
 id: long-inline-string
 language: nix
-severity: warning
+severity: error
+# _main.nix is prelude bootstrapping - Dhall templates not available yet
+ignores:
+  - "nix/_main.nix"
 rule:
   kind: indented_string_expression
   regex: "(?s)(?:.*\\n){12,}"

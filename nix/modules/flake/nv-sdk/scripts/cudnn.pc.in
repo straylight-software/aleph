@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: cuDNN
+Description: NVIDIA CUDA Deep Neural Network library
+Version: @VERSION@
+Libs: -L${libdir} -lcudnn
+Cflags: -I${includedir}
+Requires: cuda

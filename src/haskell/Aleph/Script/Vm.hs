@@ -269,10 +269,11 @@ firecrackerConfigJson FirecrackerConfig{..} = do
         filterWithNet
         []
 
--- | Setup TAP device on host for VM networking
---
--- Creates TAP device, assigns IP, enables forwarding and NAT.
--- Requires root/sudo. Returns the TAP device name.
+{- | Setup TAP device on host for VM networking
+
+Creates TAP device, assigns IP, enables forwarding and NAT.
+Requires root/sudo. Returns the TAP device name.
+-}
 setupTap :: FirecrackerNetwork -> Sh ()
 setupTap FirecrackerNetwork{..} = do
     -- Delete existing TAP if present (ignore errors)
@@ -387,7 +388,7 @@ runCloudHypervisor CloudHypervisorConfig{..} = do
 
 -- | Run Cloud Hypervisor with GPU passthrough
 runCloudHypervisorGpu :: CloudHypervisorConfig -> Vfio.PciAddr -> Sh ()
-runCloudHypervisorGpu cfg@CloudHypervisorConfig{..} gpuAddr = do
+runCloudHypervisorGpu CloudHypervisorConfig{..} gpuAddr = do
     -- Get IOMMU group devices
     mgroup <- Vfio.getIommuGroup gpuAddr
     devices <- case mgroup of

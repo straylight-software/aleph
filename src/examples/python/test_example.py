@@ -25,7 +25,7 @@ def test_dot_product():
     a = [1.0, 2.0, 3.0]
     b = [4.0, 5.0, 6.0]
     result = example.dot_product(a, b)
-    expected = 1*4 + 2*5 + 3*6  # = 32
+    expected = 1 * 4 + 2 * 5 + 3 * 6  # = 32
     assert abs(result - expected) < 1e-10
     print("  dot_product: pass")
 

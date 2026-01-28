@@ -1,20 +1,12 @@
--- nix/lib/scripts/fc-init-base.dhall
---
--- Firecracker VM init script - base setup
--- Environment variables are injected by render.dhall-with-vars
-
-let envExports : Text = env:ENV_EXPORTS as Text
-
-in ''
 #!/bin/sh
-# nix/lib/scripts/fc-init-base.sh
+# nix/lib/scripts/isospin-init-base.sh
 #
 # Firecracker VM init script - base setup
 # Used by: nix/lib/container.nix init-script function
 set -e
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-${envExports}
+@envExports@
 
 # Mount essential filesystems
 mount -t proc proc /proc
@@ -26,4 +18,3 @@ mount -t tmpfs tmpfs /tmp 2>/dev/null || true
 mount -t tmpfs tmpfs /run 2>/dev/null || true
 
 hostname builder
-''

@@ -32,22 +32,22 @@ note: |
   ## What's wrong?
   `translate-attrs` is the prelude's internal translation layer.
   Using it directly means you're bypassing the typed interface.
-  
+
   ## What can I do to fix this?
   Use `aleph.stdenv.default` or `prelude.mk-package` instead.
   These call `translate-attrs` internally.
-  
+
   ```nix
   # WRONG - manual translation
   stdenv.mkDerivation (translate-attrs {
     native-build-inputs = [ cmake ];
   })
-  
+
   # RIGHT - typed boundary handles translation
   aleph.stdenv.default {
     native-build-inputs = [ cmake ];
   }
   ```
-  
+
   The stdenv functor accepts lisp-case attrs and translates them.
   You never call translate-attrs directly.

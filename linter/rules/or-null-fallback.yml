@@ -1,6 +1,6 @@
 id: or-null-fallback
 language: nix
-severity: warning
+severity: error
 # Legitimate uses:
 #   - prelude: implements Maybe-style safe accessors (get-attr, get-path, catAttrs)
 ignores:

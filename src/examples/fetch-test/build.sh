@@ -10,4 +10,4 @@ echo ":: Downloaded:"
 wc -c example.html uuid.json
 
 echo ":: Build complete"
-echo "fetched at $(date -u +%Y-%m-%dT%H:%M:%SZ)" > fetch-test
+echo "fetched at $(date -u +%Y-%m-%dT%H:%M:%SZ)" >fetch-test

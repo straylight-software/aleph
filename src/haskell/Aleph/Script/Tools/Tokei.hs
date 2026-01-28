@@ -116,12 +116,12 @@ buildArgs Options{..} =
         , flag verbose "--verbose"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
+    _optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
+    _optShow Nothing _ = Nothing
 
 {- | Run tokei with options and additional arguments
 

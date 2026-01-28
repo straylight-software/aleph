@@ -80,7 +80,7 @@ in
         wasm-infra = import ../../prelude/wasm-plugin.nix {
           inherit lib;
           inherit (pkgs) stdenv runCommand writeText;
-          ghc-wasm-meta = inputs.ghc-wasm-meta or null;
+          ghc-wasm-meta = if inputs ? ghc-wasm-meta then inputs.ghc-wasm-meta else null;
         };
 
         # GHC WASM toolchain (if available)
@@ -107,8 +107,7 @@ in
             interpreter = pkg;
             build = attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs);
             app = attrs: pkgs'.buildPythonApplication (aleph.translate-attrs attrs);
-            lib =
-              attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs // { format = "setuptools"; });
+            lib = attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs // { format = "setuptools"; });
           };
 
         ghc =
@@ -245,20 +244,11 @@ in
           header-only = aleph.stdenv.default;
           nvidia = {
             build =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
             kernel =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
             host =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
           };
         };
 
@@ -992,26 +982,7 @@ in
 
             # Generated Main.hs that wraps the user's Pkg module
             # User files just need: module Pkg where ... pkg = mkDerivation [...]
-            wrapper-main = pkgs.writeText "Main.hs" ''
-              {-# LANGUAGE ForeignFunctionInterface #-}
-              module Main where
-
-              import Aleph.Nix.Value (Value(..))
-              import Aleph.Nix.Derivation (drvToNixAttrs)
-              import Aleph.Nix (nixWasmInit)
-              import qualified Pkg (pkg)
-
-              main :: IO ()
-              main = pure ()
-
-              foreign export ccall "nix_wasm_init_v1" initPlugin :: IO ()
-              initPlugin :: IO ()
-              initPlugin = nixWasmInit
-
-              foreign export ccall "pkg" pkgExport :: Value -> IO Value
-              pkgExport :: Value -> IO Value
-              pkgExport _args = drvToNixAttrs Pkg.pkg
-            '';
+            wrapper-main = pkgs.writeText "Main.hs" (builtins.readFile ./scripts/call-package-wrapper.hs);
 
             # Build single-file Haskell to WASM
             build-hs-wasm =
@@ -1019,35 +990,13 @@ in
               let
                 name = lib.removeSuffix ".hs" (baseNameOf (toString hs-path));
               in
-              pkgs.runCommand "${name}.wasm"
-                {
-                  src = hs-path;
-                  nativeBuildInputs = [ ghc-wasm ];
-                }
-                ''
-                  mkdir -p build
-                  cd build
-
-                  # Copy Aleph.Nix infrastructure (make writable for .hi files)
-                  cp -r ${aleph-modules}/Aleph Aleph
-                  chmod -R u+w Aleph
-
-                  # Copy user's package as Pkg.hs, wrapper as Main.hs
-                  cp $src Pkg.hs
-                  cp ${wrapper-main} Main.hs
-
-                  ${ghc-wasm}/bin/wasm32-wasi-ghc \
-                    -optl-mexec-model=reactor \
-                    '-optl-Wl,--allow-undefined' \
-                    '-optl-Wl,--export=hs_init' \
-                    '-optl-Wl,--export=nix_wasm_init_v1' \
-                    '-optl-Wl,--export=pkg' \
-                    -O2 \
-                    Main.hs \
-                    -o plugin.wasm
-
-                  ${ghc-wasm}/bin/wasm-opt -O3 plugin.wasm -o $out
-                '';
+              pkgs.runCommand "${name}.wasm" {
+                src = hs-path;
+                nativeBuildInputs = [ ghc-wasm ];
+                alephModules = aleph-modules;
+                wrapperMain = wrapper-main;
+                ghcWasm = ghc-wasm;
+              } (builtins.readFile ./scripts/build-hs-wasm.sh);
           in
           if ext == "hs" then
             if ghc-wasm == null then

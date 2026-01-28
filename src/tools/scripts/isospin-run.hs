@@ -123,7 +123,7 @@ runWithConfig FirecrackerConfig{..} = do
             echoErr $ ":: Pulling " <> pack image
             mkdirP rootfsDir
             setEnv "SSL_CERT_FILE" "/etc/ssl/certs/ca-bundle.crt"
-            Oci.pullOrCache Oci.defaultConfig (pack image)
+            _ <- Oci.pullOrCache Oci.defaultConfig (pack image)
 
             -- Export to rootfs
             bash_ $ "crane export --platform linux/amd64 '" <> pack image <> "' - | tar -xf - -C " <> pack rootfsDir
@@ -136,11 +136,12 @@ runWithConfig FirecrackerConfig{..} = do
 
             -- Write network config for init script to read
             when enableNet $ do
-                let netConfigContent = T.unlines
-                        [ "GUEST_IP=" <> Vm.fnGuestIp netCfg
-                        , "GATEWAY=" <> Vm.fnTapIp netCfg
-                        , "NETMASK=" <> Vm.fnMask netCfg
-                        ]
+                let netConfigContent =
+                        T.unlines
+                            [ "GUEST_IP=" <> Vm.fnGuestIp netCfg
+                            , "GATEWAY=" <> Vm.fnTapIp netCfg
+                            , "NETMASK=" <> Vm.fnMask netCfg
+                            ]
                 -- Ensure /etc exists in rootfs (should already from OCI image)
                 mkdirP (rootfsDir </> "etc")
                 liftIO $ Prelude.writeFile (rootfsDir </> "etc/network-config") (unpack netConfigContent)

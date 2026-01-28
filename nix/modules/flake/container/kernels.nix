@@ -59,7 +59,7 @@ let
 
   kernels-module = {
     options = {
-      fc-kernel = lib.mkOption {
+      isospin-kernel = lib.mkOption {
         type = kernel-type;
         description = "Firecracker kernel configuration";
       };
@@ -75,7 +75,7 @@ let
 
     config = {
       # AWS Firecracker kernel - tested, virtio baked in
-      fc-kernel = {
+      isospin-kernel = {
         version = "5.10.225";
         x86_64-linux = {
           url = "https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.11/x86_64/vmlinux-5.10.225";

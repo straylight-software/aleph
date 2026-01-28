@@ -213,7 +213,7 @@ in
       {
         iface-id ? "eth0",
         guest-mac ? "AA:FC:00:00:00:01",
-        host-dev-name ? "fc-tap0",
+        host-dev-name ? "isospin-tap0",
       }:
       {
         "iface_id" = iface-id;
@@ -229,7 +229,7 @@ in
     #   3. Runs a build command (if provided)
     #   4. Either exits (build mode) or drops to shell (interactive mode)
     #
-    # Template loaded from ./scripts/fc-init.sh.in to comply with ALEPH-W003.
+    # Template loaded from ./scripts/isospin-init.sh.in to comply with ALEPH-W003.
     init-script =
       {
         with-network ? true,
@@ -238,21 +238,21 @@ in
       }:
       let
         env-exports = concat-strings-sep "\n" (map-attrs-to-list (k: v: "export ${k}=\"${v}\"") env);
-        network-setup = optional-string with-network (read-file ./scripts/fc-init-network.sh);
+        network-setup = optional-string with-network (read-file ./scripts/isospin-init-network.sh);
         build-section = optional-string (build-cmd != null) (
-          read-file ./scripts/fc-init-build.sh
+          read-file ./scripts/isospin-init-build.sh
           + "\n"
           + build-cmd
           + "\nEXIT=$?\necho \":: Exit code: $EXIT\"\necho o > /proc/sysrq-trigger"
         );
         interactive-section = optional-string (build-cmd == null) "exec setsid cttyhack /bin/bash -l";
-        template = read-file ./scripts/fc-init.sh.in;
+        template = read-file ./scripts/isospin-init.sh.in;
       in
       replace-strings
         [ "@env-exports@" "@base-init@" "@network-setup@" "@build-section@" "@interactive-section@" ]
         [
           env-exports
-          (read-file ./scripts/fc-init-base.sh)
+          (read-file ./scripts/isospin-init-base.sh)
           network-setup
           build-section
           interactive-section

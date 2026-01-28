@@ -138,28 +138,8 @@ in
             "compiler_rt" = "${llvm.compiler-rt}/lib";
           };
 
-          # Generate [cxx] section
-          cxx-section = ''
-            [cxx]
-            cc = ${toolchain.cc}
-            cxx = ${toolchain.cxx}
-            cpp = ${toolchain.cpp}
-            ar = ${toolchain.ar}
-            ld = ${toolchain.ld}
-            nm = ${toolchain.nm}
-            objcopy = ${toolchain.objcopy}
-            objdump = ${toolchain.objdump}
-            ranlib = ${toolchain.ranlib}
-            strip = ${toolchain.strip}
-            clang_resource_dir = ${toolchain."clang_resource_dir"}
-            gcc_include = ${toolchain."gcc_include"}
-            gcc_include_arch = ${toolchain."gcc_include_arch"}
-            glibc_include = ${toolchain."glibc_include"}
-            glibc_lib = ${toolchain."glibc_lib"}
-            gcc_lib = ${toolchain."gcc_lib"}
-            libcxx_include = ${toolchain."libcxx_include"}
-            compiler_rt = ${toolchain."compiler_rt"}
-          '';
+          # Generate [cxx] section using INI generator
+          cxx-section = lib.generators.toINI { } { cxx = toolchain; };
 
           # Generate [shortlist] section from config
           shortlist-section = optional-string (config.buck2.shortlist != { }) ''
@@ -214,19 +194,9 @@ in
               "nativeBuildInputs" = packages;
 
               # Write buckconfig at build time
-              "configurePhase" = ''
-                runHook preConfigure
-
-                # Write .buckconfig.local with Nix store paths
-                cp ${buckconfig-file} .buckconfig.local
-
-                # Link prelude if needed
-                if [ ! -d "prelude" ] && [ ! -L "prelude" ]; then
-                  ln -s ${buck2-prelude} prelude
-                fi
-
-                runHook postConfigure
-              '';
+              BUCKCONFIG_FILE = buckconfig-file;
+              BUCK2_PRELUDE = buck2-prelude;
+              "configurePhase" = builtins.readFile ./scripts/buck2-configure.sh;
 
               "buildPhase" = ''
                 runHook preBuild
@@ -236,26 +206,13 @@ in
                 runHook postBuild
               '';
 
-              "installPhase" = ''
-                runHook preInstall
-
-                mkdir -p $out/bin
-
-                # Find and copy the output
-                ${
-                  if output != null then
-                    ''
-                      cp buck-out/v2/gen/*/${output} $out/bin/
-                    ''
-                  else
-                    ''
-                      # Auto-detect: copy executables from buck-out
-                      find buck-out/v2/gen -type f -executable -name "${target-name}*" | head -1 | xargs -I{} cp {} $out/bin/
-                    ''
-                }
-
-                runHook postInstall
-              '';
+              OUTPUT_PATH = if output != null then output else "";
+              TARGET_NAME = target-name;
+              "installPhase" =
+                if output != null then
+                  builtins.readFile ./scripts/buck2-install-output.sh
+                else
+                  builtins.readFile ./scripts/buck2-install.sh;
 
               meta = {
                 description = "Buck2 target ${target} built as Nix derivation";

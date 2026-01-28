@@ -9,7 +9,7 @@ import Torch
 
 -- | Mean squared error loss
 mse' :: Tensor -> Tensor -> Tensor
-mse' pred target = mean $ (pred - target) * (pred - target)
+mse' prediction target = mean $ (prediction - target) * (prediction - target)
 
 -- | Generate synthetic data: y = 3x + 2 + noise
 generateData :: Int -> IO (Tensor, Tensor)
@@ -79,16 +79,16 @@ trainLoop ::
     IO (Tensor, Tensor)
 trainLoop w b _ _ _ 0 = return (w, b)
 trainLoop w b x y lr n = do
-    -- Forward: pred = w*x + b
-    let pred = w * x + b
+    -- Forward: yHat = w*x + b
+    let yHat = w * x + b
 
         -- MSE loss
-        loss = mse' pred y
+        loss = mse' yHat y
 
         -- Analytical gradients for MSE:
-        -- d(loss)/d(w) = 2 * mean((pred - y) * x)
-        -- d(loss)/d(b) = 2 * mean(pred - y)
-        err = pred - y
+        -- d(loss)/d(w) = 2 * mean((yHat - y) * x)
+        -- d(loss)/d(b) = 2 * mean(yHat - y)
+        err = yHat - y
         gradW = 2.0 * mean (err * x)
         gradB = 2.0 * mean err
 

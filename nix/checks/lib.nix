@@ -79,7 +79,7 @@ let
   test-lib-stdenv-utils =
     let
       script = render-dhall "test-lib-stdenv-utils.bash" ./scripts/test-lib-stdenv-utils.dhall {
-        aleph-cflags = aleph-lib.stdenv.aleph-cflags;
+        inherit (aleph-lib.stdenv) aleph-cflags;
         dont-strip = builtins.toJSON aleph-lib.stdenv.aleph-attrs."dontStrip";
         hardening-disable-all = builtins.toJSON (
           builtins.elem "all" aleph-lib.stdenv.aleph-attrs."hardeningDisable"

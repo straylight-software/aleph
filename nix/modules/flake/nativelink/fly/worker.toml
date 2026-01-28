@@ -10,30 +10,30 @@ app = "aleph-worker"
 primary_region = "iad"
 
 [build]
-  image = "registry.fly.io/aleph-worker:latest"
+image = "registry.fly.io/aleph-worker:latest"
 
 [env]
-  RUST_LOG = "info,nativelink=debug"
-  # Nix store on volume
-  NIX_STORE_DIR = "/data/nix/store"
-  NIX_STATE_DIR = "/data/nix/var/nix"
-  NIX_LOG_DIR = "/data/nix/var/log/nix"
+RUST_LOG = "info,nativelink=debug"
+# Nix store on volume
+NIX_STORE_DIR = "/data/nix/store"
+NIX_STATE_DIR = "/data/nix/var/nix"
+NIX_LOG_DIR = "/data/nix/var/log/nix"
 
 # Persistent storage for nix store + build artifacts
 [mounts]
-  source = "worker_data"
-  destination = "/data"
-  initial_size = "100gb"
+source = "worker_data"
+destination = "/data"
+initial_size = "100gb"
 
 # Workers connect outbound to scheduler, don't need inbound ports
 # But we need a process to keep the machine alive
 [processes]
-  worker = "/nix/var/nix/profiles/default/bin/nativelink-worker"
+worker = "/nix/var/nix/profiles/default/bin/nativelink-worker"
 
 [[vm]]
-  memory = "32gb"
-  cpu_kind = "performance"
-  cpus = 8
+memory = "32gb"
+cpu_kind = "performance"
+cpus = 8
 
 # Auto-scale based on pending work (future)
 # [autoscale]

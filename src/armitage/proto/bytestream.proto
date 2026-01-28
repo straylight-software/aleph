@@ -83,5 +83,6 @@ service ByteStream {
   rpc Write(stream WriteRequest) returns (WriteResponse);
 
   // Query the status of a write operation.
-  rpc QueryWriteStatus(QueryWriteStatusRequest) returns (QueryWriteStatusResponse);
+  rpc QueryWriteStatus(QueryWriteStatusRequest)
+      returns (QueryWriteStatusResponse);
 }

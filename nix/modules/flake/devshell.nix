@@ -26,10 +26,10 @@ let
   mk-option = lib.mkOption;
   mk-if = lib.mkIf;
   optional-attrs = lib.optionalAttrs;
-  optionals = lib.optionals;
+  inherit (lib) optionals;
   optional-string = lib.optionalString;
   has-prefix = lib.hasPrefix;
-  filter = lib.filter;
+  inherit (lib) filter;
   function-to = lib.types.functionTo;
   list-of = lib.types.listOf;
   attrs-of = lib.types.attrsOf;
@@ -189,7 +189,7 @@ in
             # GHC WASM toolchain for builtins.wasm plugin development
             ++ optionals (cfg.ghc-wasm.enable && pkgs ? aleph && pkgs.aleph ? ghc-wasm) (
               let
-                ghc-wasm = pkgs.aleph.ghc-wasm;
+                inherit (pkgs.aleph) ghc-wasm;
               in
               filter (p: p != null) [
                 ghc-wasm.ghc-wasm

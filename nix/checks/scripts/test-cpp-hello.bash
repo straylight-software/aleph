@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test C++ Hello World compilation
 
-echo "Testing: \$CXX --version"
+echo 'Testing: $CXX --version'
 $CXX --version || c++ --version || g++ --version
 
 echo ""

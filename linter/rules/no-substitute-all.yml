@@ -1,6 +1,9 @@
 id: no-substitute-all
 language: nix
 severity: error
+# NixOS modules don't have access to Dhall prelude
+ignores:
+  - "nix/modules/nixos/**"
 rule:
   kind: apply_expression
   any:

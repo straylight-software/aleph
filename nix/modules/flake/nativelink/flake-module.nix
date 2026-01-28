@@ -35,7 +35,12 @@ let
   # Builtins aliases
   to-json = builtins."toJSON";
   to-string = builtins."toString";
+  read-file = builtins."readFile";
+  replace-strings = builtins."replaceStrings";
   unsafe-discard-string-context = builtins."unsafeDiscardStringContext";
+
+  # Script directory
+  scripts-dir = ./scripts;
 
   cfg = config.aleph.nativelink;
 in
@@ -316,14 +321,10 @@ in
         # NOTE: Use inputs.*.packages.${system} directly, NOT inputs'
         # inputs' causes infinite recursion in flake-parts
         nativelink =
-          inputs.nativelink.packages.${system}.default or inputs.nativelink.packages.${system}.nativelink
-            or null;
+          inputs.nativelink.packages.${system}.default or inputs.nativelink.packages.${system}.nativelink;
 
         # Fly internal DNS addresses (for container-to-container communication)
-        scheduler-addr = "${cfg.fly.app-prefix}-scheduler.internal:${to-string cfg.scheduler.port}";
         cas-addr = "${cfg.fly.app-prefix}-cas.internal:${to-string cfg.cas.port}";
-        nix-proxy-addr = "${cfg.fly.app-prefix}-proxy.internal:${to-string cfg.nix-proxy.port}";
-        nix-proxy-url = "http://${nix-proxy-addr}";
 
         # ──────────────────────────────────────────────────────────────────────
         # NativeLink JSON configs
@@ -434,7 +435,7 @@ in
                   name = "R2_STORE";
                   "experimental_s3_store" = {
                     region = "auto"; # R2 uses "auto" for region
-                    bucket = cfg.cas.r2.bucket;
+                    inherit (cfg.cas.r2) bucket;
                     "key_prefix" = cfg.cas.r2.key-prefix;
                     retry = {
                       "max_retries" = 6;
@@ -608,8 +609,9 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         # Get prelude toolchain packages (same as local builds)
-        llvm-git = pkgs.llvm-git or null;
-        nvidia-sdk = pkgs.nvidia-sdk or null;
+        # Use explicit ? checks for optional packages
+        llvm-git = if pkgs ? llvm-git then pkgs.llvm-git else null;
+        nvidia-sdk = if pkgs ? nvidia-sdk then pkgs.nvidia-sdk else null;
         gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
 
         # Haskell toolchain - use aleph.script.ghc for full Aleph.Script support
@@ -661,43 +663,19 @@ in
           "runtimeEnv" = {
             NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
           };
-          text = ''
-            set -euo pipefail
-
-            DATA_DIR="/data"
-            MARKER="$DATA_DIR/.toolchain-ready"
-
-            if [ -f "$MARKER" ]; then
-              echo "Toolchain already fetched"
-              exit 0
-            fi
-
-            echo "╔══════════════════════════════════════════════════════════════╗"
-            echo "║  Fetching toolchain from cache.nixos.org...                  ║"
-            echo "╚══════════════════════════════════════════════════════════════╝"
-
-            # Toolchain store paths (baked at build time)
-            TOOLCHAIN_PATHS="${
-              concat-map-strings-sep " " (pkg: unsafe-discard-string-context (to-string pkg)) toolchain-packages
-            }"
-
-            # Fetch each path from cache
-            for path in $TOOLCHAIN_PATHS; do
-              echo "Fetching $path..."
-              nix-store --realise "$path" || echo "  (will build if not in cache)"
-            done
-
-            touch "$MARKER"
-            echo "✓ Toolchain ready"
-          '';
+          text =
+            replace-strings
+              [ "@toolchainPaths@" ]
+              [
+                (concat-map-strings-sep " " (pkg: unsafe-discard-string-context (to-string pkg)) toolchain-packages)
+              ]
+              (read-file (scripts-dir + "/toolchain-setup.sh"));
         };
 
         # Modular service for nativelink (nimi pattern)
         mk-nativelink-service =
           { script }:
-          { lib, pkgs, ... }:
-          { ... }:
-          {
+          _: _: {
             _class = "service";
             config.process.argv = [ "${script}/bin/${script.name}" ];
           };
@@ -707,259 +685,79 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         # Python addon for mitmproxy - caches responses by content hash
-        nix-proxy-addon = pkgs.writeText "nix-proxy-addon.py" ''
-          """
-          mitmproxy addon for Nix build fetch caching and logging.
-
-          - Caches responses by content hash (SHA256)
-          - Logs all fetches for attestation
-          - Enforces domain allowlist
-          """
-          import hashlib
-          import json
-          import os
-          from datetime import datetime
-          from pathlib import Path
-
-          from mitmproxy import ctx, http
-
-          CACHE_DIR = Path(os.environ.get("NIX_PROXY_CACHE_DIR", "/data/cache"))
-          LOG_DIR = Path(os.environ.get("NIX_PROXY_LOG_DIR", "/data/logs"))
-          ALLOWLIST = os.environ.get("NIX_PROXY_ALLOWLIST", "").split(",")
-          ALLOWLIST = [d.strip() for d in ALLOWLIST if d.strip()]
-
-
-          class NixProxyAddon:
-              def __init__(self):
-                  CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                  LOG_DIR.mkdir(parents=True, exist_ok=True)
-                  self.log_file = LOG_DIR / f"fetches-{datetime.now():%Y%m%d}.jsonl"
-
-              def _hash_content(self, content: bytes) -> str:
-                  return hashlib.sha256(content).hexdigest()
-
-              def _cache_path(self, content_hash: str) -> Path:
-                  # Two-level cache path like git objects
-                  return CACHE_DIR / content_hash[:2] / content_hash[2:]
-
-              def _log_fetch(self, url: str, content_hash: str, size: int, cached: bool):
-                  entry = {
-                      "timestamp": datetime.utcnow().isoformat(),
-                      "url": url,
-                      "sha256": content_hash,
-                      "size": size,
-                      "cached": cached,
-                  }
-                  with open(self.log_file, "a") as f:
-                      f.write(json.dumps(entry) + "\n")
-
-              def _check_allowlist(self, host: str) -> bool:
-                  if not ALLOWLIST:
-                      return True
-                  return any(
-                      host == allowed or host.endswith("." + allowed) for allowed in ALLOWLIST
-                  )
-
-              def request(self, flow: http.HTTPFlow):
-                  host = flow.request.host
-                  if not self._check_allowlist(host):
-                      flow.response = http.Response.make(
-                          403, f"Host {host} not in allowlist", {"Content-Type": "text/plain"}
-                      )
-                      ctx.log.warn(f"Blocked request to {host} (not in allowlist)")
-
-              def response(self, flow: http.HTTPFlow):
-                  if flow.response.status_code != 200:
-                      return
-
-                  content = flow.response.content
-                  if not content:
-                      return
-
-                  content_hash = self._hash_content(content)
-                  cache_path = self._cache_path(content_hash)
-                  url = flow.request.pretty_url
-
-                  cached = cache_path.exists()
-                  if not cached:
-                      cache_path.parent.mkdir(parents=True, exist_ok=True)
-                      cache_path.write_bytes(content)
-                      ctx.log.info(f"Cached {url} -> {content_hash[:16]}... ({len(content)} bytes)")
-
-                  self._log_fetch(url, content_hash, len(content), cached)
-
-
-          addons = [NixProxyAddon()]
-        '';
 
         # Allowlist as comma-separated string
-        nix-proxy-allowlist-str = lib.concatStringsSep "," cfg.nix-proxy.allowlist;
 
         # Nix proxy entrypoint script
-        nix-proxy-script = write-shell-application {
-          name = "nix-proxy";
-          "runtimeInputs" = [ pkgs.mitmproxy ];
-          "runtimeEnv" = {
-            NIX_PROXY_CACHE_DIR = "/data/cache";
-            NIX_PROXY_LOG_DIR = "/data/logs";
-            NIX_PROXY_ALLOWLIST = nix-proxy-allowlist-str;
-          };
-          text = ''
-            # Create data directories
-            mkdir -p /data/cache /data/logs /data/certs
-
-            # Generate CA cert if not exists
-            if [ ! -f /data/certs/mitmproxy-ca-cert.pem ]; then
-              echo "Generating mitmproxy CA certificate..."
-              mitmdump --set confdir=/data/certs -q &
-              PID=$!
-              sleep 3
-              kill $PID 2>/dev/null || true
-            fi
-
-            echo "╔══════════════════════════════════════════════════════════════╗"
-            echo "║  Nix Proxy starting on port ${to-string cfg.nix-proxy.port}                         ║"
-            echo "║  Allowlist: ${to-string (builtins.length cfg.nix-proxy.allowlist)} domains                                        ║"
-            echo "╚══════════════════════════════════════════════════════════════╝"
-
-            exec mitmdump \
-              --listen-host 0.0.0.0 \
-              --listen-port ${to-string cfg.nix-proxy.port} \
-              --set confdir=/data/certs \
-              --scripts ${nix-proxy-addon} \
-              "$@"
-          '';
-        };
 
         # ──────────────────────────────────────────────────────────────────────
         # Fly.io configuration (generated from options)
         # ──────────────────────────────────────────────────────────────────────
 
-        scheduler-fly-toml = write-text "scheduler.toml" ''
-          # Generated by aleph.nativelink module
-          app = "${cfg.fly.app-prefix}-scheduler"
-          primary_region = "${cfg.fly.region}"
+        scheduler-fly-toml = write-text "scheduler.toml" (
+          replace-strings
+            [ "@appPrefix@" "@region@" "@schedulerPort@" "@schedulerMemory@" "@schedulerCpus@" ]
+            [
+              cfg.fly.app-prefix
+              cfg.fly.region
+              (to-string cfg.scheduler.port)
+              cfg.scheduler.memory
+              (to-string cfg.scheduler.cpus)
+            ]
+            (read-file (scripts-dir + "/scheduler-fly.toml"))
+        );
 
-          [build]
-            image = "registry.fly.io/${cfg.fly.app-prefix}-scheduler:latest"
+        cas-fly-toml = write-text "cas.toml" (
+          replace-strings
+            [ "@appPrefix@" "@region@" "@casPort@" "@casVolumeSize@" "@casMemory@" "@casCpus@" ]
+            [
+              cfg.fly.app-prefix
+              cfg.fly.region
+              (to-string cfg.cas.port)
+              cfg.cas.volume-size
+              cfg.cas.memory
+              (to-string cfg.cas.cpus)
+            ]
+            (read-file (scripts-dir + "/cas-fly.toml"))
+        );
 
-          [env]
-            RUST_LOG = "info,nativelink=debug"
+        worker-fly-toml = write-text "worker.toml" (
+          replace-strings
+            [
+              "@appPrefix@"
+              "@region@"
+              "@workerCount@"
+              "@workerCpus@"
+              "@totalCores@"
+              "@workerVolumeSize@"
+              "@workerMemory@"
+              "@workerCpuKind@"
+            ]
+            [
+              cfg.fly.app-prefix
+              cfg.fly.region
+              (to-string cfg.worker.count)
+              (to-string cfg.worker.cpus)
+              (to-string (cfg.worker.count * cfg.worker.cpus))
+              cfg.worker.volume-size
+              cfg.worker.memory
+              cfg.worker.cpu-kind
+            ]
+            (read-file (scripts-dir + "/worker-fly.toml"))
+        );
 
-          [http_service]
-            internal_port = ${to-string cfg.scheduler.port}
-            force_https = true
-            auto_stop_machines = "off"
-            auto_start_machines = true
-            min_machines_running = 1
-
-            [http_service.concurrency]
-              type = "connections"
-              hard_limit = 10000
-              soft_limit = 8000
-
-            # gRPC requires HTTP/2 backend
-            [http_service.http_options]
-              h2_backend = true
-
-            [http_service.tls_options]
-              alpn = ["h2"]
-
-          [[vm]]
-            memory = "${cfg.scheduler.memory}"
-            cpu_kind = "shared"
-            cpus = ${to-string cfg.scheduler.cpus}
-        '';
-
-        cas-fly-toml = write-text "cas.toml" ''
-          # Generated by aleph.nativelink module
-          app = "${cfg.fly.app-prefix}-cas"
-          primary_region = "${cfg.fly.region}"
-
-          [build]
-            image = "registry.fly.io/${cfg.fly.app-prefix}-cas:latest"
-
-          [env]
-            RUST_LOG = "info,nativelink=debug"
-
-          [http_service]
-            internal_port = ${to-string cfg.cas.port}
-            force_https = true
-            auto_stop_machines = "off"
-            auto_start_machines = true
-            min_machines_running = 1
-
-            [http_service.concurrency]
-              type = "connections"
-              hard_limit = 10000
-              soft_limit = 8000
-
-            # gRPC requires HTTP/2 backend
-            [http_service.http_options]
-              h2_backend = true
-
-            [http_service.tls_options]
-              alpn = ["h2"]
-
-          [mounts]
-            source = "cas_data"
-            destination = "/data"
-            initial_size = "${cfg.cas.volume-size}"
-
-          [[vm]]
-            memory = "${cfg.cas.memory}"
-            cpu_kind = "shared"
-            cpus = ${to-string cfg.cas.cpus}
-        '';
-
-        worker-fly-toml = write-text "worker.toml" ''
-          # Generated by aleph.nativelink module
-          # ${to-string cfg.worker.count}x performance-${to-string cfg.worker.cpus} = ${
-            to-string (cfg.worker.count * cfg.worker.cpus)
-          } cores total
-          app = "${cfg.fly.app-prefix}-worker"
-          primary_region = "${cfg.fly.region}"
-
-          [build]
-            image = "registry.fly.io/${cfg.fly.app-prefix}-worker:latest"
-
-          [env]
-            RUST_LOG = "info,nativelink=debug"
-
-          [mounts]
-            source = "worker_data"
-            destination = "/data"
-            initial_size = "${cfg.worker.volume-size}"
-
-          [[vm]]
-            memory = "${cfg.worker.memory}"
-            cpu_kind = "${cfg.worker.cpu-kind}"
-            cpus = ${to-string cfg.worker.cpus}
-        '';
-
-        builder-fly-toml = write-text "builder.toml" ''
-          # Generated by aleph.nativelink module
-          # Dedicated nix builder - SSH in, build containers, push to registry
-          # Your laptop stays cool.
-          app = "${cfg.fly.app-prefix}-builder"
-          primary_region = "${cfg.fly.region}"
-
-          [build]
-            image = "registry.fly.io/${cfg.fly.app-prefix}-builder:latest"
-
-          [env]
-            NIX_CONFIG = "experimental-features = nix-command flakes"
-
-          [mounts]
-            source = "builder_nix"
-            destination = "/nix"
-            initial_size = "${cfg.builder.volume-size}"
-
-          [[vm]]
-            memory = "${cfg.builder.memory}"
-            cpu_kind = "performance"
-            cpus = ${to-string cfg.builder.cpus}
-        '';
+        builder-fly-toml = write-text "builder.toml" (
+          replace-strings
+            [ "@appPrefix@" "@region@" "@builderVolumeSize@" "@builderMemory@" "@builderCpus@" ]
+            [
+              cfg.fly.app-prefix
+              cfg.fly.region
+              cfg.builder.volume-size
+              cfg.builder.memory
+              (to-string cfg.builder.cpus)
+            ]
+            (read-file (scripts-dir + "/builder-fly.toml"))
+        );
 
         # ──────────────────────────────────────────────────────────────────────
         # Deployment scripts for Fly.io
@@ -976,200 +774,37 @@ in
             coreutils
             jq
           ];
-          text = ''
-            set -euo pipefail
-
-            PREFIX="${cfg.fly.app-prefix}"
-            REGION="${cfg.fly.region}"
-            WORKER_COUNT=${to-string cfg.worker.count}
-
-            # Parse args
-            BUILD_IMAGES=true
-            for arg in "$@"; do
-              case "$arg" in
-                --no-build) BUILD_IMAGES=false ;;
-                --help|-h)
-                  echo "Usage: nativelink-deploy [--no-build]"
-                  echo ""
-                  echo "Options:"
-                  echo "  --no-build  Skip container builds, just deploy existing images"
-                  exit 0
-                  ;;
-              esac
-            done
-
-            echo "╔══════════════════════════════════════════════════════════════════╗"
-            echo "║           NativeLink Fly.io Deploy                               ║"
-            echo "║  ${to-string cfg.worker.count}x performance-${to-string cfg.worker.cpus} workers = ${
-              to-string (cfg.worker.count * cfg.worker.cpus)
-            } cores                              ║"
-            echo "╚══════════════════════════════════════════════════════════════════╝"
-            echo ""
-
-            # ── Auth check ──────────────────────────────────────────────────────
-            echo "Checking authentication..."
-            if ! gh auth status &>/dev/null; then
-              echo "Error: GitHub CLI not authenticated. Run 'gh auth login'"
-              exit 1
-            fi
-            GH_TOKEN=$(gh auth token)
-            GH_USER=$(gh api user -q .login)
-
-            if ! flyctl auth whoami &>/dev/null; then
-              echo "Error: Fly CLI not authenticated. Run 'flyctl auth login'"
-              exit 1
-            fi
-            echo "  ✓ GitHub: $GH_USER"
-            echo "  ✓ Fly.io: $(flyctl auth whoami)"
-            echo ""
-
-            # ── Create apps if needed ───────────────────────────────────────────
-            echo "Ensuring Fly apps exist..."
-            for APP in "$PREFIX-scheduler" "$PREFIX-cas" "$PREFIX-worker"; do
-              if ! flyctl apps list --json | jq -e ".[] | select(.Name == \"$APP\")" &>/dev/null; then
-                echo "  Creating $APP..."
-                flyctl apps create "$APP" --org personal || true
-              else
-                echo "  ✓ $APP exists"
-              fi
-            done
-            echo ""
-
-            # ── Allocate IPs if needed ──────────────────────────────────────────
-            echo "Ensuring public IPs allocated..."
-            for APP in "$PREFIX-scheduler" "$PREFIX-cas"; do
-              if ! flyctl ips list -a "$APP" --json | jq -e '.[] | select(.Type == "shared_v4" or .Type == "v4")' &>/dev/null; then
-                echo "  Allocating IPv4 for $APP..."
-                flyctl ips allocate-v4 --shared -a "$APP"
-              fi
-              if ! flyctl ips list -a "$APP" --json | jq -e '.[] | select(.Type == "v6")' &>/dev/null; then
-                echo "  Allocating IPv6 for $APP..."
-                flyctl ips allocate-v6 -a "$APP"
-              fi
-            done
-            echo "  ✓ IPs allocated"
-            echo ""
-
-            # ── Create volumes if needed ────────────────────────────────────────
-            echo "Ensuring volumes exist..."
-            if ! flyctl volumes list -a "$PREFIX-cas" --json | jq -e '.[] | select(.Name == "cas_data")' &>/dev/null; then
-              echo "  Creating CAS volume (${cfg.cas.volume-size})..."
-              flyctl volumes create cas_data -a "$PREFIX-cas" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.cas.volume-size)} -y
-            fi
-            for i in $(seq 1 $WORKER_COUNT); do
-              VOL_NAME="worker_data"
-              # Check if we have enough volumes
-              VOL_COUNT=$(flyctl volumes list -a "$PREFIX-worker" --json | jq '[.[] | select(.Name == "worker_data")] | length')
-              if [ "$VOL_COUNT" -lt "$i" ]; then
-                echo "  Creating worker volume $i (${cfg.worker.volume-size})..."
-                flyctl volumes create "$VOL_NAME" -a "$PREFIX-worker" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.worker.volume-size)} -y
-              fi
-            done
-            echo "  ✓ Volumes ready"
-            echo ""
-
-            if [ "$BUILD_IMAGES" = "true" ]; then
-            # ── Ensure builder exists ───────────────────────────────────────────
-            BUILDER_APP="$PREFIX-builder"
-            if ! flyctl apps list --json | jq -e ".[] | select(.Name == \"$BUILDER_APP\")" &>/dev/null; then
-              echo "Creating builder app..."
-              flyctl apps create "$BUILDER_APP" --org personal || true
-            fi
-
-            # Check if builder needs volume
-            if ! flyctl volumes list -a "$BUILDER_APP" --json | jq -e '.[] | select(.Name == "builder_nix")' &>/dev/null; then
-              echo "Creating builder volume (${cfg.builder.volume-size})..."
-              flyctl volumes create builder_nix -a "$BUILDER_APP" -r "$REGION" -s ${builtins.head (builtins.match "([0-9]+).*" cfg.builder.volume-size)} -y
-            fi
-
-            # Check if builder is running
-            BUILDER_STATE=$(flyctl status -a "$BUILDER_APP" --json 2>/dev/null | jq -r '.Machines[0].state // "none"' || echo "none")
-            if [ "$BUILDER_STATE" != "started" ]; then
-              echo "Starting builder..."
-              # First time: need to push image from local (bootstrap)
-              # After that: builder rebuilds itself
-              if ! flyctl status -a "$BUILDER_APP" --json 2>/dev/null | jq -e '.Machines[0]' &>/dev/null; then
-                echo "  Bootstrap: building builder image locally (one-time)..."
-                nix run ".#nativelink-builder.copyTo" -- \
-                  --dest-creds "$GH_USER:$GH_TOKEN" \
-                  "docker://ghcr.io/straylight-software/aleph/nativelink-builder:latest" 2>&1 | tail -2
-                FLY_TOKEN=$(flyctl tokens create deploy -a "$BUILDER_APP" -x 2h 2>&1 | head -1)
-                skopeo copy \
-                  --src-creds "$GH_USER:$GH_TOKEN" \
-                  --dest-creds "x:$FLY_TOKEN" \
-                  "docker://ghcr.io/straylight-software/aleph/nativelink-builder:latest" \
-                  "docker://registry.fly.io/$BUILDER_APP:latest" 2>&1 | tail -1
-                flyctl deploy -c ${builder-fly-toml} -a "$BUILDER_APP" -y 2>&1 | tail -3
-              else
-                flyctl machines start -a "$BUILDER_APP" "$(flyctl machines list -a "$BUILDER_APP" --json | jq -r '.[0].id')"
-              fi
-            fi
-            echo "  ✓ Builder ready"
-            echo ""
-
-            # ── Build images on remote builder ──────────────────────────────────
-            echo "Building containers on Fly builder (your laptop stays cool)..."
-            REPO_URL="https://github.com/straylight-software/aleph.git"
-
-            for SERVICE in scheduler cas worker; do
-              echo "  Building nativelink-$SERVICE..."
-              flyctl ssh console -a "$BUILDER_APP" -C "
-                set -e
-                cd /tmp
-                rm -rf aleph 2>/dev/null || true
-                git clone --depth 1 $REPO_URL aleph
-                cd aleph
-                nix run .#nativelink-$SERVICE.copyTo -- \\
-                  --dest-creds '$GH_USER:$GH_TOKEN' \\
-                  'docker://ghcr.io/straylight-software/aleph/nativelink-$SERVICE:latest'
-              " 2>&1 | tail -5
-
-              echo "  Pushing to Fly registry..."
-              FLY_TOKEN=$(flyctl tokens create deploy -a "$PREFIX-$SERVICE" -x 2h 2>&1 | head -1)
-              flyctl ssh console -a "$BUILDER_APP" -C "
-                skopeo copy \\
-                  --src-creds '$GH_USER:$GH_TOKEN' \\
-                  --dest-creds 'x:$FLY_TOKEN' \\
-                  'docker://ghcr.io/straylight-software/aleph/nativelink-$SERVICE:latest' \\
-                  'docker://registry.fly.io/$PREFIX-$SERVICE:latest'
-              " 2>&1 | tail -2
-            done
-            echo "  ✓ Containers built and pushed"
-            echo ""
-            else
-              echo "Skipping container builds (--no-build)"
-              echo ""
-            fi
-
-            # ── Deploy services ─────────────────────────────────────────────────
-            echo "Deploying services..."
-            flyctl deploy -c ${scheduler-fly-toml} -a "$PREFIX-scheduler" -y 2>&1 | tail -2
-            flyctl deploy -c ${cas-fly-toml} -a "$PREFIX-cas" -y 2>&1 | tail -2
-            flyctl deploy -c ${worker-fly-toml} -a "$PREFIX-worker" -y 2>&1 | tail -2
-            echo "  ✓ Services deployed"
-            echo ""
-
-            # ── Scale workers ───────────────────────────────────────────────────
-            echo "Scaling workers to $WORKER_COUNT..."
-            flyctl scale count $WORKER_COUNT -a "$PREFIX-worker" -y 2>&1 | tail -2
-            echo "  ✓ Workers scaled"
-            echo ""
-
-            # ── Status ──────────────────────────────────────────────────────────
-            echo "╔══════════════════════════════════════════════════════════════════╗"
-            echo "║                      Deployment Complete                          ║"
-            echo "╚══════════════════════════════════════════════════════════════════╝"
-            echo ""
-            echo "Endpoints:"
-            echo "  Scheduler: grpcs://$PREFIX-scheduler.fly.dev:443"
-            echo "  CAS:       grpcs://$PREFIX-cas.fly.dev:443"
-            echo ""
-            echo "Test with:"
-            echo "  buck2 build --remote-only \\"
-            echo "    --config buck2_re_client.engine_address=grpcs://$PREFIX-scheduler.fly.dev:443 \\"
-            echo "    --config buck2_re_client.cas_address=grpcs://$PREFIX-cas.fly.dev:443 \\"
-            echo "    //..."
-          '';
+          text =
+            replace-strings
+              [
+                "@appPrefix@"
+                "@region@"
+                "@workerCount@"
+                "@workerCpus@"
+                "@totalCores@"
+                "@casVolumeSize@"
+                "@workerVolumeSize@"
+                "@builderVolumeSize@"
+                "@schedulerFlyToml@"
+                "@casFlyToml@"
+                "@workerFlyToml@"
+                "@builderFlyToml@"
+              ]
+              [
+                cfg.fly.app-prefix
+                cfg.fly.region
+                (to-string cfg.worker.count)
+                (to-string cfg.worker.cpus)
+                (to-string (cfg.worker.count * cfg.worker.cpus))
+                cfg.cas.volume-size
+                cfg.worker.volume-size
+                cfg.builder.volume-size
+                (to-string scheduler-fly-toml)
+                (to-string cas-fly-toml)
+                (to-string worker-fly-toml)
+                (to-string builder-fly-toml)
+              ]
+              (read-file (scripts-dir + "/deploy-all.sh"));
         };
 
         deploy-scheduler = write-shell-application {
@@ -1200,45 +835,18 @@ in
         status-script = write-shell-application {
           name = "nativelink-status";
           "runtimeInputs" = with pkgs; [ flyctl ];
-          text = ''
-            set -euo pipefail
-            echo "=== NativeLink Service Status ==="
-            echo ""
-            echo "Scheduler (${cfg.fly.app-prefix}-scheduler):"
-            flyctl status -a "${cfg.fly.app-prefix}-scheduler" 2>&1 | tail -5 || echo "  Not deployed"
-            echo ""
-            echo "CAS (${cfg.fly.app-prefix}-cas):"
-            flyctl status -a "${cfg.fly.app-prefix}-cas" 2>&1 | tail -5 || echo "  Not deployed"
-            echo ""
-            echo "Worker (${cfg.fly.app-prefix}-worker):"
-            flyctl status -a "${cfg.fly.app-prefix}-worker" 2>&1 | tail -5 || echo "  Not deployed"
-          '';
+          text = replace-strings [ "@appPrefix@" ] [ cfg.fly.app-prefix ] (
+            read-file (scripts-dir + "/status.sh")
+          );
         };
 
         # Logs script
         logs-script = write-shell-application {
           name = "nativelink-logs";
           "runtimeInputs" = with pkgs; [ flyctl ];
-          text = ''
-            set -euo pipefail
-            SERVICE="''${1:-all}"
-            case "$SERVICE" in
-              scheduler)
-                flyctl logs -a "${cfg.fly.app-prefix}-scheduler" --no-tail | tail -50
-                ;;
-              cas)
-                flyctl logs -a "${cfg.fly.app-prefix}-cas" --no-tail | tail -50
-                ;;
-              worker)
-                flyctl logs -a "${cfg.fly.app-prefix}-worker" --no-tail | tail -50
-                ;;
-              all|*)
-                echo "=== Scheduler logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-scheduler" --no-tail 2>&1 | tail -20
-                echo "" && echo "=== CAS logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-cas" --no-tail 2>&1 | tail -20
-                echo "" && echo "=== Worker logs ===" && flyctl logs -a "${cfg.fly.app-prefix}-worker" --no-tail 2>&1 | tail -20
-                ;;
-            esac
-          '';
+          text = replace-strings [ "@appPrefix@" ] [ cfg.fly.app-prefix ] (
+            read-file (scripts-dir + "/logs.sh")
+          );
         };
 
       in

@@ -52,7 +52,7 @@ let
       nix-unwrapped = unwrapped-nix;
 
       # Man pages
-      nix-man = straylight-nix-pkgs.nix-man;
+      inherit (straylight-nix-pkgs) nix-man;
     };
 in
 {

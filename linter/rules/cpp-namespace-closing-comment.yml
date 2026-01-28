@@ -1,0 +1,41 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                                        // cpp-namespace-closing-comment // rule
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# n.b. this is a warning, not an error — clang-format's FixNamespaceComments
+# option can add these automatically
+#
+id: cpp-namespace-closing-comment
+language: cpp
+severity: error
+rule:
+  kind: namespace_definition
+  not:
+    # The closing comment is a sibling that comes after the namespace
+    # precedes means: "this namespace precedes a comment" (i.e., comment follows it)
+    precedes:
+      kind: comment
+message: "ALEPH-CPP-W001: namespace closing brace should have `// namespace X` comment"
+note: |
+  ## What's wrong?
+
+  Namespace closing braces should have a comment indicating which namespace
+  is being closed.
+
+  ## Why this matters
+
+  - large files have nested namespaces spanning hundreds of lines
+  - without comments, matching braces requires editor support
+  - agents and humans both benefit from explicit scope markers
+
+  ## What can I do?
+
+  ```cpp
+  namespace s4::inference {
+
+  // ... hundreds of lines of code ...
+
+  }  // namespace s4::inference
+  ```
+
+  n.b. clang-format's `FixNamespaceComments` option can add these automatically.

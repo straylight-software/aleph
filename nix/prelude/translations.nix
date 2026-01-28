@@ -1,30 +1,41 @@
-# nix/prelude/translations.nix
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                                                                // translations
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                            // translations //
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#    "Who owned it when Tally taped there?"
+#    "Tessier-Ashpool S.A."
+#    "I want to know more about Tessier-Ashpool."
+#    "Antarctica starts here ."
+#    She stared up through the steam at the white circle of the speaker. "What
+#    id you just say?"
+#    "Antarctica Starts Here  is a two-hour video study of the Tessier-Ashpool
+#    amily by Hans Becker, Angie."
+#    "Do you have it?"
+#    "Of course. David Pope accessed it recently. He was quite impressed."
+#    "Really? How recently?"
+#    "Last Monday."
+#    "I'll see it tonight, then."
+#    "Done. Is that all?"
+#    "Yes."
+#    "Goodbye, Angie."
 #
-#     The dismembered parts of the Dixie Flatline construct were
-#     scattered across the table. McCoy Pauley, someone had written
-#     on the side of the old Hosaka in white grease pencil.
+#                                                         — Mona Lisa Overdrive
+# Philosophy:
 #
-#     'Just so you know,' the Finn said, 'these guys, they don't
-#      just hack. They're into all kindsa voodoo shit. Mambos and
-#      houngans and such. Not that I believe any of it, mind you,
-#      but you gotta be careful when you're messing around with a
-#      dead console cowboy's ROM construct.'
+#     `lisp-case-as-god-intended` to `camelCaseFromHell` translations. The
+#     membrane that lets you write readable attribute names while nixpkgs
+#     expects its historical conventions on the rare occasions it honors any
+#     logic at all
 #
-#                                                         — Neuromancer
-#
-# Lisp-case to camelCase translations. The membrane that lets you write
-# readable attribute names while nixpkgs expects its historical conventions.
+#     N.B !! for use IN THE PRELUDE ONLY !!
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib }:
 let
-  # ──────────────────────────────────────────────────────────────────────────
-  #                         // translation table //
-  # ──────────────────────────────────────────────────────────────────────────
+
+  # ══════════════════════════════════════════════════════════════════════════
+  #                                                       // translation table
+  # ══════════════════════════════════════════════════════════════════════════
 
   translations = {
     "build-inputs" = "buildInputs";
@@ -98,6 +109,7 @@ let
   #                          // translators //
   # ──────────────────────────────────────────────────────────────────────────
 
+  # TODO[b7r6]: !! define this in terms of the prelude itself !!
   translate-attr = name: translations.${name} or name;
 
   translate-meta =

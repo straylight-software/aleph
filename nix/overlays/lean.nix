@@ -14,23 +14,17 @@
 #
 final: prev:
 let
-  inherit (prev) lib;
-  inherit (prev.aleph) prelude build-env;
-  inherit (prelude) licenses platforms get';
+  inherit (prev.aleph) build-env;
 
   # Lisp-case wrappers for nixpkgs functions
   # Uses get' (from prelude) to avoid camelCase identifiers in code
-  call-package = get' "callPackage" prev;
-  fetch-from-github = get' "fetchFromGitHub" prev;
-  rust-platform = get' "rustPlatform" prev;
   # TODO: need a aleph.build-rust-package wrapper
-  build-rust-package = get' "buildRustPackage" rust-platform;
 in
 {
   # Elan - Lean version manager (like rustup for Rust)
   # This allows lake to download the correct Lean version for each project
   # NOTE: Using prev.elan from nixpkgs (no custom build needed)
-  elan = prev.elan;
+  inherit (prev) elan;
 
   # lean4-mathlib-env - Lean 4 environment with mathlib cache
   # Uses elan to fetch the correct toolchain

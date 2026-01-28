@@ -202,20 +202,14 @@ in
     ];
 
     # Generate CA cert on first boot
-    system."activationScripts".nix-proxy-cert = string-after [ "var" ] ''
-      if [ ! -f "${cfg.cert-dir}/mitmproxy-ca-cert.pem" ]; then
-        echo "Generating mitmproxy CA certificate..."
-        ${pkgs.mitmproxy}/bin/mitmdump --set confdir=${cfg.cert-dir} -q &
-        PID=$!
-        sleep 2
-        kill $PID 2>/dev/null || true
-        # Wait for cert to be written
-        for i in $(seq 1 10); do
-          [ -f "${cfg.cert-dir}/mitmproxy-ca-cert.pem" ] && break
-          sleep 0.5
-        done
-      fi
-    '';
+    system."activationScripts".nix-proxy-cert = string-after [ "var" ] (
+      builtins.readFile (
+        pkgs.replaceVars ./scripts/nix-proxy-gen-cert.bash {
+          cert-dir = cfg.cert-dir;
+          mitmproxy = pkgs.mitmproxy;
+        }
+      )
+    );
 
     # The proxy service
     systemd.services.nix-proxy = {

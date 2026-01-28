@@ -72,7 +72,7 @@ main = do
             runWithConfig cfg
 
 runWithConfig :: CloudHypervisorConfig -> IO ()
-runWithConfig cfg@CloudHypervisorConfig{..} = do
+runWithConfig CloudHypervisorConfig{..} = do
     args <- parseArgs <$> getArgs
 
     -- Merge CLI args with config defaults
@@ -94,7 +94,7 @@ runWithConfig cfg@CloudHypervisorConfig{..} = do
             echoErr $ ":: Pulling " <> pack image
             mkdirP rootfsDir
             setEnv "SSL_CERT_FILE" "/etc/ssl/certs/ca-bundle.crt"
-            Oci.pullOrCache Oci.defaultConfig (pack image)
+            _ <- Oci.pullOrCache Oci.defaultConfig (pack image)
 
             -- Export to rootfs
             bash_ $ "crane export --platform linux/amd64 '" <> pack image <> "' - | tar -xf - -C " <> pack rootfsDir

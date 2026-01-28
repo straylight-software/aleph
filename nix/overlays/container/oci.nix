@@ -2,7 +2,7 @@
 #
 # OCI image extraction and runners
 #
-{ final, lib }:
+{ final }:
 let
   inherit (final.aleph) fixed-output-derivation;
 in
@@ -45,5 +45,5 @@ in
     };
 
   # Run OCI images in bwrap/unshare namespace — compiled Haskell, not bash
-  unshare-run = final.aleph.script.compiled.unshare-run;
+  inherit (final.aleph.script.compiled) unshare-run;
 }

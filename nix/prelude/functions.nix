@@ -1196,6 +1196,35 @@ rec {
   map-attrs = lib.mapAttrs;
 
   /**
+    Map over attribute set, allowing renaming of keys.
+
+    Like `map-attrs` but the function returns `{ name; value; }` pairs,
+    allowing both the key and value to be transformed.
+
+    # Type
+
+    ```
+    map-attrs' :: (string -> a -> { name :: string; value :: b; }) -> attrs -> attrs
+    ```
+
+    # Arguments
+
+    f
+    : function taking key and value, returning `{ name; value; }`
+
+    attrs
+    : attribute set to transform
+
+    # Examples
+
+    ```nix
+    map-attrs' (n: v: { name = "prefix_${n}"; value = v * 2; }) { a = 1; b = 2; }
+    => { prefix_a = 2; prefix_b = 4; }
+    ```
+  */
+  map-attrs' = lib.mapAttrs';
+
+  /**
     Keep only attributes satisfying a predicate.
 
     # Type

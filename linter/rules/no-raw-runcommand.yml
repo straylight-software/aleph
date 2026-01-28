@@ -6,23 +6,14 @@ files:
 ignores:
   # The prelude IS the boundary - it wraps nixpkgs
   - "nix/prelude/**"
+  # Overlays extend nixpkgs and define prelude functions
+  - "nix/overlays/**"
+  # _main.nix is the prelude definition itself
+  - "nix/_main.nix"
   # flake-parts modules (TODO: wrap these too)
   - "nix/modules/flake/**"
 rule:
   kind: select_expression
   pattern: $OBJ.runCommand
 message: "ALEPH-E011: raw runCommand call"
-note: |
-  ## What's wrong?
-  Direct `runCommand` calls bypass the typed prelude boundary.
-  
-  ## What can I do to fix this?
-  Use `prelude.run-command` instead:
-  
-  ```nix
-  # WRONG
-  pkgs.runCommand "foo" { } "..."
-  
-  # RIGHT  
-  prelude.run-command "foo" { } "..."
-  ```
+note: "## What's wrong?\nDirect `runCommand` calls bypass the typed prelude boundary.\n\n## What can I do to fix this?\nUse `prelude.run-command` instead:\n\n```nix\n# WRONG\npkgs.runCommand \"foo\" { } \"...\"\n\n# RIGHT  \nprelude.run-command \"foo\" { } \"...\"\n```\n"

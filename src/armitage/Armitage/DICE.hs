@@ -65,13 +65,12 @@ module Armitage.DICE
   ) where
 
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Exception (try, SomeException)
 import Control.Monad (forM, foldM, unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
 import Data.ByteArray.Encoding qualified as BA
-import Data.ByteString (ByteString)
+import Data.ByteString ()
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BC
+
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -80,12 +79,12 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Clock (getCurrentTime)
 import GHC.Generics (Generic)
 import System.Directory (doesFileExist, doesPathExist, createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
-import System.Process (readProcess, readProcessWithExitCode)
+import System.Process (readProcessWithExitCode)
 
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.Builder as Builder
@@ -708,8 +707,8 @@ executeActionWitnessed wc action@Action {..} _depOutputs = do
           let fullEnv = proxyEnv ++ currentEnv
           
           -- Execute with proxy env
-          let proc = (System.Process.proc exe args) { env = Just fullEnv }
-          (exitCode, _stdout, stderr) <- readCreateProcessWithExitCode proc ""
+          let procSpec = (System.Process.proc exe args) { env = Just fullEnv }
+          (exitCode, _stdout, stderr) <- readCreateProcessWithExitCode procSpec ""
           endTime <- getCurrentTime
           
           case exitCode of
@@ -887,7 +886,7 @@ uploadInputs client inputs = do
           content <- BS.readFile path
           pure $ Just (takeFileName path, content)
         else pure Nothing
-    Resolved_Store storePath -> do
+    Resolved_Store _storePath -> do
       -- For store paths, we assume they're already in the worker's store
       -- or we'd need to upload the entire closure (expensive)
       -- For now, just skip - the worker should have nix store mounted
