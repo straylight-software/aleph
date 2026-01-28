@@ -14,6 +14,7 @@ Design decisions and rationale for aleph.
 | [006](./aleph-006-safe-bash.md) | Safe Bash | Implemented |
 | [007](./aleph-007-formalization.md) | Nix Formalization | Draft |
 | [008](./aleph-008-continuity/) | The Continuity Project | Draft |
+| [013](./aleph-013-aleph.md) | Aleph - Unified Build Compiler | Draft |
 
 See also: [Conformance Report](./conformance-report.md)
 

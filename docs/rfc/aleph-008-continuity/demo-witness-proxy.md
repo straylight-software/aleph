@@ -45,10 +45,10 @@ The new implementation is pure Haskell using the crypton ecosystem.
 
 ```bash
 # Build with Buck2
-buck2 build //armitage/proxy:armitage-proxy
+buck2 build //src/armitage:armitage-proxy
 
 # Or with nix
-nix develop -c buck2 build //armitage/proxy:armitage-proxy
+nix develop -c buck2 build //src/armitage:armitage-proxy
 ```
 
 ### Start the proxy

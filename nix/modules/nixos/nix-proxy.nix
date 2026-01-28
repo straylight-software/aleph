@@ -17,7 +17,7 @@
 # The proxy:
 #   1. Caches fetched content (content-addressed, syncs to R2)
 #   2. Logs all fetches (attestation)
-#   3. Enforces domain allowlist policy
+#   3. Enforces domain denylist policy (blocks known-bad domains)
 #
 # USAGE:
 #
@@ -66,7 +66,7 @@ let
     "runtimeEnv" = {
       "NIX_PROXY_CACHE_DIR" = "${cfg.cache-dir}";
       "NIX_PROXY_LOG_DIR" = "${cfg.log-dir}";
-      "NIX_PROXY_ALLOWLIST" = concat-strings-sep "," cfg.allowlist;
+      "NIX_PROXY_DENYLIST" = concat-strings-sep "," cfg.denylist;
     };
     text = ''
       exec mitmdump \
@@ -116,24 +116,17 @@ in
       description = "Directory for mitmproxy CA certificate";
     };
 
-    allowlist = mk-option {
+    denylist = mk-option {
       type = list-of lib.types.str;
       default = [ ];
       description = ''
-        Domain allowlist. Empty means allow all.
-        Subdomains are automatically included (e.g., "github.com" allows "raw.githubusercontent.com").
+        Domain denylist. Empty means allow all (no blocking).
+        Subdomains are automatically included (e.g., "evil.com" blocks "sub.evil.com").
+        Network isolation is handled by firecracker, this is just for known-bad domains.
       '';
       example = [
-        "github.com"
-        "githubusercontent.com"
-        "nixos.org"
-        "cache.nixos.org"
-        "releases.nixos.org"
-        "tarballs.nixos.org"
-        "crates.io"
-        "static.crates.io"
-        "pypi.org"
-        "files.pythonhosted.org"
+        "malware.example.com"
+        "tracking.example.net"
       ];
     };
 
@@ -176,6 +169,9 @@ in
     # Enable the experimental feature required for impure-env
     nix.settings = {
       extra-experimental-features = [ "configurable-impure-env" ];
+
+      # Nix's internal fetcher SSL cert (for flake fetches, builtins.fetch*, etc)
+      ssl-cert-file = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
 
       # Inject proxy environment into builds
       # This is what actually makes builds use the proxy
@@ -268,6 +264,19 @@ in
     };
 
     environment."systemPackages" = [ pkgs.mitmproxy ];
+
+    # Set proxy environment for interactive shells (eval-time fetches)
+    # This is needed because `nix flake update` and similar commands run
+    # nix in the user's shell, not through nix-daemon.
+    environment."sessionVariables" = {
+      "NIX_SSL_CERT_FILE" = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
+      "SSL_CERT_FILE" = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
+      "CURL_CA_BUNDLE" = "${cfg.cert-dir}/mitmproxy-ca-cert.pem";
+      "http_proxy" = proxy-url;
+      "https_proxy" = proxy-url;
+      "HTTP_PROXY" = proxy-url;
+      "HTTPS_PROXY" = proxy-url;
+    };
 
     # Nix fetcher uses ssl-cert-file for HTTPS verification (set above in nix.settings)
     # For evaluation-time fetches, the daemon's environment is used.

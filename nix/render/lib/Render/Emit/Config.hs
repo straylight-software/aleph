@@ -106,7 +106,7 @@ emitConfigFunction schema =
 emitConfigJson :: Schema -> Text
 emitConfigJson schema =
   let tree = buildConfigTree (schemaConfig schema)
-   in "cat << 'RENDER_EOF'\n" <> renderJsonTree 0 tree <> "\nRENDER_EOF"
+   in "cat << RENDER_EOF\n" <> renderJsonTree 0 tree <> "\nRENDER_EOF"
 
 -- | Render config tree as JSON
 renderJsonTree :: Int -> ConfigTree -> Text
@@ -144,7 +144,7 @@ renderJsonValue ConfigSpec {..} = case cfgFrom of
 emitConfigYaml :: Schema -> Text
 emitConfigYaml schema =
   let tree = buildConfigTree (schemaConfig schema)
-   in "cat << 'RENDER_EOF'\n" <> renderYamlTree 0 tree <> "\nRENDER_EOF"
+   in "cat << RENDER_EOF\n" <> renderYamlTree 0 tree <> "\nRENDER_EOF"
 
 -- | Render config tree as YAML
 renderYamlTree :: Int -> ConfigTree -> Text
@@ -180,7 +180,7 @@ renderYamlValue ConfigSpec {..} = case cfgFrom of
 emitConfigToml :: Schema -> Text
 emitConfigToml schema =
   let tree = buildConfigTree (schemaConfig schema)
-   in "cat << 'RENDER_EOF'\n" <> renderTomlTree [] tree <> "\nRENDER_EOF"
+   in "cat << RENDER_EOF\n" <> renderTomlTree [] tree <> "\nRENDER_EOF"
 
 -- | Render config tree as TOML
 renderTomlTree :: [Text] -> ConfigTree -> Text

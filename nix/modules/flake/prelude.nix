@@ -137,14 +137,13 @@ in
               }:
               let
                 # Base turtle dependencies (always included)
-                base-deps =
-                  p: with p; [
-                    turtle # The Haskell package, not ghc.turtle-script
-                    text
-                    bytestring
-                    foldl
-                    unix
-                  ];
+                base-deps = p: [
+                  p.turtle # The Haskell package, not ghc.turtle-script
+                  p.text
+                  p.bytestring
+                  p.foldl
+                  p.unix
+                ];
 
                 # Combined Haskell dependencies
                 all-hs-deps = p: base-deps p ++ hs-deps p;

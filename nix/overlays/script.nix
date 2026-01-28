@@ -582,54 +582,202 @@ in
     #   schema = aleph.render.parse ./deploy.sh;
     #   checks.deploy = aleph.render.check ./deploy.sh;
 
-    render = {
-      # CLI tool (interpreted, fast iteration)
-      cli = render-cli;
+    render =
+      let
+        inherit (prev) lib;
 
-      # Compiled binary (for CI)
-      compiled = render-compiled;
+        # ────────────────────────────────────────────────────────────────────
+        # // mkScript //
+        # ────────────────────────────────────────────────────────────────────
+        #
+        # Build a shell script with render.nix analysis and emit-config.
+        #
+        # Simple form:
+        #   aleph.render.mkScript "my-script" ''
+        #     PORT="''${PORT:-8080}"
+        #     config.server.port=$PORT
+        #     exec ${pkgs.myapp}/bin/myapp --config <(emit-config)
+        #   ''
+        #
+        # Full form:
+        #   aleph.render.mkScript {
+        #     name = "my-script";
+        #     script = ''...'';
+        #     deps = [ pkgs.jq ];           # Added to PATH
+        #     requireStorePaths = true;     # Fail on bare commands (default: true)
+        #     injectEmitConfig = true;      # Add emit-config function (default: true)
+        #   }
 
-      # Parse a script, return schema as Nix attrset (IFD)
-      parse =
-        scriptPath:
-        let
-          result = final.runCommand "render-schema" { "nativeBuildInputs" = [ render-cli ]; } ''
-            render infer ${scriptPath} > $out
+        mkScript =
+          arg1: arg2:
+          let
+            # Parse arguments: mkScript "name" "script" or mkScript { ... }
+            args =
+              if builtins.isString arg1 && builtins.isString arg2 then
+                {
+                  name = arg1;
+                  script = arg2;
+                }
+              else if builtins.isAttrs arg1 then
+                arg1
+              else
+                throw "render.mkScript: expected (name, script) or { name, script, ... }";
+
+            name = args.name or (throw "render.mkScript: 'name' is required");
+            script = args.script or (throw "render.mkScript: 'script' is required");
+            deps = args.deps or [ ];
+            requireStorePaths = args.requireStorePaths or true;
+            injectEmitConfig = args.injectEmitConfig or true;
+
+            # Write script to a file for analysis
+            scriptFile = final.writeText "${name}-source.sh" script;
+
+            # Generate emit-config function
+            emitConfigDrv =
+              final.runCommand "${name}-emit-config"
+                {
+                  nativeBuildInputs = [ render-cli ];
+                }
+                ''
+                  render emit ${scriptFile} > $out
+                '';
+
+            # Policy check derivation (bare commands)
+            policyCheckDrv =
+              final.runCommand "${name}-policy-check"
+                {
+                  nativeBuildInputs = [ render-cli ];
+                }
+                ''
+                  render check ${scriptFile}
+                  touch $out
+                '';
+
+            # Parse schema (for passthru)
+            parseSchema =
+              let
+                result =
+                  final.runCommand "${name}-schema"
+                    {
+                      nativeBuildInputs = [ render-cli ];
+                    }
+                    ''
+                      render infer ${scriptFile} > $out
+                    '';
+              in
+              builtins.fromJSON (builtins.readFile result);
+
+            # Build the final script with emit-config injected
+            finalScript =
+              let
+                emitConfigContent = if injectEmitConfig then builtins.readFile emitConfigDrv else "";
+              in
+              ''
+                ${emitConfigContent}
+                ${script}
+              '';
+
+          in
+          final.writeShellApplication {
+            inherit name;
+            runtimeInputs = deps;
+            text = finalScript;
+            # Exclude ShellCheck warnings for config.* convention
+            # SC2276: "This is interpreted as a command name containing '='"
+            #         We use config.x.y=$VAR intentionally as a DSL
+            # SC2086: "Double quote to prevent globbing and word splitting"
+            #         Unquoted vars in config.* are intentional (numeric types)
+            excludeShellChecks = [
+              "SC2276"
+              "SC2086"
+            ];
+            derivationArgs = {
+              passthru = {
+                # The analyzed schema (IFD)
+                schema = parseSchema;
+                # The emit-config function source
+                emitConfig = emitConfigDrv;
+                # Source script for debugging
+                sourceScript = scriptFile;
+                # Policy check derivation
+                policyCheck = policyCheckDrv;
+              };
+              # Policy check as build dependency (fails build if violations)
+              nativeBuildInputs = lib.optional requireStorePaths policyCheckDrv;
+            };
+          };
+
+      in
+      {
+        # ──────────────────────────────────────────────────────────────────────
+        # // mkScript //
+        # ──────────────────────────────────────────────────────────────────────
+
+        inherit mkScript;
+
+        # ──────────────────────────────────────────────────────────────────────
+        # // CLI //
+        # ──────────────────────────────────────────────────────────────────────
+
+        # CLI tool (interpreted, fast iteration)
+        cli = render-cli;
+
+        # Compiled binary (for CI)
+        compiled = render-compiled;
+
+        # ──────────────────────────────────────────────────────────────────────
+        # // Nix integration //
+        # ──────────────────────────────────────────────────────────────────────
+
+        # Parse a script, return schema as Nix attrset (IFD)
+        parse =
+          scriptPath:
+          let
+            result = final.runCommand "render-schema" { nativeBuildInputs = [ render-cli ]; } ''
+              render infer ${scriptPath} > $out
+            '';
+          in
+          builtins.fromJSON (builtins.readFile result);
+
+        # Check derivation - fails if script has policy violations
+        check =
+          scriptPath:
+          final.runCommand "render-check-${builtins.baseNameOf scriptPath}"
+            {
+              nativeBuildInputs = [ render-cli ];
+            }
+            ''
+              render check ${scriptPath}
+              touch $out
+            '';
+
+        # ──────────────────────────────────────────────────────────────────────
+        # // Source //
+        # ──────────────────────────────────────────────────────────────────────
+
+        src = {
+          lib = render-lib;
+          app = render-app;
+        };
+
+        # ──────────────────────────────────────────────────────────────────────
+        # // Shell //
+        # ──────────────────────────────────────────────────────────────────────
+
+        shell = final.mkShell {
+          name = "render-shell";
+          buildInputs = [
+            ghc-with-script
+            render-cli
+            final.jq
+          ];
+          shellHook = ''
+            echo "render.nix development shell"
+            echo "  render parse <script>   Show facts"
+            echo "  render infer <script>   Show schema (JSON)"
+            echo "  render check <script>   Check policies"
           '';
-        in
-        builtins.fromJSON (builtins.readFile result);
-
-      # Check derivation - fails if script has policy violations
-      check =
-        scriptPath:
-        final.runCommand "render-check-${builtins.baseNameOf scriptPath}"
-          { "nativeBuildInputs" = [ render-cli ]; }
-          ''
-            render check ${scriptPath}
-            touch $out
-          '';
-
-      # Source paths
-      src = {
-        lib = render-lib;
-        app = render-app;
+        };
       };
-
-      # Development shell
-      shell = final.mkShell {
-        name = "render-shell";
-        "buildInputs" = [
-          ghc-with-script
-          render-cli
-          final.jq
-        ];
-        "shellHook" = ''
-          echo "render.nix development shell"
-          echo "  render parse <script>   Show facts"
-          echo "  render infer <script>   Show schema (JSON)"
-          echo "  render check <script>   Check policies"
-        '';
-      };
-    };
   };
 }

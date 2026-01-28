@@ -24,17 +24,17 @@ let
 
       source-root = "source/llvm";
 
-      native-build-inputs = with prev; [
-        cmake
-        ninja
-        python3
+      native-build-inputs = [
+        prev.cmake
+        prev.ninja
+        prev.python3
       ];
 
-      build-inputs = with prev; [
-        libxml2
-        zlib
-        ncurses
-        libffi
+      build-inputs = [
+        prev.libxml2
+        prev.zlib
+        prev.ncurses
+        prev.libffi
       ];
 
       cmake-flags = [

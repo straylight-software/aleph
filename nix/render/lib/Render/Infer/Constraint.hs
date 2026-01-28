@@ -38,12 +38,11 @@ factToConstraints = \case
   -- VAR = literal: VAR ~ type(literal)
   AssignLit var lit _ ->
     [TVar (TypeVar var) :~: literalType lit]
-  -- config.x.y = $VAR (unquoted): VAR ~ TNumeric
-  ConfigAssign _ var Unquoted _ ->
-    [TVar (TypeVar var) :~: TNumeric]
-  -- config.x.y = "$VAR" (quoted): VAR ~ TString
-  ConfigAssign _ var Quoted _ ->
-    [TVar (TypeVar var) :~: TString]
+  -- config.x.y = $VAR or "$VAR": no type constraint on VAR
+  -- The config inherits the variable's type; quoting is about bash word-splitting,
+  -- not about type. Type flows from definition (DefaultIs/AssignLit) to usage.
+  ConfigAssign _ _ _ _ ->
+    []
   -- config.x.y = literal: no variable constraint
   ConfigLit _ _ _ ->
     []

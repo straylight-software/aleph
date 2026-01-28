@@ -44,6 +44,39 @@ localFacts id inner = case inner of
 -- | Facts from an assignment
 assignmentFacts :: Span -> Text -> Token -> [Fact]
 assignmentFacts span name value =
+  -- Check for config[path.to.key] associative array pattern
+  case parseConfigArrayAssign name of
+    Just configPath -> configArrayFacts span configPath value
+    Nothing -> envVarFacts span name value
+
+-- | Parse config[path.to.key] -> Just ["path", "to", "key"]
+parseConfigArrayAssign :: Text -> Maybe ConfigPath
+parseConfigArrayAssign name
+  | "config[" `T.isPrefixOf` name && "]" `T.isSuffixOf` name =
+      let pathText = T.dropEnd 1 (T.drop 7 name)  -- drop "config[" and "]"
+       in Just (T.splitOn "." pathText)
+  | otherwise = Nothing
+
+-- | Facts from config[...] assignment
+configArrayFacts :: Span -> ConfigPath -> Token -> [Fact]
+configArrayFacts span configPath value =
+  let valueText = tokenToText value
+      -- Determine if quoted by checking the token structure
+      quoted = isQuotedToken value
+   in case extractSimpleVar valueText of
+        Just var -> [ConfigAssign configPath var quoted span]
+        Nothing -> [ConfigLit configPath (parseLiteral valueText) span]
+
+-- | Check if a token is quoted (DoubleQuoted)
+isQuotedToken :: Token -> RT.Quoted
+isQuotedToken (OuterToken _ inner) = case inner of
+  Inner_T_DoubleQuoted _ -> RT.Quoted
+  Inner_T_NormalWord [OuterToken _ (Inner_T_DoubleQuoted _)] -> RT.Quoted
+  _ -> RT.Unquoted
+
+-- | Facts from regular env var assignment
+envVarFacts :: Span -> Text -> Token -> [Fact]
+envVarFacts span name value =
   case extractParamExpansion value of
     Just (DefaultValue var (Just def)) ->
       [DefaultIs name (parseLiteral def) span]
@@ -143,6 +176,42 @@ configFacts span text =
         Right lit -> [ConfigLit configPath lit span]
     Nothing -> []
 
+-- | Shell builtins that are allowed without store paths
+-- These are part of bash itself, not external commands
+isShellBuiltin :: Text -> Bool
+isShellBuiltin cmd = cmd `elem` shellBuiltins
+
+shellBuiltins :: [Text]
+shellBuiltins =
+  [ -- Flow control
+    "if", "then", "else", "elif", "fi"
+  , "case", "esac"
+  , "for", "while", "until", "do", "done"
+  , "function", "return"
+  , "break", "continue"
+    -- Variable/environment
+  , "set", "unset", "export", "declare", "local", "readonly", "typeset"
+  , "let", "eval"  -- Note: eval is caught by lint, but it's still a builtin
+    -- Shell operation
+  , "source", "."
+  , "cd", "pwd", "pushd", "popd", "dirs"
+  , "echo", "printf", "read"
+  , "exit", "exec"
+  , "trap", "wait", "kill"
+  , "true", "false", ":"
+  , "test", "["
+    -- Job control
+  , "bg", "fg", "jobs", "disown"
+    -- Misc builtins
+  , "alias", "unalias"
+  , "builtin", "command", "type", "hash"
+  , "help", "enable"
+  , "shopt", "bind", "complete", "compgen"
+  , "getopts", "shift"
+  , "times", "ulimit", "umask"
+  , "history", "fc"
+  ]
+
 -- | Facts from command invocation
 cmdInvocationFacts :: Span -> Text -> [Token] -> [Fact]
 cmdInvocationFacts span cmd args = pathFact ++ argFacts
@@ -151,6 +220,7 @@ cmdInvocationFacts span cmd args = pathFact ++ argFacts
     pathFact
       | isStorePath cmd = [UsesStorePath (StorePath cmd) span]
       | "$" `T.isPrefixOf` cmd = [DynamicCommand (T.drop 1 cmd) span]
+      | isShellBuiltin cmd = []  -- builtins are OK
       | otherwise = [BareCommand cmd span]
 
     -- Extract the command name (strip store path prefix if present)

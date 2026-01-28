@@ -651,10 +651,10 @@ in
         # Toolchain paths are baked into the manifest at build time
         worker-setup-script = write-shell-application {
           name = "worker-setup";
-          "runtimeInputs" = with pkgs; [
-            coreutils
-            nix
-            cacert
+          "runtimeInputs" = [
+            pkgs.coreutils
+            pkgs.nix
+            pkgs.cacert
           ];
           "runtimeEnv" = {
             NIX_SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -763,12 +763,12 @@ in
         # Single unified deploy script - idempotent, does everything
         deploy-all = write-shell-application {
           name = "nativelink-deploy";
-          "runtimeInputs" = with pkgs; [
-            skopeo
-            flyctl
-            gh
-            coreutils
-            jq
+          "runtimeInputs" = [
+            pkgs.skopeo
+            pkgs.flyctl
+            pkgs.gh
+            pkgs.coreutils
+            pkgs.jq
           ];
           text =
             replace-strings
@@ -805,7 +805,7 @@ in
 
         deploy-scheduler = write-shell-application {
           name = "nativelink-deploy-scheduler";
-          "runtimeInputs" = with pkgs; [ flyctl ];
+          "runtimeInputs" = [ pkgs.flyctl ];
           text = ''
             exec ${deploy-all}/bin/nativelink-deploy
           '';
@@ -813,7 +813,7 @@ in
 
         deploy-cas = write-shell-application {
           name = "nativelink-deploy-cas";
-          "runtimeInputs" = with pkgs; [ flyctl ];
+          "runtimeInputs" = [ pkgs.flyctl ];
           text = ''
             exec ${deploy-all}/bin/nativelink-deploy
           '';
@@ -821,7 +821,7 @@ in
 
         deploy-worker = write-shell-application {
           name = "nativelink-deploy-worker";
-          "runtimeInputs" = with pkgs; [ flyctl ];
+          "runtimeInputs" = [ pkgs.flyctl ];
           text = ''
             exec ${deploy-all}/bin/nativelink-deploy
           '';
@@ -830,7 +830,7 @@ in
         # Status check script
         status-script = write-shell-application {
           name = "nativelink-status";
-          "runtimeInputs" = with pkgs; [ flyctl ];
+          "runtimeInputs" = [ pkgs.flyctl ];
           text = replace-strings [ "@appPrefix@" ] [ cfg.fly.app-prefix ] (
             read-file (scripts-dir + "/status.sh")
           );
@@ -839,7 +839,7 @@ in
         # Logs script
         logs-script = write-shell-application {
           name = "nativelink-logs";
-          "runtimeInputs" = with pkgs; [ flyctl ];
+          "runtimeInputs" = [ pkgs.flyctl ];
           text = replace-strings [ "@appPrefix@" ] [ cfg.fly.app-prefix ] (
             read-file (scripts-dir + "/logs.sh")
           );
@@ -926,19 +926,19 @@ in
 
           # Builder container - nix + git + skopeo for remote builds
           nativelink-builder = {
-            "systemPackages" = with pkgs; [
-              nix
-              git
-              skopeo
-              openssh
-              coreutils
-              bash
-              gnugrep
-              gnutar
-              gzip
-              curl
-              jq
-              cacert
+            "systemPackages" = [
+              pkgs.nix
+              pkgs.git
+              pkgs.skopeo
+              pkgs.openssh
+              pkgs.coreutils
+              pkgs.bash
+              pkgs.gnugrep
+              pkgs.gnutar
+              pkgs.gzip
+              pkgs.curl
+              pkgs.jq
+              pkgs.cacert
             ];
 
             registries = [ cfg.registry ];

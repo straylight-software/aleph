@@ -94,7 +94,7 @@ data Config = Config
     , cfgCacheDir :: FilePath
     , cfgLogDir :: FilePath
     , cfgCertDir :: FilePath
-    , cfgAllowlist :: [Text]
+    , cfgDenylist :: [Text]
     }
     deriving (Show)
 
@@ -104,8 +104,8 @@ loadConfig = do
     cfgCacheDir <- maybe "/data/cache" id <$> lookupEnv "PROXY_CACHE_DIR"
     cfgLogDir <- maybe "/data/logs" id <$> lookupEnv "PROXY_LOG_DIR"
     cfgCertDir <- maybe "/data/certs" id <$> lookupEnv "PROXY_CERT_DIR"
-    allowlistRaw <- maybe "" id <$> lookupEnv "PROXY_ALLOWLIST"
-    let cfgAllowlist = filter (not . T.null) $ T.splitOn "," (T.pack allowlistRaw)
+    denylistRaw <- maybe "" id <$> lookupEnv "PROXY_DENYLIST"
+    let cfgDenylist = filter (not . T.null) $ T.splitOn "," (T.pack denylistRaw)
     pure Config{..}
 
 -- -----------------------------------------------------------------------------
@@ -423,14 +423,15 @@ logAttestation logDir att = do
     LBS.appendFile logFile (encode att <> "\n")
 
 -- -----------------------------------------------------------------------------
--- Allowlist
+-- Denylist
 -- -----------------------------------------------------------------------------
 
-checkAllowlist :: [Text] -> Text -> Bool
-checkAllowlist [] _ = True
-checkAllowlist allowed hostWithPort =
+-- | Check if host is in denylist. Returns True if host should be blocked.
+checkDenylist :: [Text] -> Text -> Bool
+checkDenylist [] _ = False  -- Empty denylist = allow all
+checkDenylist denied hostWithPort =
     let host = T.takeWhile (/= ':') hostWithPort
-     in any (\a -> host == a || ("." <> a) `T.isSuffixOf` host) allowed
+     in any (\d -> host == d || ("." <> d) `T.isSuffixOf` host) denied
 
 -- -----------------------------------------------------------------------------
 -- HTTP Parsing
@@ -562,10 +563,10 @@ handleClient cfg ca certCache logger clientSock = do
                         pathText = TE.decodeUtf8 path
                         checkHost = if method == "CONNECT" then pathText else hostText
 
-                    if not (checkAllowlist (cfgAllowlist cfg) checkHost)
+                    if checkDenylist (cfgDenylist cfg) checkHost
                         then do
-                            withLogger logger $ putStrLn $ "BLOCKED: " <> T.unpack checkHost
-                            SBS.sendAll clientSock "HTTP/1.1 403 Forbidden\r\n\r\nBlocked\n"
+                            withLogger logger $ putStrLn $ "BLOCKED (denylist): " <> T.unpack checkHost
+                            SBS.sendAll clientSock "HTTP/1.1 403 Forbidden\r\n\r\nBlocked by denylist\n"
                         else do
                             now <- getCurrentTime
                             withLogger logger $ putStrLn $ BC.unpack method <> " " <> T.unpack checkHost
@@ -864,7 +865,7 @@ main = do
     putStrLn $ "Cache:     " <> cfgCacheDir cfg
     putStrLn $ "Logs:      " <> cfgLogDir cfg
     putStrLn $ "Certs:     " <> cfgCertDir cfg
-    putStrLn $ "Allowlist: " <> show (length (cfgAllowlist cfg)) <> " domains"
+    putStrLn $ "Denylist:  " <> show (length (cfgDenylist cfg)) <> " domains"
 
     createDirectoryIfMissing True (cfgCacheDir cfg)
     createDirectoryIfMissing True (cfgLogDir cfg)

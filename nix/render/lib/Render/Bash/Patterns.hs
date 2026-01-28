@@ -91,9 +91,46 @@ data ConfigAssignment = ConfigAssignment
   }
   deriving (Eq, Show)
 
--- | Parse config.x.y.z=$VAR or config.x.y.z="value"
+-- | Parse config assignment in either format:
+--   - config[path.to.key]=$VAR   (associative array, ShellCheck-compliant)
+--   - config.x.y.z=$VAR          (legacy dot syntax)
 parseConfigAssignment :: Text -> Maybe ConfigAssignment
-parseConfigAssignment line = do
+parseConfigAssignment line =
+  parseConfigArraySyntax line <|> parseConfigDotSyntax line
+  where
+    (<|>) Nothing b = b
+    (<|>) a _ = a
+
+-- | Parse config[path.to.key]=$VAR (associative array syntax)
+parseConfigArraySyntax :: Text -> Maybe ConfigAssignment
+parseConfigArraySyntax line = do
+  -- Split on first =
+  let (lhs, rest) = T.breakOn "=" line
+  -- Check it starts with config[
+  inner <- T.stripPrefix "config[" lhs
+  -- Must end with ]
+  guard ("]" `T.isSuffixOf` inner)
+  let pathText = T.dropEnd 1 inner  -- drop the ]
+  -- Must have = and something after
+  guard (not (T.null rest))
+  let rhs = T.drop 1 rest -- drop the =
+  -- Parse the path (dots separate levels)
+  let pathParts = T.splitOn "." pathText
+  -- Parse the value
+  (value, quoted) <- parseConfigValue rhs
+  Just
+    ConfigAssignment
+      { configPath = pathParts,
+        configValue = value,
+        configQuoted = quoted
+      }
+  where
+    guard False = Nothing
+    guard True = Just ()
+
+-- | Parse config.x.y.z=$VAR (legacy dot syntax)
+parseConfigDotSyntax :: Text -> Maybe ConfigAssignment
+parseConfigDotSyntax line = do
   -- Split on first =
   let (lhs, rest) = T.breakOn "=" line
   -- Check it starts with config.
@@ -157,13 +194,19 @@ parseLiteral t
   | otherwise = LitString t
 
 -- | Check if text is a numeric literal
+-- Must have at least one digit, optional leading minus
 isNumericLiteral :: Text -> Bool
 isNumericLiteral t =
   not (T.null t)
     && T.all isDigitOrSign t
-    && T.length (T.filter (== '-') t) <= 1
+    && T.any isDigit t  -- Must have at least one digit
+    && validMinus t
   where
     isDigitOrSign c = isDigit c || c == '-'
+    -- Minus only valid at start, and only one
+    validMinus s = case T.uncons s of
+      Just ('-', rest) -> not (T.any (== '-') rest)
+      _ -> not (T.any (== '-') s)
 
 -- | Check if text is a boolean literal
 isBoolLiteral :: Text -> Bool

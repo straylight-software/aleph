@@ -98,18 +98,17 @@ in
       description = "Directory for CA certificate (generated on first run)";
     };
 
-    allowlist = mk-option {
+    denylist = mk-option {
       type = list-of lib.types.str;
       default = [ ];
       description = ''
-        Domain allowlist. Empty means allow all.
+        Domain denylist. Empty means allow all (no blocking).
         Subdomains are automatically included.
+        Network isolation is handled by firecracker, this is for known-bad domains.
       '';
       example = [
-        "github.com"
-        "githubusercontent.com"
-        "crates.io"
-        "pypi.org"
+        "malware.example.com"
+        "tracking.example.net"
       ];
     };
 
@@ -188,7 +187,7 @@ in
         "PROXY_CACHE_DIR" = cfg.cache-dir;
         "PROXY_LOG_DIR" = cfg.log-dir;
         "PROXY_CERT_DIR" = cfg.cert-dir;
-        "PROXY_ALLOWLIST" = concat-strings-sep "," cfg.allowlist;
+        "PROXY_DENYLIST" = concat-strings-sep "," cfg.denylist;
       };
 
       "serviceConfig" = {

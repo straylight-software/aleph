@@ -35,70 +35,74 @@ in
   # OCI IMAGE UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
-  oci = rec {
-    # Parse image reference: registry/repo:tag -> { registry, repo, tag }
-    #
-    # Examples:
-    #   parse-ref "ubuntu:24.04"
-    #   => { registry = "docker.io"; repo = "ubuntu"; tag = "24.04"; }
-    #
-    #   parse-ref "nvcr.io/nvidia/pytorch:25.01-py3"
-    #   => { registry = "nvcr.io"; repo = "nvidia/pytorch"; tag = "25.01-py3"; }
-    #
-    parse-ref =
-      ref:
-      let
-        parts = split-string "/" ref;
-        has-registry = length parts > 2 || (length parts == 2 && has-infix "." (head parts));
-        registry = if has-registry then head parts else "docker.io";
-        repo-with-tag = if has-registry then concat-strings-sep "/" (tail parts) else ref;
-        tag-parts = split-string ":" repo-with-tag;
-        repo = head tag-parts;
-        tag = if length tag-parts > 1 then elem-at tag-parts 1 else "latest";
-      in
-      {
-        inherit registry repo tag;
+  oci =
+    let
+      # Parse image reference: registry/repo:tag -> { registry, repo, tag }
+      #
+      # Examples:
+      #   parse-ref "ubuntu:24.04"
+      #   => { registry = "docker.io"; repo = "ubuntu"; tag = "24.04"; }
+      #
+      #   parse-ref "nvcr.io/nvidia/pytorch:25.01-py3"
+      #   => { registry = "nvcr.io"; repo = "nvidia/pytorch"; tag = "25.01-py3"; }
+      #
+      parse-ref =
+        ref:
+        let
+          parts = split-string "/" ref;
+          has-registry = length parts > 2 || (length parts == 2 && has-infix "." (head parts));
+          registry = if has-registry then head parts else "docker.io";
+          repo-with-tag = if has-registry then concat-strings-sep "/" (tail parts) else ref;
+          tag-parts = split-string ":" repo-with-tag;
+          repo = head tag-parts;
+          tag = if length tag-parts > 1 then elem-at tag-parts 1 else "latest";
+        in
+        {
+          inherit registry repo tag;
+        };
+    in
+    {
+      inherit parse-ref;
+
+      # Convert ref to nix store-safe name
+      #
+      # Example:
+      #   ref-to-name "nvcr.io/nvidia/pytorch:25.01-py3"
+      #   => "nvidia-pytorch-25-01-py3"
+      #
+      ref-to-name =
+        ref:
+        let
+          parsed = parse-ref ref;
+        in
+        replace-strings
+          [
+            "/"
+            ":"
+            "."
+          ]
+          [
+            "-"
+            "-"
+            "-"
+          ]
+          "${parsed.repo}-${parsed.tag}";
+
+      # Common base images (convenience functions)
+      images = {
+        ubuntu = version: "ubuntu:${version}";
+        debian = version: "debian:${version}";
+        alpine = version: "alpine:${version}";
+        python = version: "python:${version}";
+
+        # NGC images
+        ngc-pytorch = version: "nvcr.io/nvidia/pytorch:${version}-py3";
+        ngc-triton = version: "nvcr.io/nvidia/tritonserver:${version}-py3";
+        ngc-tensorrt = version: "nvcr.io/nvidia/tensorrt:${version}-py3";
+        ngc-cuda-devel = version: "nvcr.io/nvidia/cuda:${version}-devel-ubuntu24.04";
+        ngc-cuda-runtime = version: "nvcr.io/nvidia/cuda:${version}-runtime-ubuntu24.04";
       };
-
-    # Convert ref to nix store-safe name
-    #
-    # Example:
-    #   ref-to-name "nvcr.io/nvidia/pytorch:25.01-py3"
-    #   => "nvidia-pytorch-25-01-py3"
-    #
-    ref-to-name =
-      ref:
-      let
-        parsed = parse-ref ref;
-      in
-      replace-strings
-        [
-          "/"
-          ":"
-          "."
-        ]
-        [
-          "-"
-          "-"
-          "-"
-        ]
-        "${parsed.repo}-${parsed.tag}";
-
-    # Common base images (convenience functions)
-    images = {
-      ubuntu = version: "ubuntu:${version}";
-      debian = version: "debian:${version}";
-      alpine = version: "alpine:${version}";
-      python = version: "python:${version}";
-
-      # NGC images
-      ngc-pytorch = version: "nvcr.io/nvidia/pytorch:${version}-py3";
-      ngc-triton = version: "nvcr.io/nvidia/tritonserver:${version}-py3";
-      ngc-tensorrt = version: "nvcr.io/nvidia/tensorrt:${version}-py3";
-      ngc-cuda-devel = version: "nvcr.io/nvidia/cuda:${version}-devel-ubuntu24.04";
-      ngc-cuda-runtime = version: "nvcr.io/nvidia/cuda:${version}-runtime-ubuntu24.04";
     };
-  };
 
   # ════════════════════════════════════════════════════════════════════════════
   # LINUX NAMESPACE UTILITIES
