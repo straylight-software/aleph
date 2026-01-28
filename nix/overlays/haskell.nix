@@ -121,6 +121,15 @@ let
           (_old: {
             LD_LIBRARY_PATH = cuda-lib-path;
           });
+
+      # ────────────────────────────────────────────────────────────────────────
+      # hnix stack - for render.nix Nix expression parsing
+      # cryptonite has a flaky test, skip it
+      # ────────────────────────────────────────────────────────────────────────
+      cryptonite = dont-check hsuper.cryptonite;
+      hnix-store-core = do-jailbreak hsuper.hnix-store-core;
+      hnix-store-remote = do-jailbreak hsuper.hnix-store-remote;
+      hnix = do-jailbreak hsuper.hnix;
     };
   };
 in

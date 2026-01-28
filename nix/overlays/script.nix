@@ -68,6 +68,9 @@ let
       transformers
       mtl
       time
+      # render.nix: bash parsing and type inference
+      ShellCheck # bash AST parser
+      hnix # Nix expression parser (for store path extraction)
     ];
 
   # GHC with Aleph.Script dependencies
