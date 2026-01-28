@@ -81,7 +81,10 @@ in
     cpp = {
       enable-clang-tidy = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        # TODO: Re-enable once clang-tidy is integrated into Buck2 build.
+        # Disabled - compile_commands.json has absolute paths that don't exist
+        # in Nix sandbox. Will run as part of buck2 build //src:lint instead.
+        default = false;
         description = "Enable clang-tidy semantic linting";
       };
 
@@ -117,12 +120,13 @@ in
         #                                                      // llvm // toolchain
         # ────────────────────────────────────────────────────────────────────────
         #
-        # Use our custom LLVM 22 from git for clang-format and clang-tidy.
-        # Falls back to nixpkgs llvmPackages_19 if llvm-git not available.
+        # Use our custom LLVM 22 from git for clang-format (stable).
+        # Use nixpkgs llvmPackages_19 for clang-tidy (LLVM 22 git has bugs).
         #
         # ────────────────────────────────────────────────────────────────────────
 
-        llvm-pkg = pkgs.llvm-git or pkgs.llvmPackages_19.clang-tools;
+        llvm-format-pkg = pkgs.llvm-git or pkgs.llvmPackages_19.clang-tools;
+        llvm-tidy-pkg = pkgs.llvmPackages_19.clang-tools;
 
         # ────────────────────────────────────────────────────────────────────────
         #                                                   // clang-tidy // wrapper
@@ -133,7 +137,8 @@ in
           runtimeInputs = [ ];
           text = ''
             export COMPILE_COMMANDS_PATH="${cfg.cpp.compile-commands-path}"
-            export CLANG_TIDY_BIN="${llvm-pkg}/bin/clang-tidy"
+            export CLANG_TIDY_BIN="${llvm-tidy-pkg}/bin/clang-tidy"
+            export CLANG_TIDY_CONFIG="${../../configs/.clang-tidy}"
             ${builtins.readFile ./scripts/clang-tidy-check.sh}
           '';
         };
@@ -214,7 +219,7 @@ in
 
           programs.clang-format = {
             enable = true;
-            package = llvm-pkg;
+            package = llvm-format-pkg;
             includes = cpp-includes ++ [ "*.proto" ];
           };
 
@@ -257,9 +262,17 @@ in
           #                                                          // other // lint
           # ────────────────────────────────────────────────────────────────────────
 
-          programs.taplo.enable = true;
+          programs.taplo = {
+            enable = true;
+            # Exclude template files with @substitution@ placeholders
+            excludes = [ "nix/modules/flake/nativelink/scripts/*-fly.toml" ];
+          };
           programs.yamlfmt.enable = true;
-          programs.mdformat.enable = true;
+          programs.mdformat = {
+            enable = true;
+            # Exclude RFC docs that have complex tables mdformat can't handle
+            excludes = [ "docs/rfc/aleph-008-continuity/*" ];
+          };
           programs.just.enable = true;
           programs.keep-sorted.enable = true;
 

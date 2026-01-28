@@ -59,39 +59,26 @@ let
   # Verify that mdspan headers are properly installed and can be used
   # to compile a C++23 program using std::mdspan
 
-  # Use pkgs.stdenv (not aleph stdenv) since this tests mdspan headers, not aleph stdenv
-  test-mdspan-installation = pkgs.stdenv.mkDerivation {
-    name = "test-mdspan-installation";
-
-    src = write-text-dir "test.cpp" (read-file ./test-sources/mdspan-test.cpp);
-
-    nativeBuildInputs = [
-      pkgs.gcc15
-      pkgs.mdspan
-    ];
-
-    buildPhase = ''
-      echo "Building mdspan test program..."
-      g++ -std=c++23 -I${pkgs.mdspan}/include test.cpp -o test
-    '';
-
-    doCheck = true;
-    checkPhase = ''
-      echo "Running mdspan test..."
-      ./test
-      echo "mdspan test passed"
-    '';
-
-    installPhase = ''
-      mkdir -p $out
-      echo "SUCCESS" > $out/SUCCESS
-      echo "mdspan C++23 headers work correctly" >> $out/SUCCESS
-    '';
-
-    meta = {
-      description = "Test that mdspan C++23 headers are properly installed and usable";
-    };
-  };
+  # Use run-command (simpler than mkDerivation for tests)
+  test-src = write-text-dir "test.cpp" (read-file ./test-sources/mdspan-test.cpp);
+  test-mdspan-installation =
+    run-command "test-mdspan-installation"
+      {
+        native-build-inputs = [
+          pkgs.gcc15
+          pkgs.mdspan
+        ];
+      }
+      ''
+        echo "Building mdspan test program..."
+        g++ -std=c++23 -I${pkgs.mdspan}/include ${test-src}/test.cpp -o test
+        echo "Running mdspan test..."
+        ./test
+        echo "mdspan test passed"
+        mkdir -p $out
+        echo "SUCCESS" > $out/SUCCESS
+        echo "mdspan C++23 headers work correctly" >> $out/SUCCESS
+      '';
 
   # ══════════════════════════════════════════════════════════════════════════
   # TEST: nvidia-sdk-structure (Linux-only)

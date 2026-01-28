@@ -36,11 +36,14 @@ write-shell-application {
       test
   '';
   text = ''
-    cp --no-preserve=mode --force ${sgconfig-yml} ./__sgconfig.yml
-    trap 'rm -f ./__sgconfig.yml' EXIT
+    # Use unique config file per invocation to avoid race conditions
+    # when treefmt runs multiple aleph-lint instances in parallel
+    SGCONFIG_TMP="$(mktemp -t aleph-lint-XXXXXX.yml)"
+    cp --no-preserve=mode ${sgconfig-yml} "$SGCONFIG_TMP"
+    trap 'rm -f "$SGCONFIG_TMP"' EXIT
 
     ${lib.getExe ast-grep} \
-      --config ./__sgconfig.yml \
+      --config "$SGCONFIG_TMP" \
       scan \
       --context 2 \
       --color always \

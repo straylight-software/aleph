@@ -23,10 +23,8 @@ let
       # This avoids stale derivation path issues during development
       wrapped-nix = pkgs.writeShellApplication {
         name = "nix";
-        runtimeInputs = [ ];
-        text = ''
-          exec ${unwrapped-nix}/bin/nix --no-eval-cache "$@"
-        '';
+        "runtimeInputs" = [ ];
+        text = "exec ${unwrapped-nix}/bin/nix --no-eval-cache \"$@\"";
       };
 
       # Full wrapper that includes all nix subcommands and man pages
@@ -37,7 +35,7 @@ let
           unwrapped-nix
         ];
         # wrapped-nix comes first, so its bin/nix takes precedence
-        postBuild = ''
+        "postBuild" = ''
           # Remove the unwrapped nix binary, keep the wrapper
           rm $out/bin/nix
           cp ${wrapped-nix}/bin/nix $out/bin/nix

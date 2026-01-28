@@ -67,7 +67,7 @@ module Armitage.DICE
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Monad (forM, foldM, unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
-import Data.ByteArray.Encoding qualified as BA
+import qualified Data.ByteArray.Encoding as BA
 import Data.ByteString ()
 import qualified Data.ByteString as BS
 

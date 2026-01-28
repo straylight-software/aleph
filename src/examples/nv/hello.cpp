@@ -12,6 +12,7 @@
 #include <cuda_runtime.h>
 
 // device kernel - runs on nv hardware
+// cppcheck-suppress unusedFunction ; called via CUDA launch syntax
 __global__ void straylight_kernel(int *result) { *result = 42; }
 
 // host code

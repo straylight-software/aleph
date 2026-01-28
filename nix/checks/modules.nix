@@ -62,31 +62,19 @@ let
   # Compile all Aleph.* modules using GHC's --make mode.
   # This automatically handles dependency ordering and verifies everything compiles.
 
-  # Use pkgs.stdenv (not aleph stdenv) since GHC uses system CC which may be gcc
-  test-aleph-modules = pkgs.stdenv.mkDerivation {
-    name = "test-aleph-modules";
-    # Use script-lib (Aleph/* modules) as main source
-    src = script-lib;
-    dontUnpack = true;
-
-    nativeBuildInputs = [ ghc ];
-
-    buildPhase = ''
-      runHook preBuild
-      ${builtins.readFile ./scripts/test-aleph-modules.bash}
-      runHook postBuild
-    '';
-
-    installPhase = ''
-      mkdir -p $out
-      echo "SUCCESS" > $out/SUCCESS
-      echo "All Aleph modules compiled successfully" >> $out/SUCCESS
-    '';
-
-    meta = {
-      description = "Test that all Aleph.* Haskell modules compile successfully";
-    };
-  };
+  # Use run-command since GHC uses system CC which may be gcc (avoid aleph stdenv clang flags)
+  test-aleph-modules =
+    run-command "test-aleph-modules"
+      {
+        native-build-inputs = [ ghc ];
+        src = script-lib;
+      }
+      ''
+        ${builtins.readFile ./scripts/test-aleph-modules.bash}
+        mkdir -p $out
+        echo "SUCCESS" > $out/SUCCESS
+        echo "All Aleph modules compiled successfully" >> $out/SUCCESS
+      '';
 
   # ==============================================================================
   # TEST: aleph-compiled-scripts

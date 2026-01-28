@@ -188,24 +188,28 @@ let
             '';
 
             # Wrapped isospin-run with Dhall config injected
+            isospin-run-path = make-bin-path [
+              pkgs.crane
+              pkgs.gnutar
+              pkgs.fakeroot
+              pkgs.genext2fs
+              pkgs.e2fsprogs
+              pkgs.firecracker # TODO: replace with isospin package
+              pkgs.iproute2 # for ip command (TAP setup)
+              pkgs.iptables # for NAT masquerading
+            ];
             isospin-run-wrapped = mk-if (isospin-kernel-pkg != null) (
-              pkgs.runCommand "isospin-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-                mkdir -p $out/bin
-                makeWrapper ${compiled.isospin-run}/bin/isospin-run $out/bin/isospin-run \
-                  --set CONFIG_FILE ${isospin-dhall-config} \
-                  --prefix PATH : ${
-                    make-bin-path [
-                      pkgs.crane
-                      pkgs.gnutar
-                      pkgs.fakeroot
-                      pkgs.genext2fs
-                      pkgs.e2fsprogs
-                      pkgs.firecracker # TODO: replace with isospin package
-                      pkgs.iproute2 # for ip command (TAP setup)
-                      pkgs.iptables # for NAT masquerading
-                    ]
-                  }
-              ''
+              pkgs.runCommand "isospin-run" { "nativeBuildInputs" = [ pkgs.makeWrapper ]; } (
+                builtins.replaceStrings
+                  [ "@sourceBin@" "@binName@" "@configFile@" "@binPath@" ]
+                  [
+                    "${compiled.isospin-run}/bin/isospin-run"
+                    "isospin-run"
+                    "${isospin-dhall-config}"
+                    isospin-run-path
+                  ]
+                  (builtins.readFile ./scripts/make-wrapper.bash)
+              )
             );
 
             # ──────────────────────────────────────────────────────────────────────
@@ -228,44 +232,52 @@ let
             '';
 
             # Wrapped cloud-hypervisor-run with Dhall config injected
+            ch-run-path = make-bin-path [
+              pkgs.crane
+              pkgs.gnutar
+              pkgs.fakeroot
+              pkgs.genext2fs
+              pkgs.e2fsprogs
+              pkgs.cloud-hypervisor
+            ];
             cloud-hypervisor-run-wrapped = mk-if (ch-kernel-pkg != null) (
-              pkgs.runCommand "cloud-hypervisor-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-                mkdir -p $out/bin
-                makeWrapper ${compiled.cloud-hypervisor-run}/bin/cloud-hypervisor-run $out/bin/cloud-hypervisor-run \
-                  --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
-                  --prefix PATH : ${
-                    make-bin-path [
-                      pkgs.crane
-                      pkgs.gnutar
-                      pkgs.fakeroot
-                      pkgs.genext2fs
-                      pkgs.e2fsprogs
-                      pkgs.cloud-hypervisor
-                    ]
-                  }
-              ''
+              pkgs.runCommand "cloud-hypervisor-run" { "nativeBuildInputs" = [ pkgs.makeWrapper ]; } (
+                builtins.replaceStrings
+                  [ "@sourceBin@" "@binName@" "@configFile@" "@binPath@" ]
+                  [
+                    "${compiled.cloud-hypervisor-run}/bin/cloud-hypervisor-run"
+                    "cloud-hypervisor-run"
+                    "${cloud-hypervisor-dhall-config}"
+                    ch-run-path
+                  ]
+                  (builtins.readFile ./scripts/make-wrapper.bash)
+              )
             );
 
             # Wrapped cloud-hypervisor-gpu with Dhall config injected
+            ch-gpu-path = make-bin-path [
+              pkgs.crane
+              pkgs.gnutar
+              pkgs.fakeroot
+              pkgs.genext2fs
+              pkgs.e2fsprogs
+              pkgs.cloud-hypervisor
+              pkgs.pciutils
+              compiled.vfio-bind
+              compiled.vfio-unbind
+            ];
             cloud-hypervisor-gpu-wrapped = mk-if (ch-kernel-pkg != null) (
-              pkgs.runCommand "cloud-hypervisor-gpu" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
-                mkdir -p $out/bin
-                makeWrapper ${compiled.cloud-hypervisor-gpu}/bin/cloud-hypervisor-gpu $out/bin/cloud-hypervisor-gpu \
-                  --set CONFIG_FILE ${cloud-hypervisor-dhall-config} \
-                  --prefix PATH : ${
-                    make-bin-path [
-                      pkgs.crane
-                      pkgs.gnutar
-                      pkgs.fakeroot
-                      pkgs.genext2fs
-                      pkgs.e2fsprogs
-                      pkgs.cloud-hypervisor
-                      pkgs.pciutils
-                      compiled.vfio-bind
-                      compiled.vfio-unbind
-                    ]
-                  }
-              ''
+              pkgs.runCommand "cloud-hypervisor-gpu" { "nativeBuildInputs" = [ pkgs.makeWrapper ]; } (
+                builtins.replaceStrings
+                  [ "@sourceBin@" "@binName@" "@configFile@" "@binPath@" ]
+                  [
+                    "${compiled.cloud-hypervisor-gpu}/bin/cloud-hypervisor-gpu"
+                    "cloud-hypervisor-gpu"
+                    "${cloud-hypervisor-dhall-config}"
+                    ch-gpu-path
+                  ]
+                  (builtins.readFile ./scripts/make-wrapper.bash)
+              )
             );
 
             # ──────────────────────────────────────────────────────────────────────
@@ -288,20 +300,9 @@ let
                 coreutils
                 procps
               ];
-              text = ''
-                # Create directories for armitage
-                mkdir -p /var/cache/armitage /var/log/armitage /etc/ssl/armitage
-
-                # Set environment for armitage proxy
-                export PROXY_PORT="8888"
-                export PROXY_CACHE_DIR="/var/cache/armitage"
-                export PROXY_LOG_DIR="/var/log/armitage"
-                export PROXY_CERT_DIR="/etc/ssl/armitage"
-
-                # Start Armitage proxy
-                echo ":: Starting Armitage proxy on :8888..."
-                exec ${config.packages.armitage-proxy}/bin/armitage-proxy
-              '';
+              text = builtins.replaceStrings [ "@armitageProxy@" ] [ "${config.packages.armitage-proxy}" ] (
+                builtins.readFile ./scripts/armitage-startup.sh
+              );
             };
 
             # Witnessed build wrapper - runs command with attestation collection
@@ -313,28 +314,7 @@ let
                 coreutils
                 jq
               ];
-              text = ''
-                OUTPUT_DIR="$1"
-                shift
-                if [ "$1" = "--" ]; then shift; fi
-
-                # Clear attestation log before build
-                ATTESTATION_LOG="/var/log/armitage/fetches.jsonl"
-                : > "$ATTESTATION_LOG"
-
-                # Run the actual command
-                EXIT_CODE=0
-                "$@" || EXIT_CODE=$?
-
-                # Copy attestations to output directory
-                if [ -f "$ATTESTATION_LOG" ] && [ -s "$ATTESTATION_LOG" ]; then
-                  cp "$ATTESTATION_LOG" "$OUTPUT_DIR/.attestations.jsonl"
-                  FETCH_COUNT=$(wc -l < "$ATTESTATION_LOG")
-                  echo ":: Witnessed $FETCH_COUNT network fetch(es)"
-                fi
-
-                exit $EXIT_CODE
-              '';
+              text = builtins.readFile ./scripts/witnessed-build.sh;
             };
 
             # Armitage service module for nimi (follows nativelink pattern)

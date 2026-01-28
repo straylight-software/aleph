@@ -10,6 +10,7 @@
 // Vector scale kernel
 // =============================================================================
 
+// cppcheck-suppress unusedFunction ; called via CUDA launch syntax
 __global__ void vector_scale_kernel(float *data, float scale, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -28,6 +29,7 @@ void launch_vector_scale(float *data, float scale, int n) {
 // SAXPY kernel: y = a*x + y
 // =============================================================================
 
+// cppcheck-suppress unusedFunction ; called via CUDA launch syntax
 __global__ void saxpy_kernel(float *y, float a, const float *x, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -46,6 +48,7 @@ void launch_saxpy(float *y, float a, const float *x, int n) {
 // Dot product kernel (parallel reduction)
 // =============================================================================
 
+// cppcheck-suppress unusedFunction ; called via CUDA launch syntax
 __global__ void dot_product_kernel(float *result, const float *a,
                                    const float *b, int n) {
   __shared__ float shared_data[256];

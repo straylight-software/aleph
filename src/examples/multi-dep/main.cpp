@@ -8,6 +8,7 @@
 #include <zlib.h>
 
 // Callback for curl - just count bytes
+// cppcheck-suppress unusedFunction ; referenced by curl via function pointer
 static size_t write_callback(void *contents, size_t size, size_t nmemb,
                              void *userp) {
   size_t *total = (size_t *)userp;

@@ -6,6 +6,7 @@
 # Environment variables (substituted by Nix):
 #   COMPILE_COMMANDS_PATH - path to compile_commands.json
 #   CLANG_TIDY_BIN        - path to clang-tidy binary
+#   CLANG_TIDY_CONFIG     - path to .clang-tidy config file
 
 if [[ ! -f "$COMPILE_COMMANDS_PATH" ]]; then
 	echo "warning: $COMPILE_COMMANDS_PATH not found, skipping clang-tidy" >&2
@@ -13,6 +14,7 @@ if [[ ! -f "$COMPILE_COMMANDS_PATH" ]]; then
 fi
 
 exec "$CLANG_TIDY_BIN" \
+	--config-file="$CLANG_TIDY_CONFIG" \
 	--warnings-as-errors='*' \
 	-p "$COMPILE_COMMANDS_PATH" \
 	"$@"
