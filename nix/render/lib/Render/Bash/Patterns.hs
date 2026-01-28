@@ -157,13 +157,19 @@ parseLiteral t
   | otherwise = LitString t
 
 -- | Check if text is a numeric literal
+-- Must have at least one digit, optional leading minus
 isNumericLiteral :: Text -> Bool
 isNumericLiteral t =
   not (T.null t)
     && T.all isDigitOrSign t
-    && T.length (T.filter (== '-') t) <= 1
+    && T.any isDigit t  -- Must have at least one digit
+    && validMinus t
   where
     isDigitOrSign c = isDigit c || c == '-'
+    -- Minus only valid at start, and only one
+    validMinus s = case T.uncons s of
+      Just ('-', rest) -> not (T.any (== '-') rest)
+      _ -> not (T.any (== '-') s)
 
 -- | Check if text is a boolean literal
 isBoolLiteral :: Text -> Bool
