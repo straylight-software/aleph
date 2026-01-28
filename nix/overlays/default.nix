@@ -9,8 +9,6 @@
 #   - prelude: aleph.prelude, aleph.stdenv, aleph.cross, etc.
 #   - container: aleph.container.mkNamespaceEnv, unshare-run, etc.
 #   - script: aleph.script.gen-wrapper, aleph.script.check, etc.
-#   - ghc-wasm: GHC WASM backend for builtins.wasm integration
-#   - straylight-nix: nix binary with builtins.wasm support
 #   - libmodern: pkgs.libmodern.fmt, pkgs.libmodern.abseil-cpp, etc.
 #   - haskell: GHC 9.12 overrides (ghc-source-gen, grapesy stack)
 #
@@ -39,9 +37,7 @@ let
   prelude-overlay = import ../prelude;
   container-overlay = import ./container;
   script-overlay = import ./script.nix;
-  ghc-wasm-overlay = (import ./ghc-wasm.nix { inherit inputs; }).flake.overlays.ghc-wasm;
-  straylight-nix-overlay =
-    (import ./straylight-nix.nix { inherit inputs; }).flake.overlays.straylight-nix;
+  straylight-nix-overlay = import ./straylight-nix.nix { inherit inputs; };
   libmodern-overlay = import ./libmodern;
   haskell-overlay = import ./haskell.nix { inherit inputs; };
 in
@@ -55,10 +51,8 @@ in
     prelude = prelude-overlay;
     container = container-overlay;
     script = script-overlay;
-    ghc-wasm = ghc-wasm-overlay;
     straylight-nix = straylight-nix-overlay;
     libmodern = libmodern-overlay;
-    haskell = haskell-overlay;
 
     # Composed default overlay
     # Order matters:
@@ -77,7 +71,6 @@ in
       script-overlay
       nvidia-sdk-ngc-overlay
       nvidia-sdk-packages-overlay
-      ghc-wasm-overlay
       straylight-nix-overlay
       libmodern-overlay
       haskell-overlay

@@ -43,7 +43,6 @@ in
   options.aleph.devshell = {
     enable = mk-enable-option "aleph devshell";
     nv.enable = mk-enable-option "NVIDIA SDK in devshell";
-    ghc-wasm.enable = mk-enable-option "GHC WASM backend (for builtins.wasm plugins)";
     straylight-nix.enable = mk-enable-option "straylight-nix with builtins.wasm support";
 
     extra-packages = mk-option {
@@ -186,18 +185,6 @@ in
             ++ optionals (cfg.nv.enable && pkgs ? nvidia-sdk) [
               pkgs.nvidia-sdk
             ]
-            # GHC WASM toolchain for builtins.wasm plugin development
-            ++ optionals (cfg.ghc-wasm.enable && pkgs ? aleph && pkgs.aleph ? ghc-wasm) (
-              let
-                inherit (pkgs.aleph) ghc-wasm;
-              in
-              filter (p: p != null) [
-                ghc-wasm.ghc-wasm
-                ghc-wasm.ghc-wasm-cabal
-                ghc-wasm.wasi-sdk
-                ghc-wasm.wasm-wasmtime
-              ]
-            )
             # straylight-nix with builtins.wasm support
             ++ optionals (cfg.straylight-nix.enable && pkgs ? aleph && pkgs.aleph ? nix) (
               filter (p: p != null) [
@@ -213,11 +200,6 @@ in
 
             shellHook =
               let
-                ghc-wasm-check = optional-string cfg.ghc-wasm.enable ''
-                  if command -v wasm32-wasi-ghc &>/dev/null; then
-                    echo "GHC-WASM: $(wasm32-wasi-ghc --version)"
-                  fi
-                '';
                 straylight-nix-check = optional-string cfg.straylight-nix.enable ''
                   if [ -n "${pkgs.aleph.nix.nix or ""}" ]; then
                     echo "straylight-nix: $(${pkgs.aleph.nix.nix}/bin/nix --version)"
@@ -228,7 +210,6 @@ in
               ''
                 echo "━━━ aleph devshell ━━━"
                 echo "GHC: $(${ghc-with-all-deps}/bin/ghc --version)"
-                ${ghc-wasm-check}
                 ${straylight-nix-check}
                 ${config.aleph.build.shellHook or ""}
                 ${config.aleph.shortlist.shellHook or ""}

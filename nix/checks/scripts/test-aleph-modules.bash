@@ -9,24 +9,24 @@ mkdir -p build
 
 # Use --make to compile all modules with automatic dependency resolution
 # We compile the "top-level" modules that pull in everything else:
+# - Aleph.Script (main entry point)
 # - Aleph.Script.Tools (imports all tool wrappers)
 # - Aleph.Script.Vm (imports Vfio, Oci, Config)
-# - Aleph.Nix (imports Types, Value, FFI)
-# - Aleph.Nix.Syntax (imports Derivation, CMake)
+# - Aleph.Script.Oci (OCI container operations)
+# - Aleph.Script.Nvidia.Wheel (NVIDIA wheel extraction)
 
 ghc --make -Wall -Wno-unused-imports \
-  -hidir build -odir build \
-  -i"$src" \
-  "$src/Aleph/Script.hs" \
-  "$src/Aleph/Script/Tools.hs" \
-  "$src/Aleph/Script/Vm.hs" \
-  "$src/Aleph/Script/Oci.hs" \
-  "$src/Aleph/Nix.hs" \
-  "$src/Aleph/Nix/Syntax.hs" \
-  2>&1 || {
-  echo ""
-  echo "FAILED: Module compilation failed"
-  exit 1
+	-hidir build -odir build \
+	-i"$src" \
+	"$src/Aleph/Script.hs" \
+	"$src/Aleph/Script/Tools.hs" \
+	"$src/Aleph/Script/Vm.hs" \
+	"$src/Aleph/Script/Oci.hs" \
+	"$src/Aleph/Script/Nvidia/Wheel.hs" \
+	2>&1 || {
+	echo ""
+	echo "FAILED: Module compilation failed"
+	exit 1
 }
 
 echo ""

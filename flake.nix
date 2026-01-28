@@ -17,14 +17,6 @@
     # NOTE: Don't follow nixpkgs - needs specific rust version for wasmtime
     nix.url = "github:straylight-software/nix";
 
-    # GHC WASM backend toolchain (ghc-wasm-meta)
-    # Provides wasm32-wasi-ghc, wasm32-wasi-cabal, wasi-sdk, wasmtime, etc.
-    # Using GitHub mirror since gitlab.haskell.org has different flake URL format
-    ghc-wasm-meta = {
-      url = "github:haskell-wasm/ghc-wasm-meta";
-      # Don't follow nixpkgs - ghc-wasm-meta has specific version requirements
-    };
-
     # ghc-source-gen from git (Hackage version doesn't support GHC 9.12)
     # Required for grapesy -> proto-lens-protoc -> ghc-source-gen
     ghc-source-gen-src = {

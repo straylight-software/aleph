@@ -59,29 +59,30 @@ let
   # Verify that mdspan headers are properly installed and can be used
   # to compile a C++23 program using std::mdspan
 
-  test-mdspan-installation = stdenv.default {
+  # Use pkgs.stdenv (not aleph stdenv) since this tests mdspan headers, not aleph stdenv
+  test-mdspan-installation = pkgs.stdenv.mkDerivation {
     name = "test-mdspan-installation";
 
     src = write-text-dir "test.cpp" (read-file ./test-sources/mdspan-test.cpp);
 
-    native-build-inputs = [
+    nativeBuildInputs = [
       pkgs.gcc15
       pkgs.mdspan
     ];
 
-    build-phase = ''
+    buildPhase = ''
       echo "Building mdspan test program..."
       g++ -std=c++23 -I${pkgs.mdspan}/include test.cpp -o test
     '';
 
-    do-check = true;
-    check-phase = ''
+    doCheck = true;
+    checkPhase = ''
       echo "Running mdspan test..."
       ./test
-      echo "✓ mdspan test passed"
+      echo "mdspan test passed"
     '';
 
-    install-phase = ''
+    installPhase = ''
       mkdir -p $out
       echo "SUCCESS" > $out/SUCCESS
       echo "mdspan C++23 headers work correctly" >> $out/SUCCESS

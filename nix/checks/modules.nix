@@ -24,7 +24,11 @@ let
   inherit (pkgs.aleph) run-command stdenv;
 
   # Get script source and GHC from the overlay
-  inherit (pkgs.aleph.script) src ghc;
+  # script-lib = library sources (Aleph/*)
+  # script-src = executable sources (*.hs scripts)
+  script-lib = pkgs.aleph.script.lib;
+  script-src = pkgs.aleph.script.src;
+  ghc = pkgs.aleph.script.ghc;
 
   # Render Dhall template with environment variables
   render-dhall =
@@ -58,20 +62,22 @@ let
   # Compile all Aleph.* modules using GHC's --make mode.
   # This automatically handles dependency ordering and verifies everything compiles.
 
-  test-aleph-modules = stdenv.default {
+  # Use pkgs.stdenv (not aleph stdenv) since GHC uses system CC which may be gcc
+  test-aleph-modules = pkgs.stdenv.mkDerivation {
     name = "test-aleph-modules";
-    inherit src;
-    dont-unpack = true;
+    # Use script-lib (Aleph/* modules) as main source
+    src = script-lib;
+    dontUnpack = true;
 
-    native-build-inputs = [ ghc ];
+    nativeBuildInputs = [ ghc ];
 
-    build-phase = ''
+    buildPhase = ''
       runHook preBuild
       ${builtins.readFile ./scripts/test-aleph-modules.bash}
       runHook postBuild
     '';
 
-    install-phase = ''
+    installPhase = ''
       mkdir -p $out
       echo "SUCCESS" > $out/SUCCESS
       echo "All Aleph modules compiled successfully" >> $out/SUCCESS

@@ -74,20 +74,6 @@ in
           '');
 
         # ──────────────────────────────────────────────────────────────────────
-        # // wasm infrastructure //
-        # ──────────────────────────────────────────────────────────────────────
-
-        wasm-infra = import ../../prelude/wasm-plugin.nix {
-          inherit lib;
-          inherit (pkgs) stdenv runCommand writeText;
-          ghc-wasm-meta = if inputs ? ghc-wasm-meta then inputs.ghc-wasm-meta else null;
-        };
-
-        # GHC WASM toolchain (if available)
-        ghc-wasm =
-          if inputs ? ghc-wasm-meta then inputs.ghc-wasm-meta.packages.${system}.all_9_12 else null;
-
-        # ──────────────────────────────────────────────────────────────────────
         # // language toolchains //
         # ──────────────────────────────────────────────────────────────────────
 
@@ -962,76 +948,13 @@ in
         # // call-package //
         # ──────────────────────────────────────────────────────────────────────
         #
-        # Unified package builder. File extension determines backend:
-        #   .hs   → Compile to WASM, evaluate via builtins.wasm
-        #   .purs → PureScript WASM (planned)
-        #   .nix  → Standard Nix import
-        #   .wasm → Pre-compiled WASM, evaluate directly
+        # Standard Nix package builder. Wrapper around pkgs.callPackage.
         #
         # Usage:
-        #   nvidia-nccl = call-package ./nvidia-nccl.hs {};
-        #   zlib-ng = call-package ./zlib-ng.hs {};
+        #   my-pkg = call-package ./my-pkg.nix {};
         #
 
-        call-package =
-          path: args:
-          let
-            path-str = toString path;
-            ext = lib.last (lib.splitString "." path-str);
-            aleph-modules = ../../../src/tools/scripts;
-
-            # Generated Main.hs that wraps the user's Pkg module
-            # User files just need: module Pkg where ... pkg = mkDerivation [...]
-            wrapper-main = pkgs.writeText "Main.hs" (builtins.readFile ./scripts/call-package-wrapper.hs);
-
-            # Build single-file Haskell to WASM
-            build-hs-wasm =
-              hs-path:
-              let
-                name = lib.removeSuffix ".hs" (baseNameOf (toString hs-path));
-              in
-              pkgs.runCommand "${name}.wasm" {
-                src = hs-path;
-                nativeBuildInputs = [ ghc-wasm ];
-                alephModules = aleph-modules;
-                wrapperMain = wrapper-main;
-                ghcWasm = ghc-wasm;
-              } (builtins.readFile ./scripts/build-hs-wasm.sh);
-          in
-          if ext == "hs" then
-            if ghc-wasm == null then
-              throw ''
-                call-package for .hs files requires ghc-wasm-meta input.
-                Add ghc-wasm-meta to your flake inputs or pre-compile to .wasm.
-              ''
-            else if !(builtins ? wasm) then
-              throw ''
-                call-package for .hs files requires straylight-nix with builtins.wasm.
-                Use straylight-nix or pre-compile to .wasm and use a different evaluator.
-              ''
-            else
-              let
-                wasm-drv = build-hs-wasm path;
-                # Call "pkg" export which returns the package spec
-                spec = builtins.wasm wasm-drv "pkg" args;
-              in
-              wasm-infra.buildFromSpec { inherit spec pkgs; }
-
-          else if ext == "wasm" then
-            if !(builtins ? wasm) then
-              throw "call-package for .wasm files requires straylight-nix with builtins.wasm"
-            else
-              let
-                # Assume .wasm files export "pkg" like .hs files
-                spec = builtins.wasm path "pkg" args;
-              in
-              wasm-infra.buildFromSpec { inherit spec pkgs; }
-
-          else if ext == "nix" then
-            pkgs.callPackage path args
-
-          else
-            throw "call-package: unsupported extension .${ext} (expected .hs, .wasm, or .nix)";
+        call-package = pkgs.callPackage;
 
         # ──────────────────────────────────────────────────────────────────────
         # // assembled prelude //
