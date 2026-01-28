@@ -30,11 +30,11 @@ let
   inherit (prev) lib;
 
   # Source directories for Aleph.Script
-  # Library modules (Aleph.*) are in src/haskell/Aleph/
-  # The -i flag should point to src/haskell so GHC finds Aleph/Script.hs etc.
-  # Executable scripts are in src/tools/scripts/
-  aleph-src = ../../src/haskell;
-  script-src = ../../src/tools/scripts;
+  # Library modules (Aleph.*) are in nix/script/lib/
+  # The -i flag points to nix/script/lib so GHC finds Aleph/Script.hs etc.
+  # Executable scripts are in nix/script/exe/
+  aleph-src = ../script/lib;
+  script-src = ../script/exe;
   corpus-src = ../../src/tools/corpus;
 
   # Use GHC 9.12 consistently across the codebase
