@@ -31,7 +31,7 @@ let
   get-exe = lib.getExe;
   map-attrs' = lib.mapAttrs';
   name-value-pair = lib.nameValuePair;
-  optional = lib.optional;
+  inherit (lib) optional;
   optional-string = lib.optionalString;
   to-upper = lib.toUpper;
 
@@ -80,7 +80,7 @@ let
       # e.g., "network-setup" -> "NETWORK_SETUP"
       script = render-dhall "vm-init-${hostname}" ../scripts/vm-init.dhall {
         inherit hostname;
-        exec-into = exec-into;
+        inherit exec-into;
         network-setup = optional-string enable-network network-setup-script;
         gpu-setup = optional-string wait-for-gpu gpu-setup-script;
       };
@@ -112,7 +112,7 @@ let
     settings.binName = "isospin-run-init";
     settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "isospin";
-      exec-into = ''exec setsid cttyhack /bin/sh'';
+      exec-into = "exec setsid cttyhack /bin/sh";
     });
   };
 
@@ -138,7 +138,7 @@ let
     settings.binName = "cloud-hypervisor-run-init";
     settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "cloud-vm";
-      exec-into = ''exec setsid cttyhack /bin/sh'';
+      exec-into = "exec setsid cttyhack /bin/sh";
     });
   };
 
@@ -147,7 +147,7 @@ let
     settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "ch-gpu";
       wait-for-gpu = true;
-      exec-into = ''exec setsid cttyhack /bin/sh'';
+      exec-into = "exec setsid cttyhack /bin/sh";
     });
   };
 

@@ -14,15 +14,15 @@ mkdir -p out/Proto/Google/Protobuf
 
 # Generate Haskell bindings
 protoc \
-	--plugin=protoc-gen-haskell=@protoLensProtoc@/bin/proto-lens-protoc \
-	--haskell_out=out \
-	--proto_path=proto \
-	proto/build/bazel/remote/execution/v2/remote_execution.proto \
-	proto/google/bytestream/bytestream.proto \
-	proto/google/rpc/status.proto \
-	proto/google/protobuf/any.proto \
-	proto/google/protobuf/duration.proto \
-	proto/google/protobuf/timestamp.proto \
-	proto/google/protobuf/wrappers.proto
+  --plugin=protoc-gen-haskell=@protoLensProtoc@/bin/proto-lens-protoc \
+  --haskell_out=out \
+  --proto_path=proto \
+  proto/build/bazel/remote/execution/v2/remote_execution.proto \
+  proto/google/bytestream/bytestream.proto \
+  proto/google/rpc/status.proto \
+  proto/google/protobuf/any.proto \
+  proto/google/protobuf/duration.proto \
+  proto/google/protobuf/timestamp.proto \
+  proto/google/protobuf/wrappers.proto
 
 runHook postBuild

@@ -11,12 +11,12 @@ hostname cloud-vm
 
 ip link set lo up 2>/dev/null || true
 if [ -e /sys/class/net/eth0 ]; then
-	ip link set eth0 up
-	udhcpc -i eth0 2>/dev/null || (
-		ip addr add 172.16.0.2/24 dev eth0
-		ip route add default via 172.16.0.1
-		echo "nameserver 8.8.8.8" >/etc/resolv.conf
-	)
+  ip link set eth0 up
+  udhcpc -i eth0 2>/dev/null || (
+    ip addr add 172.16.0.2/24 dev eth0
+    ip route add default via 172.16.0.1
+    echo "nameserver 8.8.8.8" >/etc/resolv.conf
+  )
 fi
 
 clear
@@ -26,7 +26,7 @@ echo " CPUs: $(nproc)  RAM: $(free -h 2>/dev/null | awk '/Mem:/{print $2}' || ec
 echo "========================================================"
 # Launch interactive shell - prefer bash if available, fall back to sh
 if [ -x /bin/bash ]; then
-	exec setsid cttyhack /bin/bash -l
+  exec setsid cttyhack /bin/bash -l
 else
-	exec setsid cttyhack /bin/sh
+  exec setsid cttyhack /bin/sh
 fi

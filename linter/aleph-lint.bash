@@ -17,16 +17,16 @@ trap 'rm -f "$SGCONFIG_TMP"' EXIT
 # treefmt passes absolute paths, but our ignores use relative globs
 declare -a REL_ARGS=()
 for arg in "$@"; do
-	if [[ "$arg" = /* ]] && [[ -f "$arg" ]]; then
-		REL_ARGS+=("$(realpath --relative-to=. "$arg")")
-	else
-		REL_ARGS+=("$arg")
-	fi
+  if [[ $arg == /* ]] && [[ -f $arg ]]; then
+    REL_ARGS+=("$(realpath --relative-to=. "$arg")")
+  else
+    REL_ARGS+=("$arg")
+  fi
 done
 
 exec "$AST_GREP_BIN" \
-	--config "$SGCONFIG_TMP" \
-	scan \
-	--context 2 \
-	--color always \
-	"${REL_ARGS[@]}"
+  --config "$SGCONFIG_TMP" \
+  scan \
+  --context 2 \
+  --color always \
+  "${REL_ARGS[@]}"

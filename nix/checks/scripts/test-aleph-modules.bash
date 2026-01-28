@@ -16,17 +16,17 @@ mkdir -p build
 # - Aleph.Script.Nvidia.Wheel (NVIDIA wheel extraction)
 
 ghc --make -Wall -Wno-unused-imports \
-	-hidir build -odir build \
-	-i"$src" \
-	"$src/Aleph/Script.hs" \
-	"$src/Aleph/Script/Tools.hs" \
-	"$src/Aleph/Script/Vm.hs" \
-	"$src/Aleph/Script/Oci.hs" \
-	"$src/Aleph/Script/Nvidia/Wheel.hs" \
-	2>&1 || {
-	echo ""
-	echo "FAILED: Module compilation failed"
-	exit 1
+  -hidir build -odir build \
+  -i"$src" \
+  "$src/Aleph/Script.hs" \
+  "$src/Aleph/Script/Tools.hs" \
+  "$src/Aleph/Script/Vm.hs" \
+  "$src/Aleph/Script/Oci.hs" \
+  "$src/Aleph/Script/Nvidia/Wheel.hs" \
+  2>&1 || {
+  echo ""
+  echo "FAILED: Module compilation failed"
+  exit 1
 }
 
 echo ""

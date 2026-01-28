@@ -25,7 +25,6 @@ let
   mk-option = lib."mkOption";
   mk-enable-option = lib."mkEnableOption";
   mk-if = lib."mkIf";
-  optionals = lib."optionals";
   optional-attrs = lib."optionalAttrs";
   concat-map-strings-sep = lib."concatMapStringsSep";
 
@@ -609,10 +608,8 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         # Get prelude toolchain packages (same as local builds)
-        # Use explicit ? checks for optional packages
-        llvm-git = if pkgs ? llvm-git then pkgs.llvm-git else null;
-        nvidia-sdk = if pkgs ? nvidia-sdk then pkgs.nvidia-sdk else null;
-        gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
+        inherit (pkgs) llvm-git nvidia-sdk gcc15;
+        gcc = gcc15;
 
         # Haskell toolchain - use aleph.script.ghc for full Aleph.Script support
         # This ensures NativeLink workers can build all Haskell scripts via Buck2
@@ -626,23 +623,22 @@ in
         ]);
 
         # All toolchain packages for workers
-        toolchain-packages =
-          optionals (llvm-git != null) [ llvm-git ]
-          ++ optionals (nvidia-sdk != null) [ nvidia-sdk ]
-          ++ [
-            gcc
-            pkgs.glibc
-            pkgs.glibc.dev
-            ghc-with-packages
-            python-env
-            pkgs.rustc
-            pkgs.cargo
-            pkgs.coreutils
-            pkgs.bash
-            pkgs.gnumake
-          ]
-          ++ optionals (pkgs ? lean4) [ pkgs.lean4 ]
-          ++ optionals (pkgs ? mdspan) [ pkgs.mdspan ];
+        toolchain-packages = [
+          llvm-git
+          nvidia-sdk
+          gcc
+          pkgs.glibc
+          pkgs.glibc.dev
+          ghc-with-packages
+          python-env
+          pkgs.rustc
+          pkgs.cargo
+          pkgs.coreutils
+          pkgs.bash
+          pkgs.gnumake
+          pkgs.lean4
+          pkgs.mdspan
+        ];
 
         # Generate the toolchain manifest as a separate derivation
         # This exports the store paths for use by the worker setup script

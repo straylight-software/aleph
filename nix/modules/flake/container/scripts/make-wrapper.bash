@@ -4,5 +4,5 @@ set -euo pipefail
 
 mkdir -p "$out/bin"
 makeWrapper "@sourceBin@" "$out/bin/@binName@" \
-	--set CONFIG_FILE "@configFile@" \
-	--prefix PATH : "@binPath@"
+  --set CONFIG_FILE "@configFile@" \
+  --prefix PATH : "@binPath@"

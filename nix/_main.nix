@@ -12,14 +12,7 @@ let
   # Local aliases for lib.* and builtins.* functions to satisfy ALEPH-E003.
   # External API names (nixpkgs attributes, flake outputs) remain unchanged.
   # ════════════════════════════════════════════════════════════════════════════
-  split-string = lib.splitString;
-  remove-suffix = lib.removeSuffix;
   optional-attrs = lib.optionalAttrs;
-  concat-map-strings-sep = lib.concatMapStringsSep;
-  list-to-attrs = lib.listToAttrs;
-  path-exists = builtins.pathExists;
-  base-name-of = builtins.baseNameOf;
-  to-string = builtins.toString;
 
   # Import module indices by kind
   flake-modules = import ./modules/flake/_index.nix { inherit inputs lib; };

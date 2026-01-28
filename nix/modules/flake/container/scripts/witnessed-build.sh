@@ -12,9 +12,9 @@ EXIT_CODE=0
 
 # Copy attestations to output directory
 if [ -f "$ATTESTATION_LOG" ] && [ -s "$ATTESTATION_LOG" ]; then
-	cp "$ATTESTATION_LOG" "$OUTPUT_DIR/.attestations.jsonl"
-	FETCH_COUNT=$(wc -l <"$ATTESTATION_LOG")
-	echo ":: Witnessed $FETCH_COUNT network fetch(es)"
+  cp "$ATTESTATION_LOG" "$OUTPUT_DIR/.attestations.jsonl"
+  FETCH_COUNT=$(wc -l <"$ATTESTATION_LOG")
+  echo ":: Witnessed $FETCH_COUNT network fetch(es)"
 fi
 
 exit $EXIT_CODE

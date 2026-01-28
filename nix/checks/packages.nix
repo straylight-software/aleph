@@ -23,7 +23,7 @@ let
     when-attr
     ;
 
-  inherit (pkgs.aleph) run-command stdenv;
+  inherit (pkgs.aleph) run-command;
 
   # ────────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for pkgs.* functions

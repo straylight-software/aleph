@@ -94,16 +94,9 @@ let
     };
   };
 
-  # Container info for current system
-  has-triton-info = containers.tritonserver ? ${system};
-  has-cuda-info = containers.cuda-devel ? ${system};
-
+  # Container info for current system (required)
   triton-info = containers.tritonserver.${system};
   cuda-info = containers.cuda-devel.${system};
-
-  # Container rootfs FODs (only defined if hash is provided)
-  has-triton-rootfs = has-triton-info && triton-info.hash != "";
-  has-cuda-rootfs = has-cuda-info && cuda-info.hash != "";
 
   triton-rootfs = container-to-nix {
     name = "tritonserver-${containers.tritonserver.version}-rootfs";
@@ -118,14 +111,8 @@ let
   };
 
 in
-lib.optionalAttrs has-triton-rootfs {
-  # Expose rootfs for packages.nix and debugging
+{
   nvidia-sdk-ngc-rootfs = triton-rootfs;
-}
-// lib.optionalAttrs has-cuda-rootfs {
   nvidia-sdk-cuda-rootfs = cuda-rootfs;
-}
-// {
-  # Container definitions for reference
   nvidia-sdk-containers = containers;
 }

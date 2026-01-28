@@ -21,14 +21,13 @@ let
   to-upper = lib.toUpper;
   when-attr = lib.optionalAttrs;
 
-  inherit (pkgs.aleph) run-command stdenv;
+  inherit (pkgs.aleph) run-command;
 
   # Get script source and GHC from the overlay
   # script-lib = library sources (Aleph/*)
   # script-src = executable sources (*.hs scripts)
   script-lib = pkgs.aleph.script.lib;
-  script-src = pkgs.aleph.script.src;
-  ghc = pkgs.aleph.script.ghc;
+  inherit (pkgs.aleph.script) ghc;
 
   # Render Dhall template with environment variables
   render-dhall =

@@ -51,7 +51,7 @@ fib v = do
     fibPure 1 = 1
     fibPure n = go 0 1 (n - 1)
       where
-        go a b 0 = b
+        go _ b 0 = b
         go a b k = go b (a + b) (k - 1)
 
 {- | Return a list of the first n Fibonacci numbers.
@@ -68,4 +68,4 @@ fibList v = do
     mkList values
   where
     fibSequence :: [Int64]
-    fibSequence = 0 : 1 : zipWith (+) fibSequence (tail fibSequence)
+    fibSequence = 0 : 1 : zipWith (+) fibSequence (drop 1 fibSequence)

@@ -2,7 +2,7 @@
 #
 # Firecracker disk image builder
 #
-{ final, lib }:
+{ final }:
 let
   inherit (final.aleph) run-command;
   to-string = builtins.toString;
@@ -28,8 +28,7 @@ in
     }:
     let
       init-script-file = if init-script != null then final.writeText "init-script" init-script else null;
-    in
-    let
+
       init-script-install =
         if init-script-file != null then "install -m755 ${init-script-file} rootfs/init" else "";
       build-script =

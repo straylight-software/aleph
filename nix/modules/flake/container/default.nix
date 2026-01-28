@@ -24,7 +24,7 @@
 #   - VFIO for GPU passthrough (cloud-hypervisor-gpu, not nvidia-docker)
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{ lib, inputs, ... }:
+{ lib, ... }:
 let
   # ────────────────────────────────────────────────────────────────────────────
   # // lib aliases (lisp-case) //
@@ -46,7 +46,6 @@ let
   inherit (kernels) isospin-kernel ch-kernel;
 
   # Import nimi-init module (needs pkgs and nimi, so done in perSystem)
-  mk-nimi-init = pkgs: nimi: import ./nimi-init.nix { inherit lib pkgs nimi; };
 
   # ────────────────────────────────────────────────────────────────────────────
   # // container module //
@@ -318,13 +317,10 @@ let
             };
 
             # Armitage service module for nimi (follows nativelink pattern)
-            mk-armitage-service =
-              { lib, pkgs, ... }:
-              { ... }:
-              {
-                _class = "service";
-                config.process.argv = [ "${armitage-startup-script}/bin/armitage-startup" ];
-              };
+            mk-armitage-service = _: _: {
+              _class = "service";
+              config.process.argv = [ "${armitage-startup-script}/bin/armitage-startup" ];
+            };
 
           in
           {

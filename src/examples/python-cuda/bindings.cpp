@@ -152,8 +152,7 @@ PYBIND11_MODULE(gpu_module, m) {
 
   m.def("nv_available", &nv_available, "Check if CUDA is available");
 
-  m.def("nv_device_name", &nv_device_name,
-        "Get the name of the CUDA device");
+  m.def("nv_device_name", &nv_device_name, "Get the name of the CUDA device");
 
   m.def("scale_array", &scale_array, "Scale array elements on GPU",
         py::arg("input"), py::arg("scale"));

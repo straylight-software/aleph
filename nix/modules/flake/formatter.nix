@@ -286,6 +286,14 @@ in
             aleph-lint = {
               command = lib.getExe inputs.self.packages.${system}.aleph-lint;
               includes = [ "*.nix" ];
+              # Exclude:
+              # - prelude/lib: FP primitives where rec/or-null are legitimate
+              # - nixos modules: no access to Dhall prelude for templating
+              excludes = [
+                "nix/prelude/*"
+                "nix/lib/*"
+                "nix/modules/nixos/*"
+              ];
             };
 
             # ── cpp // clang-tidy ────────────────────────────────────────────────

@@ -85,7 +85,7 @@ struct Counter : public CounterImpl {
 };
 
 extern "C" Counter *ffi_counter_new(int32_t initial) {
-  return new Counter(initial);  // NOLINT(aleph-cpp-raw-new-delete)
+  return new Counter(initial); // NOLINT(aleph-cpp-raw-new-delete)
 }
 
 // NOLINTNEXTLINE(aleph-cpp-raw-new-delete)

@@ -321,7 +321,7 @@ getAttrs (Value v) = do
                     _ <- c_copy_attrset v bigBuf actualLen
                     peekEntries bigBuf (fromIntegral actualLen)
         -- Now fetch each attribute name
-        fmap Map.fromList $ forM (zip [0 ..] entries) $ \(idx, (valId, nameLen)) -> do
+        fmap Map.fromList $ forM (zip [0 :: Int ..] entries) $ \(idx, (valId, nameLen)) -> do
             name <- allocaBytes (fromIntegral nameLen) $ \nameBuf -> do
                 c_copy_attrname v (fromIntegral idx) nameBuf (fromIntegral nameLen)
                 bs <- BS.packCStringLen (castPtr nameBuf, fromIntegral nameLen)

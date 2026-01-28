@@ -29,8 +29,6 @@ let
   # ════════════════════════════════════════════════════════════════════════════
   # Lisp-case aliases for lib.* functions
   # ════════════════════════════════════════════════════════════════════════════
-
-  optional-string = lib.optionalString;
   optional-attrs = lib.optionalAttrs;
   make-library-path = lib.makeLibraryPath;
   major-minor = lib.versions.majorMinor;
@@ -273,7 +271,7 @@ let
   # mk-container-pkg - extract from container rootfs using Haskell script
   # ════════════════════════════════════════════════════════════════════════════
 
-  triton-rootfs = if prev ? nvidia-sdk-ngc-rootfs then prev.nvidia-sdk-ngc-rootfs else null;
+  triton-rootfs = prev.nvidia-sdk-ngc-rootfs;
 
   # Haskell extraction script
   nvidia-sdk-script = final.aleph.script.compiled.nvidia-sdk;
@@ -443,7 +441,7 @@ optional-attrs (system == "x86_64-linux") {
 # Container-based packages (for full CUDA toolkit with nvcc, etc.)
 # ══════════════════════════════════════════════════════════════════════════════
 
-// optional-attrs (triton-rootfs != null) {
+// {
   # Full CUDA SDK from container (toolkit binaries like nvcc)
   nvidia-cuda-toolkit = mk-container-pkg {
     pname = "nvidia-cuda-toolkit";

@@ -28,7 +28,7 @@
 # See RFC-003: docs/languages/nix/rfc/003-prelude.md
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{ inputs }:
+_:
 {
   lib,
   flake-parts-lib,
@@ -64,7 +64,7 @@ in
 
   config = {
     perSystem =
-      { pkgs, system, ... }:
+      { pkgs, ... }:
       let
         # Get the prelude from the overlay (must have aleph overlay applied)
         aleph =

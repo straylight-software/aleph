@@ -23,23 +23,23 @@
 #   - normalCheckLevelMaxBranches: informational, not an error
 
 exec "$CPPCHECK_BIN" \
-	--enable=all \
-	--error-exitcode=1 \
-	--inline-suppr \
-	--suppress=missingIncludeSystem \
-	--suppress=unmatchedSuppression \
-	--suppress=noExplicitConstructor \
-	--suppress=knownConditionTrueFalse \
-	--suppress=useStlAlgorithm \
-	--suppress=unusedFunction \
-	--suppress=dangerousTypeCast \
-	--suppress=shiftTooManyBits \
-	--suppress=constVariablePointer \
-	--suppress=unreadVariable \
-	--suppress=constParameter \
-	--suppress=cstyleCast \
-	--suppress=internalAstError \
-	--suppress=normalCheckLevelMaxBranches \
-	--std=c++23 \
-	--quiet \
-	"$@"
+  --enable=all \
+  --error-exitcode=1 \
+  --inline-suppr \
+  --suppress=missingIncludeSystem \
+  --suppress=unmatchedSuppression \
+  --suppress=noExplicitConstructor \
+  --suppress=knownConditionTrueFalse \
+  --suppress=useStlAlgorithm \
+  --suppress=unusedFunction \
+  --suppress=dangerousTypeCast \
+  --suppress=shiftTooManyBits \
+  --suppress=constVariablePointer \
+  --suppress=unreadVariable \
+  --suppress=constParameter \
+  --suppress=cstyleCast \
+  --suppress=internalAstError \
+  --suppress=normalCheckLevelMaxBranches \
+  --std=c++23 \
+  --quiet \
+  "$@"

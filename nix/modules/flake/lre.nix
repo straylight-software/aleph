@@ -150,20 +150,8 @@ in
               dhall text --file ${src} > $out
             '';
 
-        # Get nativelink from inputs or nixpkgs
-        nativelink =
-          if inputs ? nativelink then
-            let
-              pkgs' = inputs.nativelink.packages.${system};
-            in
-            if pkgs' ? default then
-              pkgs'.default
-            else if pkgs' ? nativelink then
-              pkgs'.nativelink
-            else
-              null
-          else
-            null;
+        # Get nativelink from inputs (required when remote.enable = true)
+        nativelink = if inputs ? nativelink then inputs.nativelink.packages.${system}.nativelink else null;
 
         # Buck2 RE configuration file (generated from Dhall template)
         # Use remote config if build.remote.enable is true, otherwise local

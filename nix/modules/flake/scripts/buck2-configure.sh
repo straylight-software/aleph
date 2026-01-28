@@ -11,7 +11,7 @@ cp "$BUCKCONFIG_FILE" .buckconfig.local
 
 # Link prelude if needed
 if [ ! -d "prelude" ] && [ ! -L "prelude" ]; then
-	ln -s "$BUCK2_PRELUDE" prelude
+  ln -s "$BUCK2_PRELUDE" prelude
 fi
 
 runHook postConfigure

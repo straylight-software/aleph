@@ -205,8 +205,8 @@ in
     system."activationScripts".nix-proxy-cert = string-after [ "var" ] (
       builtins.readFile (
         pkgs.replaceVars ./scripts/nix-proxy-gen-cert.bash {
-          cert-dir = cfg.cert-dir;
-          mitmproxy = pkgs.mitmproxy;
+          inherit (cfg) cert-dir;
+          inherit (pkgs) mitmproxy;
         }
       )
     );

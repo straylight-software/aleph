@@ -132,22 +132,20 @@ in
         else
           pkgs.cudaPackages;
 
-      # Optionally: user-space NVIDIA driver bundle
+      # User-space NVIDIA driver bundle (required when with-driver = true)
       driver-pkg =
         if cfg.nvidia-driver != null then
           cfg.nvidia-driver
         else if pkgs ? linuxPackages && pkgs.linuxPackages ? nvidia_x11 then
           pkgs.linuxPackages.nvidia_x11
-        else if pkgs ? nvidia_x11 then
-          pkgs.nvidia_x11
         else
-          null;
+          pkgs.nvidia_x11;
 
       driver-pkg-final = if cfg.with-driver then driver-pkg else null;
 
       # passthru attributes (lisp-case local bindings for external API)
       cuda-version = nv-packages.cudatoolkit.version;
-      gcc-version = pkgs.stdenv.cc.cc.version or "unknown";
+      gcc-version = pkgs.stdenv.cc.cc.version;
 
       # symlinkJoin postBuild script (loaded from external file)
       post-build-script = builtins.readFile ./nv-sdk/scripts/sdk-post-build.sh;

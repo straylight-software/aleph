@@ -4,8 +4,8 @@ DATA_DIR="/data"
 MARKER="$DATA_DIR/.toolchain-ready"
 
 if [ -f "$MARKER" ]; then
-	echo "Toolchain already fetched"
-	exit 0
+  echo "Toolchain already fetched"
+  exit 0
 fi
 
 echo "======================================================================"
@@ -17,8 +17,8 @@ TOOLCHAIN_PATHS="@toolchainPaths@"
 
 # Fetch each path from cache
 for path in $TOOLCHAIN_PATHS; do
-	echo "Fetching $path..."
-	nix-store --realise "$path" || echo "  (will build if not in cache)"
+  echo "Fetching $path..."
+  nix-store --realise "$path" || echo "  (will build if not in cache)"
 done
 
 touch "$MARKER"
