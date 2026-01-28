@@ -38,6 +38,10 @@ let
       unix
       time
       aeson
+      temporary
+      async
+      stm
+      dhall
 
       # Crypto
       crypton
@@ -80,7 +84,7 @@ let
 
     "buildPhase" = ''
       runHook preBuild
-      ghc -O2 -Wall -Wno-unused-imports \
+      ghc -O2 -Wall -Wno-unused-imports -Wno-unused-top-binds -Wno-name-shadowing -Wno-unused-matches -Wno-unused-local-binds -Wno-x-partial \
         -hidir . -odir . \
         -i. \
         -o armitage Main.hs

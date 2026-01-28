@@ -93,8 +93,15 @@ data TraceConfig = TraceConfig
 
 defaultTraceConfig :: TraceConfig
 defaultTraceConfig = TraceConfig
-  { tcCompilers = ["clang", "clang++", "gcc", "g++", "cc", "c++", "nvcc"]
-  , tcLinkers = ["ld", "ld.lld", "ld.gold", "ld.bfd", "collect2", "clang", "clang++", "gcc", "g++"]
+  { tcCompilers = ["clang", "clang++", "gcc", "g++", "cc", "c++", "nvcc"
+                  , "ghc", "ghc-9.12.2", "ghc-9.10.1", "ghc-9.8.4", "ghc-9.6.6"  -- Haskell
+                  , "rustc"  -- Rust
+                  , "lean", "leanc"  -- Lean
+                  ]
+  , tcLinkers = ["ld", "ld.lld", "ld.gold", "ld.bfd", "collect2", "clang", "clang++", "gcc", "g++"
+                , "ghc", "ghc-9.12.2", "ghc-9.10.1", "ghc-9.8.4", "ghc-9.6.6"  -- GHC also links
+                , "rustc"  -- Rust also links
+                ]
   , tcArchivers = ["ar", "llvm-ar", "ranlib"]
   , tcNixStore = "/nix/store"
   , tcVerbose = False
@@ -470,7 +477,12 @@ toLinkerCall cfg (pid, path, args)
 extractSources :: [Text] -> [Text]
 extractSources = filter isSource
   where
-    isSource arg = any (`T.isSuffixOf` arg) [".c", ".cc", ".cpp", ".cxx", ".cu", ".m", ".mm"]
+    isSource arg = any (`T.isSuffixOf` arg) 
+                     [ ".c", ".cc", ".cpp", ".cxx", ".cu", ".m", ".mm"  -- C/C++/CUDA/ObjC
+                     , ".hs", ".lhs"  -- Haskell
+                     , ".rs"  -- Rust
+                     , ".lean"  -- Lean
+                     ]
                    && not ("-" `T.isPrefixOf` arg)
 
 -- | Extract -o argument
@@ -578,8 +590,8 @@ analyzeTrace cfg (compiles, links) = do
   -- Deduplicate links by output path (clang driver invokes ld multiple times)
   let uniqueLinks = deduplicateLinks links
   
-  -- For now, simple: each unique link = one target
-  targets <- forM uniqueLinks $ \lc -> do
+  -- Targets from link steps
+  linkTargets <- forM uniqueLinks $ \lc -> do
     -- Find compiles that produced the objects
     let objs = Set.fromList (lcObjects lc)
         relevantCompiles = filter (\cc -> maybe False (`Set.member` objs) (ccOutput cc)) compiles
@@ -601,6 +613,29 @@ analyzeTrace cfg (compiles, links) = do
       , tFlags = nub $ concatMap ccFlags relevantCompiles ++ lcFlags lc
       }
   
+  -- If no links, create targets from standalone compiles (compile-only mode like -c)
+  compileOnlyTargets <- if null links
+    then do
+      -- Group by output file or source file
+      let uniqueCompiles = deduplicateCompiles compiles
+      forM uniqueCompiles $ \cc -> do
+        deps <- mapM (pathToDep cfg) (ccIncludes cc)
+        let name = case ccOutput cc of
+              Just out -> T.pack $ takeBaseName $ T.unpack out
+              Nothing -> case ccSources cc of
+                (s:_) -> T.pack $ takeBaseName $ T.unpack s
+                [] -> "unknown"
+        pure Target
+          { tName = name
+          , tSources = ccSources cc
+          , tDeps = catMaybes deps
+          , tCompiler = ccCompiler cc
+          , tFlags = ccFlags cc
+          }
+    else pure []
+  
+  let targets = linkTargets ++ compileOnlyTargets
+  
   -- Collect all flake refs
   let flakeRefs = Set.fromList [ ref | t <- targets, DepFlake ref <- tDeps t ]
   
@@ -608,6 +643,25 @@ analyzeTrace cfg (compiles, links) = do
     { bgTargets = targets
     , bgFlakeRefs = flakeRefs
     }
+
+-- | Deduplicate compiles by output/source
+deduplicateCompiles :: [CompilerCall] -> [CompilerCall]
+deduplicateCompiles ccs =
+  let byKey = Map.fromListWith mergeCompiles
+                [ (ccKey cc, cc) | cc <- ccs ]
+  in Map.elems byKey
+  where
+    ccKey cc = case ccOutput cc of
+      Just out -> out
+      Nothing -> case ccSources cc of
+        (s:_) -> s
+        [] -> ""
+    mergeCompiles a b = a
+      { ccSources = nub (ccSources a ++ ccSources b)
+      , ccIncludes = nub (ccIncludes a ++ ccIncludes b)
+      , ccDefines = nub (ccDefines a ++ ccDefines b)
+      , ccFlags = nub (ccFlags a ++ ccFlags b)
+      }
 
 -- | Deduplicate links by output, merging info from all invocations
 deduplicateLinks :: [LinkerCall] -> [LinkerCall]

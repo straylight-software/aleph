@@ -712,8 +712,8 @@ nub = Set.toList . Set.fromList
 -- | Parse compiler stderr into diagnostics
 -- TODO: Add per-compiler parsers (rustc, clang, ghc, etc.)
 parseCompilerDiagnostics :: Text -> Text -> [Diagnostic]
-parseCompilerDiagnostics uri stderr =
-  mapMaybe (parseLine uri) (T.lines stderr)
+parseCompilerDiagnostics uri stderrText =
+  mapMaybe (parseLine uri) (T.lines stderrText)
   where
     parseLine u line
       -- GCC/Clang format: file:line:col: error/warning: message
@@ -1044,8 +1044,8 @@ writeCompileCommands path cmds = do
   BL.writeFile path json
 
 -- | Update fallback state from shim build output
-updateFromShimBuild :: FallbackState -> FilePath -> IO ()
-updateFromShimBuild fs targetPath = do
+_updateFromShimBuild :: FallbackState -> FilePath -> IO ()
+_updateFromShimBuild fs targetPath = do
   meta <- Shim.readBuildMetadata targetPath
   case meta of
     Nothing -> pure ()
@@ -1056,7 +1056,7 @@ updateFromShimBuild fs targetPath = do
       
       -- For each source, record its "imports" (the includes it uses)
       forM_ sources $ \src -> do
-        now <- getCurrentTime
+        _now <- getCurrentTime
         atomically $ modifyTVar (fsFiles fs) $ \files ->
           case Map.lookup src files of
             Just existing -> 
