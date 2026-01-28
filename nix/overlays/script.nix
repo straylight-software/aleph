@@ -161,11 +161,49 @@ let
     };
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // dhall config generator //
+  # // render.nix //
   # ────────────────────────────────────────────────────────────────────────────
   #
-  # Helper to generate Dhall expressions from Nix attrsets.
-  # Handles store paths, naturals, text, and optional values.
+  # Type inference for bash scripts at Nix eval time.
+  # Uses ShellCheck to parse bash AST, then extracts facts about:
+  #   - Variable usage and defaults
+  #   - Command invocations and arguments
+  #   - Store path references
+  #   - config.* structured assignments
+  #
+  # Source: nix/render/
+
+  render-lib = ../render/lib;
+  render-app = ../render/app;
+
+  render-cli = final.writeShellApplication {
+    name = "render";
+    "runtimeInputs" = [ ghc-with-script ];
+    text = ''
+      exec runghc -i${render-lib} ${render-app}/render.hs "$@"
+    '';
+  };
+
+  render-compiled = final.stdenv.mkDerivation {
+    name = "render";
+    src = ../render;
+    "dontUnpack" = true;
+    "nativeBuildInputs" = [ ghc-with-script ];
+    "buildPhase" = ''
+      runHook preBuild
+      ghc -O2 -Wall -Wno-unused-imports \
+        -hidir . -odir . \
+        -i${render-lib} \
+        -o render ${render-app}/render.hs
+      runHook postBuild
+    '';
+    "installPhase" = ''
+      runHook preInstall
+      mkdir -p $out/bin
+      cp render $out/bin/
+      runHook postInstall
+    '';
+  };
 
 in
 {
@@ -524,6 +562,72 @@ in
         ];
         text = ''
           exec runghc -i${aleph-src} -i${script-src} ${script-src}/nix-ci.hs "$@"
+        '';
+      };
+    };
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # // render //
+    # ──────────────────────────────────────────────────────────────────────────
+    #
+    # Type inference for bash scripts.
+    #
+    #   aleph.render.cli         CLI: render parse|infer|check
+    #   aleph.render.compiled    Compiled binary (faster)
+    #   aleph.render.parse       IFD: script -> Nix attrset schema
+    #   aleph.render.check       Derivation that fails on policy violations
+    #
+    # Usage:
+    #   render infer ./deploy.sh | jq '.env'
+    #   schema = aleph.render.parse ./deploy.sh;
+    #   checks.deploy = aleph.render.check ./deploy.sh;
+
+    render = {
+      # CLI tool (interpreted, fast iteration)
+      cli = render-cli;
+
+      # Compiled binary (for CI)
+      compiled = render-compiled;
+
+      # Parse a script, return schema as Nix attrset (IFD)
+      parse =
+        scriptPath:
+        let
+          result = final.runCommand "render-schema" { "nativeBuildInputs" = [ render-cli ]; } ''
+            render infer ${scriptPath} > $out
+          '';
+        in
+        builtins.fromJSON (builtins.readFile result);
+
+      # Check derivation - fails if script has policy violations
+      check =
+        scriptPath:
+        final.runCommand "render-check-${builtins.baseNameOf scriptPath}"
+          { "nativeBuildInputs" = [ render-cli ]; }
+          ''
+            render check ${scriptPath}
+            touch $out
+          '';
+
+      # Source paths
+      src = {
+        lib = render-lib;
+        app = render-app;
+      };
+
+      # Development shell
+      shell = final.mkShell {
+        name = "render-shell";
+        "buildInputs" = [
+          ghc-with-script
+          render-cli
+          final.jq
+        ];
+        "shellHook" = ''
+          echo "render.nix development shell"
+          echo "  render parse <script>   Show facts"
+          echo "  render infer <script>   Show schema (JSON)"
+          echo "  render check <script>   Check policies"
         '';
       };
     };
