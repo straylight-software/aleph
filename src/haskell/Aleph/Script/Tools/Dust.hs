@@ -50,7 +50,7 @@ data Options = Options
     , filecount :: Bool
     , ignoreHidden :: Bool
     , invertFilter :: Maybe Text
-    , filter_ :: Maybe Text
+    , filterPattern :: Maybe Text
     , fileTypes :: Bool
     , terminalWidth :: Maybe Text
     , noProgress :: Bool
@@ -94,7 +94,7 @@ defaults =
         , filecount = False
         , ignoreHidden = False
         , invertFilter = Nothing
-        , filter_ = Nothing
+        , filterPattern = Nothing
         , fileTypes = False
         , terminalWidth = Nothing
         , noProgress = False
@@ -137,7 +137,7 @@ buildArgs Options{..} =
         , flag filecount "--filecount"
         , flag ignoreHidden "--ignore-hidden"
         , opt invertFilter "--invert-filter"
-        , opt filter_ "--filter"
+        , opt filterPattern "--filter"
         , flag fileTypes "--file-types"
         , opt terminalWidth "--terminal-width"
         , flag noProgress "--no-progress"
@@ -155,11 +155,11 @@ buildArgs Options{..} =
         , opt filetime "--filetime"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
+    optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
     optShow Nothing _ = Nothing
 
 {- | Run dust with options and additional arguments

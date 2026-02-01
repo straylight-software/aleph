@@ -92,48 +92,26 @@ let
       # so we need to explicitly tell the linker to export them.
       export-flags = map (e: "'-optl-Wl,--export=${e}'") exports;
     in
-    runCommand "${name}.wasm"
-      {
-        inherit src;
-        nativeBuildInputs = [ ghc-wasm ];
-        passthru = {
-          inherit name mainModule exports;
-        };
-      }
-      ''
-        # Create working directory with sources
-        mkdir -p build
-        cd build
-
-        # Copy all source files preserving directory structure
-        for mod in ${lib.escapeShellArgs module-files}; do
-          mkdir -p "$(dirname "$mod")"
-          cp "$src/$mod" "$mod"
-        done
-
-        # Compile to WASM reactor module
-        # -optl-mexec-model=reactor: WASI reactor model (exports, not _start)
-        # -optl-Wl,--allow-undefined: Allow undefined symbols (imported from host)
-        # -optl-Wl,--export=<name>: Export our foreign export ccall functions
-        # -O2: Optimize
-        # 
-        # NOTE: We do NOT use -no-hs-main because:
-        # 1. GHC WASM reactor modules need the RTS initialization code that -no-hs-main excludes
-        # 2. The _initialize export will call hs_init() when properly linked
-        # 3. We export hs_init for explicit initialization by the host
-        ${ghc-wasm}/bin/wasm32-wasi-ghc \
-          -optl-mexec-model=reactor \
-          '-optl-Wl,--allow-undefined' \
-          '-optl-Wl,--export=hs_init' \
-          ${lib.concatStringsSep " " export-flags} \
-          -O2 \
-          ${lib.escapeShellArgs ghcFlags} \
-          ${module-to-path mainModule} \
-          -o plugin.wasm
-
-        # Optionally optimize with wasm-opt
-        ${ghc-wasm}/bin/wasm-opt -O3 plugin.wasm -o "$out"
-      '';
+    let
+      build-script =
+        builtins.replaceStrings
+          [ "@moduleFiles@" "@ghcWasm@" "@exportFlags@" "@ghcFlags@" "@mainModulePath@" ]
+          [
+            (lib.escapeShellArgs module-files)
+            (toString ghc-wasm)
+            (lib.concatStringsSep " " export-flags)
+            (lib.escapeShellArgs ghcFlags)
+            (module-to-path mainModule)
+          ]
+          (builtins.readFile ./scripts/wasm-build-plugin.sh);
+    in
+    runCommand "${name}.wasm" {
+      inherit src;
+      nativeBuildInputs = [ ghc-wasm ];
+      passthru = {
+        inherit name mainModule exports;
+      };
+    } build-script;
 
   # ──────────────────────────────────────────────────────────────────────────
   #                        // aleph wasm module //
@@ -524,34 +502,11 @@ let
         if features.can-load then
           true
         else
-          throw ''
-            ════════════════════════════════════════════════════════════════════════════════
-            WASM plugin loading requires straylight-nix with builtins.wasm support.
-            ════════════════════════════════════════════════════════════════════════════════
-
-            Current status: ${features.status}
-
-            To enable WASM plugin support:
-
-              1. Install straylight-nix:
-                 nix build github:straylight-software/straylight-nix
-
-              2. Use it as your Nix binary:
-                 export PATH="$HOME/.nix-profile/bin:$PATH"
-                 # or add to your shell configuration
-
-              3. Verify WASM support:
-                 nix eval --expr 'builtins ? wasm'
-                 # Should return: true
-
-            Until then, you can:
-              - Use the Haskell types as documentation
-              - Write manual Nix package definitions based on the type signatures
-              - Build WASM plugins (just not load them)
-
-            See: https://github.com/straylight-software/straylight-nix
-            ════════════════════════════════════════════════════════════════════════════════
-          '';
+          throw (
+            builtins.replaceStrings [ "@status@" ] [ features.status ] (
+              builtins.readFile ./scripts/wasm-missing-error.txt
+            )
+          );
     in
     {
       # Feature info for introspection

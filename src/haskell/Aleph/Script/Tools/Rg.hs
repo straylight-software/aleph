@@ -125,7 +125,7 @@ data Options = Options
     -- ^ -j: Number of threads
     , quiet :: Bool
     -- ^ -q: Suppress output, exit 0 if match found
-    , replace :: Maybe Text
+    , replaceText :: Maybe Text
     -- ^ -r: Replace matches with TEXT
     , passthru :: Bool
     -- ^ --passthru: Print all lines, highlight matches
@@ -172,7 +172,7 @@ defaults =
         , maxCount = Nothing
         , threads = Nothing
         , quiet = False
-        , replace = Nothing
+        , replaceText = Nothing
         , passthru = False
         }
 
@@ -216,15 +216,15 @@ buildArgs Options{..} =
         , optShow maxCount "-m"
         , optShow threads "-j"
         , flag quiet "-q"
-        , opt replace "-r"
+        , opt replaceText "-r"
         , flag passthru "--passthru"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
+    optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
     optShow Nothing _ = Nothing
 
 {- | Run ripgrep with options, pattern, and paths

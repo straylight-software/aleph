@@ -6,7 +6,7 @@
 #   3. NGC containers - redistribution issues
 #
 # NGC 25.11 blessed for Blackwell (sm_120)
-rec {
+{
   # ════════════════════════════════════════════════════════════════════════════
   # PyPI wheels from pypi.nvidia.com (preferred - no redistribution issues)
   # ════════════════════════════════════════════════════════════════════════════

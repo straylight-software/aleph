@@ -12,7 +12,6 @@ valid:
   - |
     # or with actual value - fine
     { foo = pkgs.bar or pkgs.baz; }
-
 invalid:
   - |
     # Defensive null fallback - bad

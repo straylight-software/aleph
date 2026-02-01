@@ -39,7 +39,7 @@ data Options = Options
     -- ^ -e: Remove unused code and write to source file
     , hidden :: Bool
     -- ^ -h: Recurse into hidden subdirectories and process hidden .*.nix
-    , fail :: Bool
+    , failOnUnused :: Bool
     -- ^ -f: Exit with 1 if unused code has been found
     , outputFormat :: Maybe Text
     -- ^ -o: Output format to use [default: human-readable] [possible val
@@ -57,7 +57,7 @@ defaults =
         , quiet = False
         , edit = False
         , hidden = False
-        , fail = False
+        , failOnUnused = False
         , outputFormat = Nothing
         , exclude = Nothing
         }
@@ -71,17 +71,17 @@ buildArgs Options{..} =
         , flag quiet "--quiet"
         , flag edit "--edit"
         , flag hidden "--hidden"
-        , flag fail "--fail"
+        , flag failOnUnused "--fail"
         , opt outputFormat "--output-format"
         , opt exclude "--exclude"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
+    _optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
+    _optShow Nothing _ = Nothing
 
 {- | Run deadnix with options and additional arguments
 

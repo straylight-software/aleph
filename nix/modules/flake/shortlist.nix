@@ -47,10 +47,8 @@ let
   # ──────────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for lib.* functions
   # ──────────────────────────────────────────────────────────────────────────────
-  mk-option = lib.mkOption;
   mk-enable-option = lib.mkEnableOption;
   mk-if = lib.mkIf;
-  optional-string = lib.optionalString;
   mk-per-system-option = flake-parts-lib.mkPerSystemOption;
 
   cfg = config.aleph.shortlist;
@@ -136,6 +134,29 @@ in
       }:
       let
         optional-string' = lib.optionalString;
+        map-attrs' = lib.mapAttrs';
+        name-value-pair = lib.nameValuePair;
+        to-upper = lib.toUpper;
+        replace-strings = builtins.replaceStrings;
+
+        # Render Dhall template with environment variables
+        render-dhall =
+          name: src: vars:
+          let
+            env-vars = map-attrs' (
+              k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
+            ) vars;
+          in
+          pkgs.runCommand name
+            (
+              {
+                nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
+              }
+              // env-vars
+            )
+            ''
+              dhall text --file ${src} > $out
+            '';
 
         # Use nixpkgs packages - they're already built
         # For true hermetic builds with LLVM 22, we'd override stdenv
@@ -156,48 +177,40 @@ in
           inherit (pkgs) simdjson;
         };
 
-        # Generate buckconfig section
+        # Generate buckconfig section via Dhall template
         # Note: Use -dev outputs for include paths, regular for libs
-        buckconfig-section = ''
+        buckconfig-file = render-dhall "shortlist-buckconfig.ini" ./scripts/shortlist-buckconfig.dhall {
+          zlib-ng-line = optional-string' cfg.zlib-ng "zlib_ng = ${libraries.zlib-ng}";
+          fmt-line = optional-string' cfg.fmt "fmt = ${libraries.fmt}";
+          fmt-dev-line = optional-string' cfg.fmt "fmt_dev = ${libraries.fmt-dev}";
+          catch2-line = optional-string' cfg.catch2 "catch2 = ${libraries.catch2}";
+          catch2-dev-line = optional-string' cfg.catch2 "catch2_dev = ${libraries.catch2-dev}";
+          spdlog-line = optional-string' cfg.spdlog "spdlog = ${libraries.spdlog}";
+          spdlog-dev-line = optional-string' cfg.spdlog "spdlog_dev = ${libraries.spdlog-dev}";
+          mdspan-line = optional-string' cfg.mdspan "mdspan = ${libraries.mdspan}";
+          rapidjson-line = optional-string' cfg.rapidjson "rapidjson = ${libraries.rapidjson}";
+          nlohmann-json-line = optional-string' cfg.nlohmann-json "nlohmann_json = ${libraries.nlohmann-json}";
+          libsodium-line = optional-string' cfg.libsodium "libsodium = ${libraries.libsodium}";
+          libsodium-dev-line = optional-string' cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}";
+          simdjson-line = optional-string' cfg.simdjson "simdjson = ${libraries.simdjson}";
+        };
 
-          [shortlist]
-          # Hermetic C++ libraries
-          # Format: lib = /nix/store/..., lib_dev = /nix/store/...-dev (for headers)
-          ${optional-string' cfg.zlib-ng "zlib_ng = ${libraries.zlib-ng}"}
-          ${optional-string' cfg.fmt "fmt = ${libraries.fmt}"}
-          ${optional-string' cfg.fmt "fmt_dev = ${libraries.fmt-dev}"}
-          ${optional-string' cfg.catch2 "catch2 = ${libraries.catch2}"}
-          ${optional-string' cfg.catch2 "catch2_dev = ${libraries.catch2-dev}"}
-          ${optional-string' cfg.spdlog "spdlog = ${libraries.spdlog}"}
-          ${optional-string' cfg.spdlog "spdlog_dev = ${libraries.spdlog-dev}"}
-          ${optional-string' cfg.mdspan "mdspan = ${libraries.mdspan}"}
-          ${optional-string' cfg.rapidjson "rapidjson = ${libraries.rapidjson}"}
-          ${optional-string' cfg.nlohmann-json "nlohmann_json = ${libraries.nlohmann-json}"}
-          ${optional-string' cfg.libsodium "libsodium = ${libraries.libsodium}"}
-          ${optional-string' cfg.libsodium "libsodium_dev = ${libraries.libsodium-dev}"}
-          ${optional-string' cfg.simdjson "simdjson = ${libraries.simdjson}"}
-        '';
+        buckconfig-section = builtins.readFile buckconfig-file;
 
         # Shortlist section as a file in the store
         shortlist-file = pkgs.writeText "shortlist-section" buckconfig-section;
 
         # Shell hook to add shortlist section to .buckconfig.local
-        shortlist-shell-hook = ''
-          # Add shortlist section to .buckconfig.local
-          if [ -f ".buckconfig.local" ]; then
-            if ! grep -q "\\[shortlist\\]" .buckconfig.local 2>/dev/null; then
-              cat ${shortlist-file} >> .buckconfig.local
-              echo "Added [shortlist] section to .buckconfig.local"
-            fi
-          fi
-        '';
+        shortlist-shell-hook = builtins.replaceStrings [ "@shortlistFile@" ] [ (toString shortlist-file) ] (
+          builtins.readFile ./scripts/shortlist-shell-hook.bash
+        );
 
       in
       {
         aleph.shortlist = {
           inherit libraries;
           buckconfig = buckconfig-section;
-          shortlist-file = shortlist-file;
+          inherit shortlist-file;
           shellHook = shortlist-shell-hook;
         };
       };

@@ -15,7 +15,7 @@ cp "@ghcText@" TestText.hs
 ghc -o test-text TestText.hs
 OUTPUT=$(./test-text)
 if [ "$OUTPUT" != "5" ]; then
-	echo "ERROR: Expected 5, got $OUTPUT"
-	exit 1
+  echo "ERROR: Expected 5, got $OUTPUT"
+  exit 1
 fi
 echo "Text import works correctly"

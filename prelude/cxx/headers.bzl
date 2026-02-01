@@ -37,3 +37,20 @@ HeaderMode = enum(
     # that references the symbolic links to the headers.
     "symlink_tree_with_header_map",
 )
+
+# Header naming convention - affects how headers are included
+CxxHeadersNaming = enum(
+    # Apple-style: headers included as <Framework/Header.h>
+    "apple",
+    # Regular style: headers included as <namespace/header.h>
+    "regular",
+)
+
+# Header layout configuration for a target
+CxxHeadersLayout = record(
+    # Prefix part of the header path in the include statement.
+    # e.g., for #include <foo/bar.h>, namespace would be "foo"
+    namespace = str,
+    # Controls how headers are named (apple vs regular convention)
+    naming = CxxHeadersNaming,
+)

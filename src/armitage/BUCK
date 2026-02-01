@@ -21,6 +21,7 @@ ARMITAGE_PACKAGES = [
     "text",
     "containers",
     "crypton",
+    "memory",
     "directory",
     "filepath",
     "process",
@@ -31,6 +32,16 @@ ARMITAGE_PACKAGES = [
     "grapesy",
     "dhall",           # Dhall configuration parsing
     "async",           # Parallel flake resolution
+    "stm",
+    "temporary",
+
+    # Tree-sitter (semantic analysis)
+    "tree-sitter",
+    "tree-sitter-python",
+    "tree-sitter-typescript",
+    "tree-sitter-tsx",
+    "tree-sitter-haskell",
+    "tree-sitter-rust",
 ]
 
 # Packages for proxy (heavier TLS deps)

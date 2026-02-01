@@ -13,7 +13,12 @@
 #
 # No GCC. No nvcc. Ever.
 
-# Use prelude types directly - avoids nominal typing mismatch between cells
+# NOTE: We must use upstream @prelude types for providers that interact with
+# upstream rules (cxx_binary, etc.). Buck2 uses nominal typing, so even
+# structurally identical providers are incompatible if defined in different cells.
+#
+# Our local @straylight_prelude extractions are for documentation/archaeology
+# and will be used once we have our own rule implementations.
 load(
     "@prelude//cxx:cxx_toolchain_types.bzl",
     "BinaryUtilitiesInfo",

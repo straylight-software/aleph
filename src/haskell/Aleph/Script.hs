@@ -65,17 +65,17 @@ module Aleph.Script (
     format,
     (%),
     makeFormat,
-    s, -- Text
-    d, -- Int (decimal)
-    f, -- Double (float)
-    w, -- Show a => a
-    fp, -- FilePath
-    e, -- Scientific notation
-    g, -- General number
-    x, -- Hex
-    o, -- Octal
-    b, -- Binary
-    su, -- String (unpacked)
+    fmtS, -- Text
+    fmtD, -- Int (decimal)
+    fmtF, -- Double (float)
+    fmtW, -- Show a => a
+    fmtFp, -- FilePath
+    fmtE, -- Scientific notation
+    fmtG, -- General number
+    fmtX, -- Hex
+    fmtO, -- Octal
+    fmtB, -- Binary
+    fmtSu, -- String (unpacked)
 
     -- * FilePath operations
     FilePath,
@@ -306,53 +306,17 @@ module Aleph.Script (
 import Prelude hiding (FilePath, lines, unlines, unwords, words)
 import qualified Prelude
 
-import Shelly hiding (
-    FilePath,
-    -- Hide things we redefine with better types
-
-    bash,
-    bash_,
-    canonicalize,
-    cd,
-    cp,
-    cp_r,
-    echo,
-    errExit,
-    escaping,
-    exit,
-    find,
-    fromText,
-    get_env,
-    get_env_text,
-    ls,
-    lsT,
-    mkdir,
-    mkdir_p,
-    mv,
-    pwd,
-    rm,
-    rm_rf,
-    run,
-    run_,
-    silently,
-    sleep,
-    test_d,
-    test_e,
-    test_f,
-    test_s,
-    toTextIgnore,
-    trace,
-    tracing,
-    unless,
-    verbosely,
-    when,
-    which,
-    withTmpDir,
-    (<.>),
-    (</>),
+import Shelly (
+    Sh,
+    catch_sh,
+    catchany,
+    lastExitCode,
+    liftIO,
+    setenv,
+    shelly,
  )
 import qualified Shelly as S
-import qualified Shelly.Lifted
+import qualified Shelly.Lifted as SL
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
@@ -418,7 +382,7 @@ fromText = T.unpack
 
 -- | Convert FilePath to Text (may fail on invalid unicode)
 toText :: FilePath -> Either String Text
-toText fp = Right (T.pack fp)
+toText path = Right (T.pack path)
 
 -- | Convert FilePath to Text (replace invalid chars)
 toTextIgnore :: FilePath -> Text
@@ -538,7 +502,7 @@ toUpper = T.toUpper
 newtype Format a = Format {runFormat :: a -> Text}
 
 instance Semigroup (Format a) where
-    Format f <> Format g = Format $ \a -> f a <> g a
+    Format f1 <> Format f2 = Format $ \a -> f1 a <> f2 a
 
 instance Monoid (Format a) where
     mempty = Format $ const ""
@@ -549,7 +513,7 @@ format = runFormat
 
 -- | Concatenate two format strings
 (%) :: Format b -> Format a -> Format (b, a)
-Format f % Format g = Format $ \(b, a) -> f b <> g a
+Format fmt1 % Format fmt2 = Format $ \(p, q) -> fmt1 p <> fmt2 q
 
 infixr 9 %
 
@@ -558,46 +522,46 @@ makeFormat :: (a -> Text) -> Format a
 makeFormat = Format
 
 -- | Format Text (identity)
-s :: Format Text
-s = Format id
+fmtS :: Format Text
+fmtS = Format id
 
 -- | Format Int as decimal
-d :: Format Int
-d = Format (T.pack . show)
+fmtD :: Format Int
+fmtD = Format (T.pack . show)
 
 -- | Format Double as float
-f :: Format Double
-f = Format (T.pack . show)
+fmtF :: Format Double
+fmtF = Format (T.pack . show)
 
 -- | Format any Show instance
-w :: (Show a) => Format a
-w = Format (T.pack . show)
+fmtW :: (Show a) => Format a
+fmtW = Format (T.pack . show)
 
 -- | Format FilePath
-fp :: Format FilePath
-fp = Format T.pack
+fmtFp :: Format FilePath
+fmtFp = Format T.pack
 
 -- | Format in scientific notation
-e :: Format Double
-e = Format (T.pack . show) -- TODO: proper scientific
+fmtE :: Format Double
+fmtE = Format (T.pack . show) -- TODO: proper scientific
 
 -- | Format number (general)
-g :: Format Double
-g = Format (T.pack . show)
+fmtG :: Format Double
+fmtG = Format (T.pack . show)
 
 -- | Format Int as hexadecimal
-x :: Format Int
-x = Format toHex
+fmtX :: Format Int
+fmtX = Format toHex
   where
     toHex n
         | n < 0 = "-" <> toHex (abs n)
         | n < 16 = T.singleton (hexDigit n)
         | otherwise = toHex (n `div` 16) <> T.singleton (hexDigit (n `mod` 16))
-    hexDigit d = "0123456789abcdef" !! d
+    hexDigit i = "0123456789abcdef" !! i
 
 -- | Format Int as octal
-o :: Format Int
-o = Format toOct
+fmtO :: Format Int
+fmtO = Format toOct
   where
     toOct n
         | n < 0 = "-" <> toOct (abs n)
@@ -605,8 +569,8 @@ o = Format toOct
         | otherwise = toOct (n `div` 8) <> T.pack (show (n `mod` 8))
 
 -- | Format Int as binary
-b :: Format Int
-b = Format toBinary
+fmtB :: Format Int
+fmtB = Format toBinary
   where
     toBinary n
         | n < 0 = "-" <> toBinary (abs n)
@@ -614,8 +578,8 @@ b = Format toBinary
         | otherwise = toBinary (n `div` 2) <> T.pack (show (n `mod` 2))
 
 -- | Format String (unpack from Text)
-su :: Format String
-su = Format T.pack
+fmtSu :: Format String
+fmtSu = Format T.pack
 
 -- ============================================================================
 -- Running scripts
@@ -691,14 +655,14 @@ home = liftIO Dir.getHomeDirectory
 
 -- | Run action in temporary directory (auto-cleanup)
 withTmpDir :: (FilePath -> Sh a) -> Sh a
-withTmpDir f = S.withTmpDir $ \d -> f (T.unpack $ S.toTextIgnore d)
+withTmpDir action = S.withTmpDir $ \dir -> action (T.unpack $ S.toTextIgnore dir)
 
 -- | Run action with temporary file (auto-cleanup)
 withTmpFile :: (FilePath -> Sh a) -> Sh a
-withTmpFile f = withTmpDir $ \dir -> do
+withTmpFile action = withTmpDir $ \dir -> do
     let path = dir </> "tmp"
     liftIO $ Prelude.writeFile path ""
-    f path
+    action path
 
 -- | Create symbolic link
 symlink :: FilePath -> FilePath -> Sh ()
@@ -774,7 +738,7 @@ which cmd = do
 
 -- | Find all matching executables in PATH
 whichAll :: FilePath -> Sh [FilePath]
-whichAll cmd =
+whichAll _command =
     map (T.unpack . S.toTextIgnore)
         <$> S.findWhen (const $ pure True) (S.fromText "/usr/bin") -- TODO: proper PATH search
 
@@ -877,19 +841,19 @@ withEnv name val action = do
 newtype Stream a = Stream {unStream :: Sh [a]}
 
 instance Functor Stream where
-    fmap f (Stream as) = Stream $ fmap (Prelude.map f) as
+    fmap fn (Stream as) = Stream $ fmap (Prelude.map fn) as
 
 instance Applicative Stream where
     pure a = Stream $ pure [a]
     Stream fs <*> Stream as = Stream $ do
         fs' <- fs
         as' <- as
-        pure [f a | f <- fs', a <- as']
+        pure [fn a | fn <- fs', a <- as']
 
 instance Monad Stream where
-    Stream as >>= f = Stream $ do
+    Stream as >>= fn = Stream $ do
         as' <- as
-        concat <$> traverse (unStream . f) as'
+        concat <$> traverse (unStream . fn) as'
 
 -- | Create stream from list action
 stream :: Sh [a] -> Stream a
@@ -901,7 +865,7 @@ fold (Stream as) fld = Fold.fold fld <$> as
 
 -- | Monadic fold over stream
 foldM :: (b -> a -> Sh b) -> b -> Stream a -> Sh b
-foldM f z (Stream as) = as >>= M.foldM f z
+foldM fn z (Stream as) = as >>= M.foldM fn z
 
 -- | Run stream for effects only
 drain :: Stream a -> Sh ()
@@ -929,7 +893,7 @@ filter_ p (Stream as) = Stream $ Prelude.filter p <$> as
 
 -- | Map over stream for effects
 mapStream_ :: (a -> Sh b) -> Stream a -> Sh ()
-mapStream_ f (Stream as) = as >>= M.mapM_ f
+mapStream_ fn (Stream as) = as >>= M.mapM_ fn
 
 -- | Fold.null re-exported with different name to avoid conflict
 foldNull :: Fold a Bool
@@ -965,11 +929,11 @@ timed action = do
 -- ============================================================================
 
 -- | Try an action, catching all exceptions
-try :: (Exception e) => Sh a -> Sh (Either e a)
+try :: (Exception ex) => Sh a -> Sh (Either ex a)
 try action = do
     result <- liftIO $ E.try $ shelly action
     case result of
-        Left e -> pure $ Left e
+        Left ex -> pure $ Left ex
         Right a -> pure $ Right a
 
 -- | Try, catching IOException
@@ -977,11 +941,11 @@ tryIO :: Sh a -> Sh (Either IOException a)
 tryIO = try
 
 -- | Catch exceptions
-catch :: (Exception e) => Sh a -> (e -> Sh a) -> Sh a
+catch :: (Exception ex) => Sh a -> (ex -> Sh a) -> Sh a
 catch action handler = do
     result <- try action
     case result of
-        Left e -> handler e
+        Left ex -> handler ex
         Right a -> pure a
 
 -- | Catch IOException
@@ -993,9 +957,9 @@ bracket :: Sh a -> (a -> Sh b) -> (a -> Sh c) -> Sh c
 bracket acquire release action = do
     resource <- acquire
     result <-
-        action resource `catch` \(e :: SomeException) -> do
+        action resource `catch` \(ex :: SomeException) -> do
             _ <- release resource
-            liftIO $ throwIO e
+            liftIO $ throwIO ex
     _ <- release resource
     pure result
 
@@ -1003,18 +967,18 @@ bracket acquire release action = do
 finally :: Sh a -> Sh b -> Sh a
 finally action cleanup = do
     result <-
-        action `catch` \(e :: SomeException) -> do
+        action `catch` \(ex :: SomeException) -> do
             _ <- cleanup
-            liftIO $ throwIO e
+            liftIO $ throwIO ex
     _ <- cleanup
     pure result
 
 -- | Run cleanup on exception
 onException :: Sh a -> Sh b -> Sh a
 onException action cleanup =
-    action `catch` \(e :: SomeException) -> do
+    action `catch` \(ex :: SomeException) -> do
         _ <- cleanup
-        liftIO $ throwIO e
+        liftIO $ throwIO ex
 
 -- | Throw an exception
 throwM :: (Exception e) => e -> Sh a
@@ -1060,7 +1024,7 @@ decodeUtf8 = TE.decodeUtf8
 
 decodeUtf8' :: ByteString -> Either String Text
 decodeUtf8' bs = case TE.decodeUtf8' bs of
-    Left e -> Left (show e)
+    Left err -> Left (show err)
     Right t -> Right t
 
 -- ============================================================================

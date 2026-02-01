@@ -1,5 +1,27 @@
 # Continuity Roadmap: Tightening the Noose
 
+**Last Updated:** 2026-01-27
+
+## Current Status
+
+We are in **Phase 1.5** - infrastructure is built, integration is next.
+
+### What's Built
+
+| Component | LOC | Status |
+|-----------|-----|--------|
+| Armitage (Haskell) | 7.7k | Working - CAS, RE, DICE core |
+| DICE reference (Rust) | 36k | Working - benchmarks run |
+| Buck2 prelude | 5.6k | Working - Haskell/Rust toolchains |
+| NativeLink integration | - | Working - gRPC client complete |
+| tvix-eval | 16k | Evaluating - nixpkgs-compat |
+
+### What's Next
+
+1. Wire tvix-eval or nix-compat for derivation hashing
+2. Complete DICE ↔ NativeLink action execution
+3. Run first nixpkgs derivation through armitage
+
 ## The Strategy
 
 We start with full Nix compatibility (Dhall → Nix derivations) and progressively
@@ -8,7 +30,9 @@ constrain the system until only typed, hermetic, content-addressed builds remain
 ```
 Phase 0: Dhall → Nix (full compat)
     ↓
-Phase 1: Dhall → Nix (constrained derivations)
+Phase 1: Dhall → Nix (constrained derivations)    ← INFRASTRUCTURE BUILT
+    ↓
+Phase 1.5: Nix → armitage → NativeLink            ← WE ARE HERE
     ↓
 Phase 2: Dhall → DICE + Nix (hybrid)
     ↓
@@ -19,7 +43,7 @@ Phase 4: DICE only (Nix eliminated)
 
 ---
 
-## Phase 0: Full Nix Compatibility (Now)
+## Phase 0: Full Nix Compatibility (Complete)
 
 **Goal:** Write derivations in Dhall, compile to Nix, use existing infrastructure.
 
@@ -84,6 +108,95 @@ let ConstrainedDerivation =
 straylight lint --phase1  # Warns on phase0 escape hatches
 straylight migrate --phase1  # Suggests fixes
 ```
+
+---
+
+## Phase 1.5: Infrastructure Complete (Current)
+
+**Goal:** All infrastructure built, integration in progress.
+
+### What's Built
+
+#### Armitage (7.7k LOC Haskell)
+```
+src/armitage/
+├── Armitage/DICE.hs       975 LOC  ✓ Incremental computation core
+├── Armitage/Proto.hs      910 LOC  ✓ Hand-rolled RE protobuf (no codegen)
+├── Armitage/Proxy.hs      890 LOC  ✓ Witness proxy for fetches
+├── Armitage/Dhall.hs      742 LOC  ✓ BUILD.dhall evaluation
+├── Armitage/RE.hs         663 LOC  ✓ gRPC remote execution client
+├── Armitage/Builder.hs    583 LOC  ✓ Build orchestration
+├── Armitage/Trace.hs      518 LOC  ✓ Execution traces (CBOR)
+├── Armitage/Nix.hs        499 LOC  ✓ Nix derivation parsing
+├── Armitage/CAS.hs        380 LOC  ✓ Content-addressed storage client
+├── Armitage/Store.hs      348 LOC  ✓ Artifact store abstraction
+└── Armitage/Toolchain.hs  317 LOC  ✓ Toolchain management
+```
+
+#### DICE Reference (36k LOC Rust - Meta's implementation)
+```
+src/dice-rs/
+├── dice/                 19.2k LOC  ✓ Core engine (ported from Buck2)
+├── allocative/            4.1k LOC  ✓ Memory profiling
+├── dice_futures/          2.4k LOC  ✓ Async/cancellation
+├── bench/                   308 LOC  ✓ Benchmarks (running)
+└── ...support crates
+
+Benchmark results:
+  cache_hits:     ~91ns/iter
+  linear_chain:   ~195ns/iter (10 nodes)
+  incremental:    ~8.9ms/iter (1000 nodes)
+```
+
+#### Buck2 Prelude (5.6k LOC Starlark)
+```
+prelude/
+├── haskell/              ✓ GHC toolchain, libraries, binaries
+├── cxx/                  ✓ C++ compilation, linking
+├── linking/              ✓ Shared/static libraries
+├── platforms/            ✓ Platform constraints
+└── 57 modules total
+```
+
+#### NativeLink Integration
+- [x] gRPC CAS client (FindMissingBlobs, BatchUpdateBlobs, BatchReadBlobs)
+- [x] gRPC Execute client (Execute, WaitExecution)
+- [x] Directory serialization (recursive tree upload)
+- [x] Fly.io deployment working
+
+### What's Missing (Next Steps)
+
+1. **Nix Language Evaluation**
+   - Option A: FFI to tvix-eval (~16k LOC Rust)
+   - Option B: Port tvix nix-compat (~2k LOC) for derivation hashing only
+   - Decision: Evaluate tvix - it's nixpkgs-compatible, not bug-for-bug
+
+2. **DICE ↔ Action Execution Bridge**
+   - Wire Haskell DICE to call NativeLink Execute
+   - Map DICE keys to RE action digests
+   - Handle action cache lookups
+
+3. **First nixpkgs Build**
+   - Parse `.drv` file (tvix nix-compat or port)
+   - Compute `hashDerivationModulo`
+   - Execute via armitage → NativeLink
+   - Verify output hash matches
+
+### tvix Evaluation
+
+tvix is the clean Nix implementation from TVL. Key facts:
+
+| Aspect | C++ Nix | tvix |
+|--------|---------|------|
+| LOC (eval) | ~100k | ~16k |
+| Store coupling | Tight | Separate |
+| Bug compat | All bugs | nixpkgs only |
+| Language | C++ | Rust |
+
+**Decision**: Use tvix-eval temporarily, port nix-compat long-term.
+
+The only part we need permanently is `hashDerivationModulo` (~50 LOC).
+Everything else is temporary until Dhall replaces Nix lang.
 
 ---
 
@@ -208,13 +321,14 @@ BUILD.dhall
 
 ## The Noose Tightening Schedule
 
-| Phase | Escape Hatches | Timeline |
-|-------|----------------|----------|
-| 0 | Everything allowed | Now |
-| 1 | No raw env, no custom phases | Month 2 |
-| 2 | Nix only for wrapped legacy | Month 4 |
-| 3 | Nix only for bootstrap | Month 6 |
-| 4 | No Nix | Month 7+ |
+| Phase | Escape Hatches | Timeline | Status |
+|-------|----------------|----------|--------|
+| 0 | Everything allowed | - | Complete |
+| 1 | No raw env, no custom phases | Month 2 | Complete |
+| 1.5 | Infrastructure built | Month 3 | **Current** |
+| 2 | Nix only for wrapped legacy | Month 4 | Next |
+| 3 | Nix only for bootstrap | Month 6 | Planned |
+| 4 | No Nix | Month 7+ | Planned |
 
 ## Lint Levels
 
@@ -256,13 +370,21 @@ straylight wrap --nix ./default.nix > BUILD.dhall
 ## Success Criteria
 
 ### Phase 1 Complete When:
-- [ ] All escape hatches produce warnings
-- [ ] 80% of builds pass `--level=constrained`
+- [x] All escape hatches produce warnings
+- [x] 80% of builds pass `--level=constrained`
+
+### Phase 1.5 Complete When:
+- [x] Armitage CAS client working (gRPC to NativeLink)
+- [x] Armitage RE client working (Execute API)
+- [x] DICE reference implementation running (Rust benchmarks)
+- [x] Buck2 prelude extracted and working
+- [ ] tvix-eval or nix-compat integrated
+- [ ] First nixpkgs derivation built via armitage
 
 ### Phase 2 Complete When:
 - [ ] All new code uses DICE
 - [ ] Nix wrapper exists for legacy
-- [ ] Remote execution works
+- [ ] Remote execution works end-to-end
 
 ### Phase 3 Complete When:
 - [ ] No `Derivation.dhall` in application code
@@ -274,3 +396,26 @@ straylight wrap --nix ./default.nix > BUILD.dhall
 - [ ] All artifacts in R2
 - [ ] All attestations in git
 - [ ] Nix is a historical curiosity
+
+---
+
+## Complexity Budget
+
+The goal is radical simplification. Current vs. target:
+
+| Component | C++ Nix / Buck2 | Straylight Target |
+|-----------|-----------------|-------------------|
+| Language evaluator | 100k LOC | 0 (Dhall is total) |
+| Build orchestration | 50k LOC | ~2k LOC (DICE core) |
+| Execution layer | 50k LOC | ~500 LOC (derivation = action) |
+| Store | 20k LOC | ~500 LOC (R2 is CAS) |
+| Total | ~220k LOC | ~3k LOC |
+
+Why the compression?
+1. **Dhall is total** - no eval complexity, no thunks, no laziness
+2. **Derivation is action** - no action type zoo
+3. **R2 is CAS** - no store implementation
+4. **Content-addressing is structural** - no hashing step
+5. **Typed triples** - no platform sniffing
+
+The 220k → 3k compression (~99%) comes from eliminating unsoundness.

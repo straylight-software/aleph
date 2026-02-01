@@ -1,0 +1,71 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                                             // cpp-ban-cuda-identifier // rule
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+# This rule matches identifiers starting with "cuda" that are DEFINED BY US:
+#   - variable names in declarations
+#   - function names in definitions
+#   - parameter names
+#
+# It does NOT match:
+#   - NVIDIA API calls (cudaGetDeviceCount, cudaMalloc, etc.)
+#   - NVIDIA type names (cudaStream_t, cudaError_t, etc.)
+#
+# The trick: we match identifiers that appear in the "declarator" field
+# of declaration-like nodes. This field contains the NAME being declared,
+# not type names or function calls.
+#
+id: cpp-ban-cuda-identifier
+language: cpp
+severity: error
+rule:
+  kind: identifier
+  regex: "^[Cc][Uu][Dd][Aa]"
+  any:
+    # variable declaration: "cudaStream_t cuda_stream;"
+    # the identifier "cuda_stream" is in field "declarator" of declaration
+    - inside:
+        kind: declaration
+        field: declarator
+    # variable with initializer: "auto cuda_stream = ..."
+    # the identifier is in field "declarator" of init_declarator
+    - inside:
+        kind: init_declarator
+        field: declarator
+    # function definition: "void cuda_check_error() { ... }"
+    # the identifier is in field "declarator" of function_declarator
+    - inside:
+        kind: function_declarator
+        field: declarator
+    # function parameter: "void foo(cudaStream_t cuda_stream)"
+    # the identifier is in field "declarator" of parameter_declaration
+    - inside:
+        kind: parameter_declaration
+        field: declarator
+message: "ALEPH-CPP-E002: use `nv` not `cuda` — we use NVIDIA's abbreviation"
+note: |
+  ## What's wrong?
+
+  We use `nv` as the standard abbreviation for NVIDIA/CUDA code, matching
+  NVIDIA's own convention in their modern libraries (nv::std::, nvStream_t).
+
+  ## Why this matters
+
+  - consistency with NVIDIA's CCCL and modern APIs
+  - shorter, cleaner identifiers
+  - distinguishes our code from legacy CUDA code
+
+  ## What can I do?
+
+  ```cpp
+  // BAD
+  cudaStream_t cuda_stream;
+  cuda_check_error();
+
+  // GOOD
+  nvStream_t nv_stream;
+  nv_check_error();
+  ```
+
+  n.b. include directives for NVIDIA headers are exempt — we can't control
+  what NVIDIA names their files.

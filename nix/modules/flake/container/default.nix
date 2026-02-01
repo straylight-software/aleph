@@ -43,7 +43,7 @@ let
   kernels = import ./kernels.nix { inherit lib; };
   init-scripts = import ./init-scripts.nix;
 
-  inherit (kernels) fc-kernel ch-kernel;
+  inherit (kernels) isospin-kernel ch-kernel;
 
   # Import nimi-init module (needs pkgs and nimi, so done in perSystem)
   mk-nimi-init = pkgs: nimi: import ./nimi-init.nix { inherit lib pkgs nimi; };
@@ -118,16 +118,21 @@ let
 
       config = mk-if cfg.enable {
         perSystem =
-          { pkgs, system, ... }:
+          {
+            config,
+            pkgs,
+            system,
+            ...
+          }:
           let
             # ──────────────────────────────────────────────────────────────────────
             # // kernel packages //
             # ──────────────────────────────────────────────────────────────────────
 
-            fc-kernel-pkg =
-              if fc-kernel ? ${system} then
+            isospin-kernel-pkg =
+              if isospin-kernel ? ${system} then
                 pkgs.fetchurl {
-                  inherit (fc-kernel.${system}) url hash;
+                  inherit (isospin-kernel.${system}) url hash;
                 }
               else
                 null;
@@ -146,8 +151,8 @@ let
             # // init script files //
             # ──────────────────────────────────────────────────────────────────────
 
-            isospin-run-init = pkgs.writeText "isospin-run-init" init-scripts.fc-run-init;
-            isospin-build-init = pkgs.writeText "isospin-build-init" init-scripts.fc-build-init;
+            isospin-run-init = pkgs.writeText "isospin-run-init" init-scripts.isospin-run-init;
+            isospin-build-init = pkgs.writeText "isospin-build-init" init-scripts.isospin-build-init;
             cloud-hypervisor-run-init = pkgs.writeText "cloud-hypervisor-run-init" init-scripts.ch-run-init;
             cloud-hypervisor-gpu-init = pkgs.writeText "cloud-hypervisor-gpu-init" init-scripts.ch-gpu-init;
 
@@ -172,7 +177,7 @@ let
             # The isospin-run binary reads this at startup via CONFIG_FILE env var.
 
             isospin-dhall-config = pkgs.writeText "isospin-config.dhall" ''
-              { kernel = "${fc-kernel-pkg}"
+              { kernel = "${isospin-kernel-pkg}"
               , busybox = "${pkgs.pkgsStatic.busybox}/bin/busybox"
               , initScript = "${isospin-run-init}"
               , buildInitScript = "${isospin-build-init}"
@@ -183,7 +188,7 @@ let
             '';
 
             # Wrapped isospin-run with Dhall config injected
-            isospin-run-wrapped = mk-if (fc-kernel-pkg != null) (
+            isospin-run-wrapped = mk-if (isospin-kernel-pkg != null) (
               pkgs.runCommand "isospin-run" { nativeBuildInputs = [ pkgs.makeWrapper ]; } ''
                 mkdir -p $out/bin
                 makeWrapper ${compiled.isospin-run}/bin/isospin-run $out/bin/isospin-run \
@@ -295,7 +300,7 @@ let
 
                 # Start Armitage proxy
                 echo ":: Starting Armitage proxy on :8888..."
-                exec ${pkgs.armitage-proxy}/bin/armitage-proxy
+                exec ${config.packages.armitage-proxy}/bin/armitage-proxy
               '';
             };
 
@@ -369,7 +374,7 @@ let
 
               # Compiled Haskell version (type-safe, ~2ms startup)
               # Uses Dhall config for store path injection
-              isospin-run = mk-if (cfg.isospin.enable && fc-kernel-pkg != null) isospin-run-wrapped;
+              isospin-run = mk-if (cfg.isospin.enable && isospin-kernel-pkg != null) isospin-run-wrapped;
 
               # ──────────────────────────────────────────────────────────────────
               # // cloud hypervisor tools //
@@ -441,7 +446,7 @@ let
                   cacert
 
                   # Armitage proxy and build wrapper
-                  armitage-proxy
+                  config.packages.armitage-proxy
                   armitage-startup-script
                   witnessed-build
 

@@ -34,9 +34,9 @@
           # Convert Nickel to JSON, then parse as Nix
           # Nickel provides type checking at evaluation time
           config-json =
-            pkgs.runCommand "config.json"
+            prelude.run-command "config.json"
               {
-                "nativeBuildInputs" = [ pkgs.nickel ];
+                native-build-inputs = [ pkgs.nickel ];
               }
               ''
                 nickel export ${./config.ncl} > $out
@@ -64,7 +64,7 @@
           packages.config-json = config-json;
 
           # Check that validates config at eval time
-          checks.config-valid = pkgs.runCommand "config-valid" { } ''
+          checks.config-valid = prelude.run-command "config-valid" { } ''
             echo "Config validated:"
             echo "  Users: ${builtins.toString validated.users}"
             echo "  Machines: ${builtins.toString (builtins.attrNames validated.machines)}"

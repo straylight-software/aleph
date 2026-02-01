@@ -51,11 +51,11 @@ let
   cxx-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? cc then
       render-dhall "buckconfig-cxx.ini" (scripts-dir + "/buckconfig-cxx.dhall") {
-        cc = buck2-toolchain.cc;
-        cxx = buck2-toolchain.cxx;
-        cpp = buck2-toolchain.cpp;
-        ar = buck2-toolchain.ar;
-        ld = buck2-toolchain.ld;
+        inherit (buck2-toolchain) cc;
+        inherit (buck2-toolchain) cxx;
+        inherit (buck2-toolchain) cpp;
+        inherit (buck2-toolchain) ar;
+        inherit (buck2-toolchain) ld;
         clang_resource_dir = buck2-toolchain.clang-resource-dir;
         gcc_include = buck2-toolchain.gcc-include;
         gcc_include_arch = buck2-toolchain.gcc-include-arch;
@@ -81,12 +81,10 @@ let
   haskell-config =
     if cfg.toolchain.haskell.enable then
       render-dhall "buckconfig-haskell.ini" (scripts-dir + "/buckconfig-haskell.dhall") {
-        # Use bin/ghc wrapper which:
-        # 1. Filters Mercury-specific flags
-        # 2. Resolves -package to -package-id (GHC 9.12 workaround)
-        ghc = "bin/ghc";
-        ghc_pkg = "bin/ghc-pkg";
-        haddock = "bin/haddock";
+        # Use actual GHC from ghcWithPackages (has all deps baked in)
+        ghc = "${ghc-for-buck2}/bin/ghc";
+        ghc_pkg = "${ghc-for-buck2}/bin/ghc-pkg";
+        haddock = "${ghc-for-buck2}/bin/haddock";
         ghc_version = ghc-version;
         ghc_lib_dir = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib";
         global_package_db = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib/package.conf.d";

@@ -1,0 +1,118 @@
+# OS config_settings
+#
+# Extracted from buck2-prelude os/BUCK
+# Stripped: oncall, source_listing, android binary constraints
+
+config_setting(
+    name = "linux",
+    constraint_values = [
+        "//prelude/os/constraints:linux",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "macos",
+    constraint_values = [
+        "//prelude/os/constraints:macos",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = [
+        "//prelude/os/constraints:windows",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "android",
+    constraint_values = [
+        "//prelude/os/constraints:android",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "iphoneos",
+    constraint_values = [
+        "//prelude/os/constraints:iphoneos",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "tvos",
+    constraint_values = [
+        "//prelude/os/constraints:tvos",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "watchos",
+    constraint_values = [
+        "//prelude/os/constraints:watchos",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "freebsd",
+    constraint_values = [
+        "//prelude/os/constraints:freebsd",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "fuchsia",
+    constraint_values = [
+        "//prelude/os/constraints:fuchsia",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "illumos",
+    constraint_values = [
+        "//prelude/os/constraints:illumos",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "netbsd",
+    constraint_values = [
+        "//prelude/os/constraints:netbsd",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "wasi",
+    constraint_values = [
+        "//prelude/os/constraints:wasi",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+config_setting(
+    name = "none",
+    constraint_values = [
+        "//prelude/os/constraints:none",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# Compound config_settings
+config_setting(
+    name = "linux-arm64",
+    constraint_values = [
+        "//prelude/cpu/constraints:arm64",
+        "//prelude/os/constraints:linux",
+    ],
+    visibility = ["PUBLIC"],
+)

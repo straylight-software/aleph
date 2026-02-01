@@ -14,9 +14,9 @@ Usage: combine-archive <output-dir> [ar-prefix]
 -}
 module Main where
 
-import Aleph.Script hiding (filter, head, length, lines, tail, unlines)
+import Aleph.Script hiding (length)
 import qualified Aleph.Script as W
-import Data.List (filter, sort)
+import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -170,8 +170,8 @@ collectPrivateDeps pcFiles = do
 -- | Extract -l flags from Libs.private line
 extractPrivateLibs :: Text -> Set.Set Text
 extractPrivateLibs content =
-    let ls = T.lines content
-        privLines = filter ("Libs.private:" `isInfixOf`) ls
+    let contentLines = T.lines content
+        privLines = filter ("Libs.private:" `isInfixOf`) contentLines
         tokens = concatMap T.words privLines
         libs = mapMaybe extractLib tokens
      in Set.fromList libs
@@ -184,14 +184,14 @@ extractPrivateLibs content =
 extractAbslDeps :: FilePath -> Sh (Set.Set Text)
 extractAbslDeps pc = do
     content <- liftIO $ Prelude.readFile pc
-    let ls = T.lines (pack content)
+    let contentLines = T.lines (pack content)
         reqLines =
             filter
                 ( \l ->
                     "Requires:" `isPrefixOf` l
                         || "Requires.private:" `isPrefixOf` l
                 )
-                ls
+                contentLines
         tokens = concatMap (T.words . snd . breakOn ":") reqLines
         -- Remove commas and filter for absl_* names
         cleaned = map (W.replace "," "") tokens
@@ -203,6 +203,7 @@ kahnSort :: DepsGraph -> Set.Set Text -> Sh [FilePath]
 kahnSort graph allLibs = do
     let
         -- Initialize in-degrees to 0
+        initDegrees :: InDegree
         initDegrees = Map.fromList [(lib, 0) | lib <- Set.toList allLibs]
 
         -- Calculate in-degrees: for each lib, increment degree of its deps
@@ -224,10 +225,8 @@ kahnSort graph allLibs = do
     go inDegrees (sort initialQueue) []
   where
     go _ [] sorted = pure $ reverse $ map toArchive sorted
-    go degrees queue sorted = do
-        let current = head queue
-            rest = tail queue
-            sorted' = current : sorted
+    go degrees (current : rest) sorted = do
+        let sorted' = current : sorted
 
             -- Find all nodes that depend on current
             -- and decrement their in-degree

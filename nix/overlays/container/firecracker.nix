@@ -29,37 +29,26 @@ in
     let
       init-script-file = if init-script != null then final.writeText "init-script" init-script else null;
     in
-    run-command name
-      {
-        native-build-inputs = [
-          final.fakeroot
-          final.genext2fs
-          final.e2fsprogs
-        ];
-      }
-      ''
-        mkdir -p $out
-
-        # Copy rootfs to writable location
-        cp -a ${rootfs} rootfs
-        chmod -R u+w rootfs
-
-        # Inject static busybox for minimal init
-        mkdir -p rootfs/usr/local/bin
-        cp ${final.pkgsStatic.busybox}/bin/busybox rootfs/usr/local/bin/
-        for cmd in sh mount hostname ip cat echo chmod mkdir ln rm ls grep sed tar sleep; do
-          ln -sf busybox rootfs/usr/local/bin/$cmd
-        done
-
-        ${lib.optionalString (init-script-file != null) ''
-          # Install init script (no heredoc)
-          install -m755 ${init-script-file} rootfs/init
-        ''}
-
-        ${extra-commands}
-
-        # Build ext4 image
-        fakeroot genext2fs -B 4096 -b ${to-string size-blocks} -d rootfs $out/disk.ext4
-        tune2fs -O extents,uninit_bg,dir_index,has_journal $out/disk.ext4 2>/dev/null || true
-      '';
+    let
+      init-script-install =
+        if init-script-file != null then "install -m755 ${init-script-file} rootfs/init" else "";
+      build-script =
+        builtins.replaceStrings
+          [ "@rootfs@" "@busybox@" "@initScriptInstall@" "@extraCommands@" "@sizeBlocks@" ]
+          [
+            (to-string rootfs)
+            (to-string final.pkgsStatic.busybox)
+            init-script-install
+            extra-commands
+            (to-string size-blocks)
+          ]
+          (builtins.readFile ./scripts/firecracker-build.sh);
+    in
+    run-command name {
+      native-build-inputs = [
+        final.fakeroot
+        final.genext2fs
+        final.e2fsprogs
+      ];
+    } build-script;
 }

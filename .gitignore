@@ -8,7 +8,31 @@ result-*
 
 # Buck2 build artifacts
 buck-out/
+.buckconfig.local
+
+# Haskell build artifacts
 .ghc-pkg-db
-src/examples/lean-continuity/.lake/
 *.hi
 *.o
+*.dyn_hi
+*.dyn_o
+
+# Lean build artifacts
+.lake/
+
+# Editor/IDE
+.starlark
+hie.yaml
+
+# Generated binaries
+bin/
+
+# Cargo/Rust build artifacts
+target/
+
+# Local tools/scripts
+hie-gen
+nix-analyze
+
+# Nix store symlinks in src
+src/armitage/nix/

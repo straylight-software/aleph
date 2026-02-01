@@ -8,6 +8,7 @@
 #
 # Paths are read from .buckconfig.local [haskell] section.
 
+# NOTE: Must use upstream @prelude types - see toolchains/cxx.bzl for rationale
 load("@prelude//haskell:toolchain.bzl", "HaskellToolchainInfo", "HaskellPlatformInfo")
 
 def _haskell_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
@@ -38,7 +39,6 @@ def _haskell_toolchain_impl(ctx: AnalysisContext) -> list[Provider]:
             ghci_script_template = ctx.attrs.ghci_script_template,
             ghci_iserv_template = ctx.attrs.ghci_iserv_template,
             script_template_processor = ctx.attrs.script_template_processor,
-            packages = [],
             cache_links = True,
             archive_contents = "normal",
             support_expose_package = True,

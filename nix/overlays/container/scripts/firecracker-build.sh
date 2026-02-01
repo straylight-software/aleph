@@ -8,7 +8,7 @@ chmod -R u+w rootfs
 mkdir -p rootfs/usr/local/bin
 cp @busybox@/bin/busybox rootfs/usr/local/bin/
 for cmd in sh mount hostname ip cat echo chmod mkdir ln rm ls grep sed tar sleep; do
-	ln -sf busybox rootfs/usr/local/bin/$cmd
+  ln -sf busybox rootfs/usr/local/bin/$cmd
 done
 
 @initScriptInstall@

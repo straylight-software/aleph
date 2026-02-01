@@ -2,29 +2,29 @@ id: non-lisp-case
 snapshots:
   fooBar:
     labels:
-    - source: fooBar
-      style: primary
-      start: 0
-      end: 6
+      - source: fooBar
+        style: primary
+        start: 0
+        end: 6
   foo_bar:
     labels:
-    - source: foo_bar
-      style: primary
-      start: 0
-      end: 7
+      - source: foo_bar
+        style: primary
+        start: 0
+        end: 7
   let fooBar = 1; in fooBar:
     labels:
-    - source: fooBar
-      style: primary
-      start: 4
-      end: 10
-    - source: fooBar
-      style: primary
-      start: 19
-      end: 25
+      - source: fooBar
+        style: primary
+        start: 4
+        end: 10
+      - source: fooBar
+        style: primary
+        start: 19
+        end: 25
   myFunctionName:
     labels:
-    - source: myFunctionName
-      style: primary
-      start: 0
-      end: 14
+      - source: myFunctionName
+        style: primary
+        start: 0
+        end: 14

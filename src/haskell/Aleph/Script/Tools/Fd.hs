@@ -16,7 +16,7 @@ import qualified Aleph.Script.Tools.Fd as Fd
 main = script $ do
   -- Find all Haskell files
   files <- Fd.fd Fd.defaults
-    { Fd.extension = Just "hs"
+    { Fd.fileExtension = Just "hs"
     , Fd.type_ = Just Fd.File
     } Nothing ["."]
   mapM_ (echo . pack) files
@@ -85,7 +85,7 @@ fileTypeToArg = \case
 
 Use 'defaults' and override fields as needed:
 
-> defaults { hidden = True, extension = Just "hs" }
+> defaults { hidden = True, fileExtension = Just "hs" }
 -}
 data Options = Options
     { -- \** Search behavior
@@ -116,7 +116,7 @@ data Options = Options
     , -- \** Filtering
       type_ :: Maybe FileType
     -- ^ -t: Filter by file type
-    , extension :: Maybe Text
+    , fileExtension :: Maybe Text
     -- ^ -e: Filter by extension
     , exclude :: Maybe Text
     -- ^ -E: Exclude pattern (glob)
@@ -172,7 +172,7 @@ defaults =
         , fullPath = False
         , absolutePath = False
         , type_ = Nothing
-        , extension = Nothing
+        , fileExtension = Nothing
         , exclude = Nothing
         , maxDepth = Nothing
         , minDepth = Nothing
@@ -208,7 +208,7 @@ buildArgs Options{..} =
         , flag fullPath "-p"
         , flag absolutePath "-a"
         , opt (fmap fileTypeToArg type_) "-t"
-        , opt extension "-e"
+        , opt fileExtension "-e"
         , opt exclude "-E"
         , optShow maxDepth "-d"
         , optShow minDepth "--min-depth"
@@ -227,11 +227,11 @@ buildArgs Options{..} =
         , flag oneFileSystem "--one-file-system"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
+    optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
     optShow Nothing _ = Nothing
 
 {- | Run fd with options, optional pattern, and paths
@@ -264,4 +264,4 @@ findDirs pat = fd defaults{type_ = Just Directory} (Just pat)
 
 -- | Find files by extension
 findByExt :: Text -> [FilePath] -> Sh [FilePath]
-findByExt ext = fd defaults{extension = Just ext} Nothing
+findByExt ext = fd defaults{fileExtension = Just ext} Nothing

@@ -65,12 +65,12 @@ module Armitage.DICE
   ) where
 
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Exception (try, SomeException)
 import Control.Monad (forM, foldM, unless, when)
 import Crypto.Hash (SHA256 (..), hashWith)
-import Data.ByteString (ByteString)
+import Data.ByteArray.Encoding qualified as BA
+import Data.ByteString ()
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as BC
+
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Data.Set (Set)
@@ -79,23 +79,24 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.Text.IO as TIO
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Clock (getCurrentTime)
 import GHC.Generics (Generic)
-import System.Directory (doesFileExist, createDirectoryIfMissing)
+import System.Directory (doesFileExist, doesPathExist, createDirectoryIfMissing)
 import System.Exit (ExitCode (..))
 import System.IO (hFlush, stdout)
-import System.Process (readProcess, readProcessWithExitCode)
+import System.Process (readProcessWithExitCode)
 
 import qualified Armitage.Dhall as Dhall
 import qualified Armitage.Builder as Builder
 import qualified Armitage.CAS as CAS
+import qualified Armitage.Proto as Proto
 import qualified Armitage.RE as RE
 
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Maybe (catMaybes, fromMaybe)
 import System.Environment (getEnvironment)
-import System.FilePath ((</>))
+import System.FilePath ((</>), takeFileName)
 import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 
 -- -----------------------------------------------------------------------------
@@ -106,12 +107,12 @@ import System.Process (readCreateProcessWithExitCode, proc, CreateProcess(..))
 newtype ActionKey = ActionKey { unActionKey :: Text }
   deriving stock (Show, Eq, Ord, Generic)
 
--- | Compute action key from action content
+-- | Compute action key from action content (canonical Dhall serialization)
 actionKey :: Action -> ActionKey
 actionKey action = 
-  let content = T.pack $ show action  -- TODO: canonical serialization
+  let content = actionToDhall action  -- Canonical Dhall representation
       hash = hashWith SHA256 (TE.encodeUtf8 content)
-  in ActionKey $ T.pack $ show hash
+  in ActionKey $ TE.decodeUtf8 $ BA.convertToBase BA.Base16 hash
 
 -- -----------------------------------------------------------------------------
 -- Actions
@@ -155,6 +156,69 @@ data Action = Action
   , aCoeffects   :: [Dhall.Resource]        -- what this action requires
   }
   deriving stock (Show, Eq, Generic)
+
+-- -----------------------------------------------------------------------------
+-- Dhall Serialization (canonical, for content-addressing)
+-- -----------------------------------------------------------------------------
+
+-- | Serialize ActionCategory to canonical Dhall
+actionCategoryToDhall :: ActionCategory -> Text
+actionCategoryToDhall = \case
+  CxxCompile   -> "<CxxCompile>"
+  CxxLink      -> "<CxxLink>"
+  CudaCompile  -> "<CudaCompile>"
+  CudaLink     -> "<CudaLink>"
+  Archive      -> "<Archive>"
+  Shell        -> "<Shell>"
+  Custom t     -> "<Custom>.\"" <> escapeTextDice t <> "\""
+
+-- | Serialize ResolvedInput to canonical Dhall
+resolvedInputToDhall :: ResolvedInput -> Text
+resolvedInputToDhall = \case
+  Resolved_Action (ActionKey k) -> "<Resolved_Action>.\"" <> escapeTextDice k <> "\""
+  Resolved_Store path           -> "<Resolved_Store>.\"" <> escapeTextDice path <> "\""
+  Resolved_File path            -> "<Resolved_File>.\"" <> escapeTextDice (T.pack path) <> "\""
+
+-- | Serialize Action to canonical Dhall (deterministic field order)
+actionToDhall :: Action -> Text
+actionToDhall Action{..} = T.unlines
+  [ "{ aCategory = " <> actionCategoryToDhall aCategory
+  , ", aCommand = " <> listToDhall aCommand
+  , ", aCoeffects = [" <> T.intercalate ", " (map Dhall.renderResource aCoeffects) <> "]"
+  , ", aEnv = " <> mapToDhall aEnv
+  , ", aIdentifier = \"" <> escapeTextDice aIdentifier <> "\""
+  , ", aInputs = [" <> T.intercalate ", " (map resolvedInputToDhall aInputs) <> "]"
+  , ", aOutputs = " <> listToDhall aOutputs
+  , ", aToolchain = " <> Dhall.renderToolchain aToolchain
+  , "}"
+  ]
+
+-- | Escape text for Dhall string literal (local to DICE)
+escapeTextDice :: Text -> Text
+escapeTextDice = T.concatMap escapeChar
+  where
+    escapeChar c = case c of
+      '"'  -> "\\\""
+      '\\' -> "\\\\"
+      '\n' -> "\\n"
+      '\t' -> "\\t"
+      '\r' -> "\\r"
+      _    -> T.singleton c
+
+-- | Render list to Dhall
+listToDhall :: [Text] -> Text
+listToDhall [] = "[] : List Text"
+listToDhall xs = "[" <> T.intercalate ", " (map (\x -> "\"" <> escapeTextDice x <> "\"") xs) <> "]"
+
+-- | Render map to Dhall (sorted keys for determinism)
+mapToDhall :: Map Text Text -> Text
+mapToDhall m
+  | Map.null m = "toMap {=}"
+  | otherwise  = "toMap {" <> T.intercalate ", " entries <> "}"
+  where
+    entries = [ "`" <> k <> "` = \"" <> escapeTextDice v <> "\""
+              | (k, v) <- Map.toAscList m  -- sorted for determinism
+              ]
 
 -- -----------------------------------------------------------------------------
 -- Action Graph
@@ -201,7 +265,8 @@ data ResolvedFlake = ResolvedFlake
   deriving stock (Show, Eq, Generic)
 
 -- | Resolve a single flake reference
--- Gets both default and dev outputs for C/C++ packages
+-- TODO: This should use wrappers that know the deps, with strace as verification.
+-- Currently falls back to nix build (slow).
 resolveFlake :: Text -> IO (Either Text ResolvedFlake)
 resolveFlake ref = do
   -- Resolve default output
@@ -343,15 +408,11 @@ targetToAction Dhall.Target {..} flakes = Action
         ++ libArgs
         ++ linkLibs
     
-    -- Use nixpkgs clang wrapper for proper stdlib support
-    -- The wrapper knows about glibc headers
-    -- TODO: resolve this from toolchain.compiler flake ref
+    -- Compiler command - resolve from PATH or toolchain config
+    -- The actual path should come from environment or be resolved by the executor
     compilerCmd = case Dhall.compiler toolchain of
-      Dhall.Compiler_Clang {} -> 
-        -- Use nixpkgs clang wrapper - resolve at analysis time ideally
-        -- For now, hardcode the known path
-        "/nix/store/351bpjcf2l1n4vm06nwpq3cdhl6vbhx1-clang-wrapper-21.1.7/bin/clang++"
-      Dhall.Compiler_NVClang {} -> "clang++"  -- nv-clang
+      Dhall.Compiler_Clang {} -> "clang++"  -- Executor must have clang in PATH
+      Dhall.Compiler_NVClang {} -> "clang++"
       Dhall.Compiler_GCC {} -> "g++"
       Dhall.Compiler_NVCC {} -> "nvcc"
       _ -> "cc"
@@ -504,8 +565,8 @@ executeOneRemote
 executeOneRemote client graph (outputs, hits, executed, failed, proofs) key = do
   let action = agActions graph Map.! key
   
-  -- Check action cache first
-  let actionDigest = CAS.digestFromBytes $ TE.encodeUtf8 $ T.pack $ show action
+  -- Check action cache first (use canonical Dhall serialization for digest)
+  let actionDigest = CAS.digestFromBytes $ TE.encodeUtf8 $ actionToDhall action
   cached <- RE.getActionResult client actionDigest
   case cached of
     Just result -> do
@@ -560,7 +621,7 @@ executeAction action@Action {..} _depOutputs = do
                 if exists
                   then do
                     content <- BS.readFile outPath
-                    let hash = T.pack $ show $ hashWith SHA256 content
+                    let hash = TE.decodeUtf8 $ BA.convertToBase BA.Base16 $ hashWith SHA256 content
                     pure (out, hash)
                   else pure (out, "missing")
               
@@ -610,8 +671,8 @@ executeActionWitnessed :: WitnessConfig -> Action -> Map ActionKey [Text] -> IO 
 executeActionWitnessed wc action@Action {..} _depOutputs = do
   startTime <- getCurrentTime
   
-  -- Check coeffects
-  coeffectResult <- checkCoeffects aCoeffects
+  -- Check coeffects (witnessed mode can satisfy Network)
+  coeffectResult <- checkCoeffectsWitnessed wc aCoeffects
   case coeffectResult of
     Left missing -> pure $ Left $ "Missing coeffect: " <> T.pack (show missing)
     Right () -> do
@@ -646,8 +707,8 @@ executeActionWitnessed wc action@Action {..} _depOutputs = do
           let fullEnv = proxyEnv ++ currentEnv
           
           -- Execute with proxy env
-          let proc = (System.Process.proc exe args) { env = Just fullEnv }
-          (exitCode, _stdout, stderr) <- readCreateProcessWithExitCode proc ""
+          let procSpec = (System.Process.proc exe args) { env = Just fullEnv }
+          (exitCode, _stdout, stderr) <- readCreateProcessWithExitCode procSpec ""
           endTime <- getCurrentTime
           
           case exitCode of
@@ -661,7 +722,7 @@ executeActionWitnessed wc action@Action {..} _depOutputs = do
                 if exists
                   then do
                     content <- BS.readFile outPath
-                    let hash = T.pack $ show $ hashWith SHA256 content
+                    let hash = TE.decodeUtf8 $ BA.convertToBase BA.Base16 $ hashWith SHA256 content
                     pure (out, hash)
                   else pure (out, "missing")
               
@@ -729,15 +790,26 @@ executeActionRemote client action@Action {..} _depOutputs = do
         , RE.cmdOutputPaths = aOutputs
         }
   
-  -- 2. Serialize and upload Command to CAS
-  let commandBytes = TE.encodeUtf8 $ T.pack $ show command  -- TODO: proper proto serialization
+  -- 2. Serialize and upload Command to CAS (proper protobuf encoding)
+  let protoCommand = Proto.ProtoCommand
+        { Proto.pcArguments = RE.cmdArguments command
+        , Proto.pcEnvironmentVariables = 
+            [ Proto.ProtoEnvironmentVariable k v 
+            | (k, v) <- RE.cmdEnvironmentVariables command 
+            ]
+        , Proto.pcOutputFiles = RE.cmdOutputFiles command
+        , Proto.pcOutputDirectories = RE.cmdOutputDirectories command
+        , Proto.pcWorkingDirectory = RE.cmdWorkingDirectory command
+        , Proto.pcOutputPaths = RE.cmdOutputPaths command
+        }
+      commandBytes = Proto.encodeCommand protoCommand
       commandDigest = CAS.digestFromBytes commandBytes
   CAS.uploadBlob (RE.recCAS client) commandDigest commandBytes
   
   -- 3. Upload input files and build input root
   inputRootDigest <- uploadInputs client aInputs
   
-  -- 4. Build Action
+  -- 4. Build Action and upload to CAS
   let reAction = RE.Action
         { RE.actionCommandDigest = commandDigest
         , RE.actionInputRootDigest = inputRootDigest
@@ -750,11 +822,27 @@ executeActionRemote client action@Action {..} _depOutputs = do
                 ]
             }
         }
+      -- Upload Action itself to CAS (proper protobuf encoding per REAPI spec)
+      protoAction = Proto.ProtoAction
+        { Proto.paCommandDigest = CAS.toProtoDigest commandDigest
+        , Proto.paInputRootDigest = CAS.toProtoDigest inputRootDigest
+        , Proto.paTimeoutSeconds = fromIntegral <$> RE.actionTimeout reAction
+        , Proto.paDoNotCache = RE.actionDoNotCache reAction
+        , Proto.paPlatform = Just Proto.ProtoPlatform
+            { Proto.ppProperties = 
+                [ Proto.ProtoPlatformProperty (RE.propName p) (RE.propValue p)
+                | p <- RE.platformProperties (RE.actionPlatform reAction)
+                ]
+            }
+        }
+      actionBytes = Proto.encodeAction protoAction
+      actionDigest = CAS.digestFromBytes actionBytes
+  CAS.uploadBlob (RE.recCAS client) actionDigest actionBytes
   
-  -- 5. Execute remotely
+  -- 5. Execute remotely (using Action digest - Action already uploaded to CAS)
   let request = RE.ExecuteRequest
         { RE.erInstanceName = RE.reInstanceName (RE.recConfig client)
-        , RE.erAction = reAction
+        , RE.erActionDigest = actionDigest  -- Pre-computed digest from proper proto serialization
         , RE.erSkipCacheLookup = False
         }
   
@@ -789,35 +877,183 @@ executeActionRemote client action@Action {..} _depOutputs = do
 -- | Upload inputs to CAS and return input root digest
 uploadInputs :: RE.REClient -> [ResolvedInput] -> IO CAS.Digest
 uploadInputs client inputs = do
-  -- For now, just create empty input root
-  -- Real impl would:
-  -- 1. For Resolved_File: read file, upload to CAS, add to directory
-  -- 2. For Resolved_Store: reference existing store paths (need to upload or assume present)
-  -- 3. For Resolved_Action: get outputs from previous action
-  let emptyDir = TE.encodeUtf8 "{}"
-      emptyDigest = CAS.digestFromBytes emptyDir
-  CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
-  pure emptyDigest
+  -- Collect file inputs with their contents
+  fileInputs <- fmap catMaybes $ forM inputs $ \case
+    Resolved_File path -> do
+      exists <- doesFileExist path
+      if exists
+        then do
+          content <- BS.readFile path
+          pure $ Just (takeFileName path, content)
+        else pure Nothing
+    Resolved_Store _storePath -> do
+      -- For store paths, we assume they're already in the worker's store
+      -- or we'd need to upload the entire closure (expensive)
+      -- For now, just skip - the worker should have nix store mounted
+      pure Nothing
+    Resolved_Action _ -> do
+      -- Action outputs should have been uploaded by previous execution
+      pure Nothing
+  
+  -- Build input root from collected files
+  if null fileInputs
+    then do
+      -- Empty directory
+      let emptyDir = RE.serializeDirectory RE.Directory
+            { RE.dirFiles = []
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          emptyDigest = CAS.digestFromBytes emptyDir
+      CAS.uploadBlob (RE.recCAS client) emptyDigest emptyDir
+      pure emptyDigest
+    else do
+      -- Upload each file and build directory
+      fileNodes <- forM fileInputs $ \(name, content) -> do
+        let digest = CAS.digestFromBytes content
+        CAS.uploadBlob (RE.recCAS client) digest content
+        -- Check if file is executable (heuristic: .sh files)
+        let isExec = ".sh" `T.isSuffixOf` T.pack name
+        pure RE.FileNode
+          { RE.fnName = T.pack name
+          , RE.fnDigest = digest
+          , RE.fnIsExecutable = isExec
+          }
+      
+      -- Create root directory
+      let rootDir = RE.Directory
+            { RE.dirFiles = fileNodes
+            , RE.dirDirectories = []
+            , RE.dirSymlinks = []
+            }
+          dirBytes = RE.serializeDirectory rootDir
+          dirDigest = CAS.digestFromBytes dirBytes
+      
+      CAS.uploadBlob (RE.recCAS client) dirDigest dirBytes
+      pure dirDigest
 
--- | Convert Dhall Resource to Builder Coeffect  
+-- | Convert Dhall Resource to Builder Coeffect
+-- Re-export from Dhall module for convenience
 resourceToCoeffect :: Dhall.Resource -> Builder.Coeffect
-resourceToCoeffect = \case
-  Dhall.Resource_Pure -> Builder.Pure
-  Dhall.Resource_Network -> Builder.Network
-  Dhall.Resource_Auth t -> Builder.Auth t
-  Dhall.Resource_Sandbox t -> Builder.Sandbox t
-  Dhall.Resource_Filesystem t -> Builder.Filesystem (T.unpack t)
+resourceToCoeffect = Dhall.resourceToCoeffect
 
--- | Check if coeffects can be satisfied
+-- | Check if coeffects can be satisfied (non-witnessed execution)
+-- 
+-- For non-witnessed execution, we can only satisfy:
+-- - Pure: always ok
+-- - Filesystem: check path exists
+-- 
+-- Network/Auth/Sandbox require witnessed execution to be provable.
 checkCoeffects :: [Dhall.Resource] -> IO (Either Dhall.Resource ())
-checkCoeffects _ = pure $ Right ()  -- TODO: actually check
+checkCoeffects = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network -> 
+        -- Network without witness is allowed but unattested
+        -- The build will work but no proof of what was fetched
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        -- Check for auth token in environment
+        -- Convention: PROVIDER_TOKEN (e.g., GITHUB_TOKEN, DOCKER_TOKEN)
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        -- Sandbox requires explicit setup, can't auto-satisfy
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        -- Check filesystem path exists
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
+
+-- | Check coeffects for witnessed execution
+-- 
+-- With witness proxy running, we can satisfy Network coeffect
+-- and produce attestations for it.
+checkCoeffectsWitnessed :: WitnessConfig -> [Dhall.Resource] -> IO (Either Dhall.Resource ())
+checkCoeffectsWitnessed _wc = go
+  where
+    go [] = pure $ Right ()
+    go (r:rs) = do
+      result <- checkOne r
+      case result of
+        Left missing -> pure $ Left missing
+        Right () -> go rs
+    
+    checkOne :: Dhall.Resource -> IO (Either Dhall.Resource ())
+    checkOne = \case
+      Dhall.Resource_Pure -> pure $ Right ()
+      
+      Dhall.Resource_Network ->
+        -- Witnessed mode: network access will be logged by proxy
+        pure $ Right ()
+      
+      Dhall.Resource_Auth provider -> do
+        env <- getEnvironment
+        let varName = T.unpack $ T.toUpper provider <> "_TOKEN"
+        case lookup varName env of
+          Just _ -> pure $ Right ()
+          Nothing -> pure $ Left (Dhall.Resource_Auth provider)
+      
+      Dhall.Resource_Sandbox name ->
+        pure $ Left (Dhall.Resource_Sandbox name)
+      
+      Dhall.Resource_Filesystem path -> do
+        exists <- doesPathExist (T.unpack path)
+        if exists
+          then pure $ Right ()
+          else pure $ Left (Dhall.Resource_Filesystem path)
 
 -- -----------------------------------------------------------------------------
--- CAS Stubs (would use Armitage.CAS)
+-- Local Action Cache (file-based for simplicity)
 -- -----------------------------------------------------------------------------
 
+-- | Cache directory for action results
+-- Uses XDG_CACHE_HOME or ~/.cache/armitage
+actionCacheDir :: IO FilePath
+actionCacheDir = do
+  env <- getEnvironment
+  let home = fromMaybe (error "HOME not set") (lookup "HOME" env)
+      cacheBase = fromMaybe (home </> ".cache") (lookup "XDG_CACHE_HOME" env)
+  pure $ cacheBase </> "armitage" </> "actions"
+
+-- | Check local cache for action result
 checkCAS :: ActionKey -> IO (Maybe [Text])
-checkCAS _ = pure Nothing  -- TODO: implement
+checkCAS (ActionKey key) = do
+  cacheDir <- actionCacheDir
+  let cachePath = cacheDir </> T.unpack key
+  exists <- doesFileExist cachePath
+  if exists
+    then do
+      content <- TIO.readFile cachePath
+      let paths = filter (not . T.null) $ T.lines content
+      if null paths
+        then pure Nothing
+        else pure $ Just paths
+    else pure Nothing
 
+-- | Store action result in local cache
 storeCAS :: ActionKey -> [Text] -> IO ()
-storeCAS _ _ = pure ()  -- TODO: implement
+storeCAS (ActionKey key) paths = do
+  cacheDir <- actionCacheDir
+  createDirectoryIfMissing True cacheDir
+  let cachePath = cacheDir </> T.unpack key
+      content = T.unlines paths
+  TIO.writeFile cachePath content

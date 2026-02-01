@@ -1,0 +1,38 @@
+# Shim binaries for build analysis
+#
+# These fake compilers capture build invocations and emit
+# metadata-laden ELF files instead of actually compiling.
+#
+# Usage:
+#   CC=$(exe :cc-shim) cmake ..
+#   make -j8
+#   armitage shim read ./myapp
+
+cxx_binary(
+    name = "cc-shim",
+    srcs = ["cc-shim.c"],
+    visibility = ["PUBLIC"],
+)
+
+cxx_binary(
+    name = "ld-shim", 
+    srcs = ["ld-shim.c"],
+    visibility = ["PUBLIC"],
+)
+
+cxx_binary(
+    name = "ar-shim",
+    srcs = ["ar-shim.c"],
+    visibility = ["PUBLIC"],
+)
+
+# Convenience target for all shims
+filegroup(
+    name = "shims",
+    srcs = [
+        ":cc-shim",
+        ":ld-shim",
+        ":ar-shim",
+    ],
+    visibility = ["PUBLIC"],
+)

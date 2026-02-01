@@ -4,8 +4,8 @@ DATA_DIR="/data"
 MARKER="$DATA_DIR/.nix-initialized"
 
 if [ -f "$MARKER" ]; then
-	echo "Volume already initialized"
-	exit 0
+  echo "Volume already initialized"
+  exit 0
 fi
 
 echo "Initializing nix store on volume..."

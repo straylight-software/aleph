@@ -42,16 +42,9 @@ defaults =
 
 -- | Build command-line arguments from options
 buildArgs :: Options -> [Text]
-buildArgs Options{..} =
+buildArgs Options{} =
     catMaybes
         []
-  where
-    flag True f = Just f
-    flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
-    opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
 
 {- | Run zoxide with options and additional arguments
 

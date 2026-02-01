@@ -7,7 +7,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 if [ ! -e "$out/lib64" ]; then
-	ln -s lib "$out/lib64"
+  ln -s lib "$out/lib64"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -16,7 +16,7 @@ fi
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 if [ ! -e "$out/include/texture_fetch_functions.h" ] && [ -e "$out/include/texture_indirect_functions.h" ]; then
-	ln -s texture_indirect_functions.h "$out/include/texture_fetch_functions.h"
+  ln -s texture_indirect_functions.h "$out/include/texture_fetch_functions.h"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -29,62 +29,62 @@ DRIVER_PKG="@driverPkg@"
 
 if [ -n "$DRIVER_PKG" ]; then
 
-	# Expose the full driver bundle under a stable prefix.
-	if [ ! -e "$out/driver" ]; then
-		ln -s "$DRIVER_PKG" "$out/driver"
-	fi
+  # Expose the full driver bundle under a stable prefix.
+  if [ ! -e "$out/driver" ]; then
+    ln -s "$DRIVER_PKG" "$out/driver"
+  fi
 
-	# Prefer putting driver runtime libs on the standard lib path.
-	for libdir in "$DRIVER_PKG/lib" "$DRIVER_PKG/lib64"; do
-		if [ -d "$libdir" ]; then
-			for soname in \
-				libcuda.so.1 libcuda.so \
-				libnvidia-ml.so.1 libnvidia-ml.so \
-				libnvidia-ptxjitcompiler.so.1 libnvidia-ptxjitcompiler.so \
-				libnvidia-fatbinaryloader.so.1 libnvidia-fatbinaryloader.so \
-				libnvidia-compiler.so.1 libnvidia-compiler.so; do
-				if [ -e "$libdir/$soname" ] && [ ! -e "$out/lib64/$soname" ]; then
-					ln -s "$libdir/$soname" "$out/lib64/$soname"
-				fi
-			done
-		fi
-	done
+  # Prefer putting driver runtime libs on the standard lib path.
+  for libdir in "$DRIVER_PKG/lib" "$DRIVER_PKG/lib64"; do
+    if [ -d "$libdir" ]; then
+      for soname in \
+        libcuda.so.1 libcuda.so \
+        libnvidia-ml.so.1 libnvidia-ml.so \
+        libnvidia-ptxjitcompiler.so.1 libnvidia-ptxjitcompiler.so \
+        libnvidia-fatbinaryloader.so.1 libnvidia-fatbinaryloader.so \
+        libnvidia-compiler.so.1 libnvidia-compiler.so; do
+        if [ -e "$libdir/$soname" ] && [ ! -e "$out/lib64/$soname" ]; then
+          ln -s "$libdir/$soname" "$out/lib64/$soname"
+        fi
+      done
+    fi
+  done
 fi
 
 # Link-time stubs (compile/link against these; runtime comes from driver).
 mkdir -p "$out/stubs/lib"
 if [ ! -e "$out/stubs/lib64" ]; then
-	ln -s lib "$out/stubs/lib64"
+  ln -s lib "$out/stubs/lib64"
 fi
 
 # Collect stubs from CUDA toolkit and (optionally) the driver package.
 STUB_DIRS=(
-	"@cudatoolkit@/lib/stubs"
-	"@cudatoolkit@/lib64/stubs"
+  "@cudatoolkit@/lib/stubs"
+  "@cudatoolkit@/lib64/stubs"
 )
 
 if [ -n "$DRIVER_PKG" ]; then
-	STUB_DIRS+=("$DRIVER_PKG/lib/stubs" "$DRIVER_PKG/lib64/stubs")
+  STUB_DIRS+=("$DRIVER_PKG/lib/stubs" "$DRIVER_PKG/lib64/stubs")
 fi
 
 for stubdir in "${STUB_DIRS[@]}"; do
-	if [ -d "$stubdir" ]; then
-		# Symlink all stubs into $out/stubs/lib (flat).
-		for f in "$stubdir"/*; do
-			if [ -e "$f" ]; then
-				ln -sf "$f" "$out/stubs/lib/$(basename "$f")"
-			fi
-		done
-	fi
+  if [ -d "$stubdir" ]; then
+    # Symlink all stubs into $out/stubs/lib (flat).
+    for f in "$stubdir"/*; do
+      if [ -e "$f" ]; then
+        ln -sf "$f" "$out/stubs/lib/$(basename "$f")"
+      fi
+    done
+  fi
 done
 
 # ensure common link names exist in stubs dir...
 if [ -e "$out/stubs/lib/libcuda.so.1" ] && [ ! -e "$out/stubs/lib/libcuda.so" ]; then
-	ln -s libcuda.so.1 "$out/stubs/lib/libcuda.so"
+  ln -s libcuda.so.1 "$out/stubs/lib/libcuda.so"
 fi
 
 if [ -e "$out/stubs/lib/libnvidia-ml.so.1" ] && [ ! -e "$out/stubs/lib/libnvidia-ml.so" ]; then
-	ln -s libnvidia-ml.so.1 "$out/stubs/lib/libnvidia-ml.so"
+  ln -s libnvidia-ml.so.1 "$out/stubs/lib/libnvidia-ml.so"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

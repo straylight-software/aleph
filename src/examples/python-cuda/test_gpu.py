@@ -49,8 +49,8 @@ def main():
     print("Python calling CUDA kernels via pybind11:")
 
     # Check CUDA availability
-    if gpu_module.cuda_available():
-        print(f"  CUDA device: {gpu_module.cuda_device_name()}")
+    if gpu_module.nv_available():
+        print(f"  CUDA device: {gpu_module.nv_device_name()}")
         test_scale_array()
         test_saxpy()
         test_dot_product()

@@ -26,7 +26,7 @@ import Data.Maybe (catMaybes)
 Use 'defaults' and override fields as needed.
 -}
 data Options = Options
-    { all :: Bool
+    { showAll :: Bool
     -- ^ -a: do not ignore entries starting with .
     , almostAll :: Bool
     -- ^ -A: do not list implied . and ..
@@ -52,7 +52,7 @@ data Options = Options
     -- ^ -F: append indicator (one of */=>@|) to entries WHEN
     , fileType :: Bool
     -- ^ likewise, except do not append '*'
-    , format :: Maybe Text
+    , outputFormat :: Maybe Text
     -- ^ across,horizontal (-x), commas (-m), long (-l),
     , fullTime :: Bool
     -- ^ like -l --time-style=full-iso
@@ -136,7 +136,7 @@ data Options = Options
 defaults :: Options
 defaults =
     Options
-        { all = False
+        { showAll = False
         , almostAll = False
         , author = False
         , escape = False
@@ -149,7 +149,7 @@ defaults =
         , optF = False
         , classify = Nothing
         , fileType = False
-        , format = Nothing
+        , outputFormat = Nothing
         , fullTime = False
         , optG = False
         , groupDirectoriesFirst = False
@@ -196,7 +196,7 @@ defaults =
 buildArgs :: Options -> [Text]
 buildArgs Options{..} =
     catMaybes
-        [ flag all "--all"
+        [ flag showAll "--all"
         , flag almostAll "--almost-all"
         , flag author "--author"
         , flag escape "--escape"
@@ -209,7 +209,7 @@ buildArgs Options{..} =
         , flag optF "-f"
         , opt classify "--classify"
         , flag fileType "--file-type"
-        , opt format "--format"
+        , opt outputFormat "--format"
         , flag fullTime "--full-time"
         , flag optG "-g"
         , flag groupDirectoriesFirst "--group-directories-first"
@@ -252,12 +252,10 @@ buildArgs Options{..} =
         , flag opt1 "-1"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
 
 -- | Run ls with options and additional arguments
 ls :: Options -> [Text] -> Sh Text

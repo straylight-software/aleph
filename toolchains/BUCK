@@ -18,6 +18,7 @@ load(":rust.bzl", "rust_toolchain")
 load(":lean.bzl", "lean_toolchain")
 load(":execution.bzl", "lre_execution_platform", "host_configuration")
 load(":shortlist.bzl", "shortlist_all")
+
 # Use local aleph prelude extractions instead of upstream bloat
 load("@aleph//toolchains:python.bzl", "system_python_bootstrap_toolchain")
 load("@aleph//toolchains:genrule.bzl", "system_genrule_toolchain")
@@ -94,7 +95,11 @@ haskell_toolchain(
     name = "haskell",
     # ghcWithPackages provides packages via the default package env
     # Don't use -package-env=- as it disables all packages
-    compiler_flags = [],
+    compiler_flags = [
+        "-Wall",
+        "-Werror",
+        "-XGHC2024",
+    ],
     visibility = ["PUBLIC"],
 )
 

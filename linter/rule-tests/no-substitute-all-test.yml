@@ -14,7 +14,6 @@ valid:
   - |
     # Different attribute access - fine
     pkgs.lib.substituteAllFiles ./src
-
 invalid:
   - |
     # pkgs.substituteAll - bad

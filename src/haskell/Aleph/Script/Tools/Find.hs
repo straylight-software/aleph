@@ -89,12 +89,12 @@ buildArgs Options{..} =
         , flag optE "-e"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
-    opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
-    optShow Nothing _ = Nothing
+    _opt (Just v) flg = Just (flg <> "=" <> v)
+    _opt Nothing _ = Nothing
+    _optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
+    _optShow Nothing _ = Nothing
 
 -- | Run find with options and additional arguments
 find :: Options -> [Text] -> Sh Text

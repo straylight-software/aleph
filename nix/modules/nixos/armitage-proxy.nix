@@ -50,7 +50,6 @@ let
   cfg = config.services.armitage-proxy;
 
   # Proxy URL used throughout
-  proxy-url = "http://${cfg.listen-address}:${to-string cfg.port}";
 
 in
 {
@@ -61,8 +60,12 @@ in
 
     package = mk-option {
       type = lib.types.package;
-      default = pkgs.armitage-proxy or (throw "armitage-proxy package not available - add aleph overlay");
-      description = "Armitage proxy package to use";
+      description = ''
+        Armitage proxy package. Build with Buck2:
+          buck2 build //src/armitage:armitage-proxy
+        Then set to the output, e.g.:
+          services.armitage-proxy.package = inputs.aleph.packages.''${system}.armitage-proxy;
+      '';
     };
 
     port = mk-option {

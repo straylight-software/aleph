@@ -2,7 +2,7 @@
 # Generate mitmproxy CA certificate on first boot
 set -euo pipefail
 
-cert_dir="@certDir@"
+cert_dir="@cert-dir@"
 mitmproxy="@mitmproxy@"
 
 if [ ! -f "${cert_dir}/mitmproxy-ca-cert.pem" ]; then

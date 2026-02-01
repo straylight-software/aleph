@@ -1,9 +1,8 @@
 -- | Test Haskell calling C++ via FFI.
 module Main where
 
-import FFI
 import Control.Monad (unless)
-import Text.Printf (printf)
+import FFI
 
 main :: IO ()
 main = do
@@ -48,7 +47,8 @@ testVectors = do
 
     -- scale
     let scaled = scaleVector 2.0 a
-    check "scaleVector 2 [1,2,3] == [2,4,6]"
+    check
+        "scaleVector 2 [1,2,3] == [2,4,6]"
         (all (< 1e-10) $ zipWith (\x y -> abs (x - y)) scaled [2.0, 4.0, 6.0])
 
     putStrLn "  vectors: pass"
@@ -64,9 +64,9 @@ testStrings = do
     isInfixOf needle haystack = any (needle `isPrefixOf`) (tails haystack)
     isPrefixOf [] _ = True
     isPrefixOf _ [] = False
-    isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
+    isPrefixOf (x : xs) (y : ys) = x == y && isPrefixOf xs ys
     tails [] = [[]]
-    tails xs@(_:xs') = xs : tails xs'
+    tails xs@(_ : xs') = xs : tails xs'
 
 testCounter :: IO ()
 testCounter = do

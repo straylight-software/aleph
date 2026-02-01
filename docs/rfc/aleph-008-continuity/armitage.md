@@ -237,22 +237,22 @@ For now, we route around the daemon where possible:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         Armitage Territory                               │
+│                         Armitage Territory                              │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  • All network fetches (witnessed, content-addressed)                    │
-│  • Build artifact storage (NativeLink CAS)                               │
-│  • Attestations and trust policy                                         │
-│  • Remote execution (Buck2 RE)                                           │
+│  • All network fetches (witnessed, content-addressed)                   │
+│  • Build artifact storage (NativeLink CAS)                              │
+│  • Attestations and trust policy                                        │
+│  • Remote execution (Buck2 RE)                                          │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     │ (minimal surface)
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      Daemon Territory (Shrinking)                        │
+│                      Daemon Territory (Shrinking)                       │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  • /nix/store writes (until we have our own store)                       │
-│  • NAR unpacking (until we have hnix-store)                              │
-│  • Signature verification (until we have our own trust)                  │
+│  • /nix/store writes (until we have our own store)                      │
+│  • NAR unpacking (until we have hnix-store)                             │
+│  • Signature verification (until we have our own trust)                 │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 

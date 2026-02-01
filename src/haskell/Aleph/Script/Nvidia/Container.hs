@@ -158,34 +158,34 @@ extractCudaToolkit rootfs outputDir = do
     mCudaDir <- findCudaDir rootfs
     case mCudaDir of
         Nothing -> echoErr ":: Warning: No CUDA directory found"
-        Just cd -> do
-            echoErr $ ":: Found CUDA at " <> toTextIgnore cd
+        Just cudaDir -> do
+            echoErr $ ":: Found CUDA at " <> toTextIgnore cudaDir
 
             -- Copy bin (nvcc, cuda-gdb, etc)
-            whenM (test_d (cd </> "bin")) $ do
+            whenM (test_d (cudaDir </> "bin")) $ do
                 echoErr ":: Copying bin/"
-                copyDirContents (cd </> "bin") (outputDir </> "bin")
+                copyDirContents (cudaDir </> "bin") (outputDir </> "bin")
 
             -- Copy lib64 (try multiple locations)
             let libDirs =
-                    [ cd </> "lib64"
-                    , cd </> "targets/x86_64-linux/lib"
-                    , cd </> "targets/sbsa-linux/lib"
+                    [ cudaDir </> "lib64"
+                    , cudaDir </> "targets/x86_64-linux/lib"
+                    , cudaDir </> "targets/sbsa-linux/lib"
                     ]
-            forM_ libDirs $ \d -> copyLibDir d (outputDir </> "lib64")
+            forM_ libDirs $ \libD -> copyLibDir libD (outputDir </> "lib64")
 
             -- Copy include
             let includeDirs =
-                    [ cd </> "include"
-                    , cd </> "targets/x86_64-linux/include"
-                    , cd </> "targets/sbsa-linux/include"
+                    [ cudaDir </> "include"
+                    , cudaDir </> "targets/x86_64-linux/include"
+                    , cudaDir </> "targets/sbsa-linux/include"
                     ]
-            forM_ includeDirs $ \d -> copyIncludeDir d (outputDir </> "include")
+            forM_ includeDirs $ \incD -> copyIncludeDir incD (outputDir </> "include")
 
             -- Copy nvvm (for nvcc)
-            whenM (test_d (cd </> "nvvm")) $ do
+            whenM (test_d (cudaDir </> "nvvm")) $ do
                 echoErr ":: Copying nvvm/"
-                copyDirContents (cd </> "nvvm") (outputDir </> "nvvm")
+                copyDirContents (cudaDir </> "nvvm") (outputDir </> "nvvm")
 
     -- Copy system libraries (cuDNN, NCCL, TensorRT from /usr/lib)
     copySystemLibraries rootfs outputDir
@@ -202,11 +202,11 @@ extractCudaRuntime rootfs outputDir = do
 
     -- Find CUDA directory
     mCudaDir <- findCudaDir rootfs
-    forM_ mCudaDir $ \cd -> do
+    forM_ mCudaDir $ \cudaDir -> do
         -- Copy only runtime libraries
-        copyLibraries (cd </> "lib64") (outputDir </> "lib64") cudaRuntimeLibs
+        copyLibraries (cudaDir </> "lib64") (outputDir </> "lib64") cudaRuntimeLibs
         -- Copy headers
-        copyIncludeDir (cd </> "include") (outputDir </> "include")
+        copyIncludeDir (cudaDir </> "include") (outputDir </> "include")
 
     -- Copy system libraries
     copySystemLibraries rootfs outputDir
@@ -286,12 +286,12 @@ copyCudaLibraries rootfs outputLib = do
 
     -- Copy from CUDA toolkit (libcudart, libcublas, etc.)
     mCudaDir <- findCudaDir rootfs
-    forM_ mCudaDir $ \cd -> do
+    forM_ mCudaDir $ \cudaDir -> do
         -- Try target-specific lib paths first, then lib64
         let cudaLibDirs =
-                [ cd </> "targets/x86_64-linux/lib"
-                , cd </> "targets/sbsa-linux/lib"
-                , cd </> "lib64"
+                [ cudaDir </> "targets/x86_64-linux/lib"
+                , cudaDir </> "targets/sbsa-linux/lib"
+                , cudaDir </> "lib64"
                 ]
         forM_ cudaLibDirs $ \libDir ->
             copyLibraries libDir outputLib cudaRuntimeLibs
@@ -338,8 +338,8 @@ findSystemLibDir rootfs = do
             pure $ if hasArm then Just armDir else Nothing
 
 -- | Find directories matching a glob pattern
-findDirs :: FilePath -> Sh [FilePath]
-findDirs globPat = do
+_findDirs :: FilePath -> Sh [FilePath]
+_findDirs globPat = do
     output <- errExit False $ run "sh" ["-c", "ls -d " <> toTextIgnore globPat <> " 2>/dev/null"]
     pure $ map fromText $ filter (not . T.null) $ T.lines output
 
@@ -422,9 +422,9 @@ createLibrarySymlinks libDir = do
     when exists $ do
         echoErr ":: Creating library symlinks"
         files <- findFiles libDir "*.so.*"
-        forM_ files $ \f -> do
-            let basename = filename f
-                baseTxt = toTextIgnore basename
+        forM_ files $ \soFile -> do
+            let baseName = filename soFile
+                baseTxt = toTextIgnore baseName
                 -- Extract base name (libfoo from libfoo.so.1.2.3)
                 libName = T.takeWhile (/= '.') baseTxt
                 soName = libName <> ".so"
@@ -436,7 +436,7 @@ createLibrarySymlinks libDir = do
                     run_ "ln" ["-sf", baseTxt, toTextIgnore targetPath]
 
             -- Create major version symlinks (e.g., libcupti.so.13 -> libcupti.so.13.0)
-            createMajorVersionSymlink libDir basename
+            createMajorVersionSymlink libDir baseName
 
 -- | Create major version symlink (libfoo.so.9 -> libfoo.so.9.1.2)
 createMajorVersionSymlink :: FilePath -> FilePath -> Sh ()
@@ -474,24 +474,21 @@ patchElfBinaries dir = do
     output <- errExit False $ run "find" [toTextIgnore dir, "-type", "f", "(", "-executable", "-o", "-name", "*.so*", ")"]
     let files = filter (not . T.null) $ T.lines output
 
-    forM_ files $ \f -> do
+    forM_ files $ \filePath -> do
         -- Skip symlinks
-        isLink <- errExit False $ run "test" ["-L", f]
+        _ <- errExit False $ run "test" ["-L", filePath]
         linkCode <- exitCode
         when (linkCode /= 0) $ do
             -- Check if ELF
-            fileType <- errExit False $ run "file" ["-b", f]
+            fileType <- errExit False $ run "file" ["-b", filePath]
             when (T.isInfixOf "ELF" fileType) $ do
-                -- Calculate relative RPATH
-                let fileDir = T.dropWhileEnd (/= '/') f
-                    outDir = toTextIgnore dir
                 -- Set RPATH
                 errExit False $
                     run_
                         "patchelf"
                         [ "--set-rpath"
                         , "$ORIGIN:$ORIGIN/../lib64:$ORIGIN/../lib:$ORIGIN/../nvvm/lib64"
-                        , f
+                        , filePath
                         ]
 
                 -- Set interpreter for executables
@@ -501,5 +498,5 @@ patchElfBinaries dir = do
                             "patchelf"
                             [ "--set-interpreter"
                             , "/lib64/ld-linux-x86-64.so.2"
-                            , f
+                            , filePath
                             ]

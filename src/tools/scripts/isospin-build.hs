@@ -42,7 +42,7 @@ main = do
             echoErr "Example: fc-build ubuntu:24.04 make -j8"
             exit 1
         (image : cmdArgs) -> do
-            when (L.null cmdArgs) $ do
+            when' (L.null cmdArgs) $ do
                 putStrLn "Error: COMMAND required"
                 script $ exit 1
 
@@ -93,4 +93,4 @@ main = do
                                 }
                     Vm.runFirecracker cfg
   where
-    when cond action = if cond then action else pure ()
+    when' cond action = if cond then action else pure ()

@@ -178,9 +178,9 @@ of untested code. The prelude provides typed alternatives.
 **Hierarchy of preference (best to worst):**
 
 1. **External files** — Put scripts in separate files, load with `builtins.readFile`
-2. **AlephScript** — Typed inline scripting primitive (see §6.1.1)
-3. **Prelude builders** — `prelude.write-shell-application`, `prelude.write-python-application`
-4. **Never** — Heredocs (`cat <<EOF`), inline strings >10 lines
+1. **AlephScript** — Typed inline scripting primitive (see §6.1.1)
+1. **Prelude builders** — `prelude.write-shell-application`, `prelude.write-python-application`
+1. **Never** — Heredocs (`cat <<EOF`), inline strings >10 lines
 
 **Prelude builders** are escape hatches, not recommendations. They exist because
 sometimes you need to generate a script. They are WARNING-level in aleph-lint.

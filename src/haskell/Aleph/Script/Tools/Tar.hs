@@ -38,7 +38,7 @@ data Options = Options
     -- ^ -r: append files to the end of an archive
     , testLabel :: Bool
     -- ^ test the archive volume label and exit
-    , list :: Bool
+    , listContents :: Bool
     -- ^ -t: list the contents of an archive
     , update :: Bool
     -- ^ -u: only append files newer than copy in archive
@@ -177,7 +177,7 @@ data Options = Options
     -- ^ force (symbolic) mode CHANGES for added files
     , mtime :: Maybe Text
     -- ^ set mtime for added files from DATE-OR-FILE
-    , touch :: Bool
+    , touchFiles :: Bool
     -- ^ -m: don't extract file modified time
     , noDelayDirectoryRestore :: Bool
     , noSameOwner :: Bool
@@ -238,7 +238,7 @@ data Options = Options
     -- ^ -i: ignore zeroed blocks in archive (means EOF)
     , recordSize :: Maybe Int
     -- ^ NUMBER of bytes per record, multiple of 512
-    , format :: Maybe Text
+    , archiveFormat :: Maybe Text
     -- ^ -H: create archive of the given format
     , oldArchive :: Bool
     -- ^ , --portability
@@ -344,7 +344,7 @@ defaults =
         , diff = False
         , append = False
         , testLabel = False
-        , list = False
+        , listContents = False
         , update = False
         , extract = False
         , checkDevice = False
@@ -414,7 +414,7 @@ defaults =
         , groupMap = Nothing
         , mode = Nothing
         , mtime = Nothing
-        , touch = False
+        , touchFiles = False
         , noDelayDirectoryRestore = False
         , noSameOwner = False
         , noSamePermissions = False
@@ -445,7 +445,7 @@ defaults =
         , readFullRecords = False
         , ignoreZeros = False
         , recordSize = Nothing
-        , format = Nothing
+        , archiveFormat = Nothing
         , oldArchive = False
         , paxOption = False
         , posix = False
@@ -505,7 +505,7 @@ buildArgs Options{..} =
         , flag diff "--diff"
         , flag append "--append"
         , flag testLabel "--test-label"
-        , flag list "--list"
+        , flag listContents "--list"
         , flag update "--update"
         , flag extract "--extract"
         , flag checkDevice "--check-device"
@@ -575,7 +575,7 @@ buildArgs Options{..} =
         , optShow groupMap "--group-map"
         , opt mode "--mode"
         , opt mtime "--mtime"
-        , flag touch "--touch"
+        , flag touchFiles "--touch"
         , flag noDelayDirectoryRestore "--no-delay-directory-restore"
         , flag noSameOwner "--no-same-owner"
         , flag noSamePermissions "--no-same-permissions"
@@ -606,7 +606,7 @@ buildArgs Options{..} =
         , flag readFullRecords "--read-full-records"
         , flag ignoreZeros "--ignore-zeros"
         , optShow recordSize "--record-size"
-        , opt format "--format"
+        , opt archiveFormat "--format"
         , flag oldArchive "--old-archive"
         , flag paxOption "--pax-option"
         , flag posix "--posix"
@@ -656,11 +656,11 @@ buildArgs Options{..} =
         , flag usage "--usage"
         ]
   where
-    flag True f = Just f
+    flag True flg = Just flg
     flag False _ = Nothing
-    opt (Just v) f = Just (f <> "=" <> v)
+    opt (Just v) flg = Just (flg <> "=" <> v)
     opt Nothing _ = Nothing
-    optShow (Just v) f = Just (f <> "=" <> pack (show v))
+    optShow (Just v) flg = Just (flg <> "=" <> pack (show v))
     optShow Nothing _ = Nothing
 
 -- | Run tar with options and additional arguments
