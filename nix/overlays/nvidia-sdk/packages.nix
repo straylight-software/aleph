@@ -23,7 +23,6 @@ let
   inherit (prev.stdenv.hostPlatform) system;
 
   # Import prelude for translate-attrs
-  prelude = import ../../prelude/functions.nix { inherit lib; };
   translations = import ../../prelude/translations.nix { inherit lib; };
   inherit (translations) translate-attrs;
 

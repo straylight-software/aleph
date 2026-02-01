@@ -5,6 +5,7 @@ mitmproxy addon for Nix fetch caching and logging.
 - Logs all fetches for attestation
 - Enforces domain allowlist (optional)
 """
+
 import hashlib
 import json
 import os
@@ -49,9 +50,7 @@ class NixProxyAddon:
         """Check if host is in allowlist (empty = allow all)."""
         if not ALLOWLIST:
             return True
-        return any(
-            host == allowed or host.endswith("." + allowed) for allowed in ALLOWLIST
-        )
+        return any(host == allowed or host.endswith("." + allowed) for allowed in ALLOWLIST)
 
     def request(self, flow: http.HTTPFlow):
         """Check allowlist before forwarding request."""

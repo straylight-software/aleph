@@ -7,7 +7,6 @@
 {
   pkgs,
   system,
-  lib,
   ...
 }:
 let
@@ -101,7 +100,7 @@ let
   test-nvidia-sdk-structure =
     let
       script = render-dhall "test-nvidia-sdk-structure.bash" ./scripts/test-nvidia-sdk-structure.dhall {
-        nvidia-sdk = pkgs.nvidia-sdk;
+        inherit (pkgs) nvidia-sdk;
       };
     in
     run-command "test-nvidia-sdk-structure"

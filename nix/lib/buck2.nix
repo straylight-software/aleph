@@ -12,14 +12,12 @@
 { inputs }:
 let
   # Import prelude functions directly
-  prelude = import ../prelude/functions.nix { lib = inputs.nixpkgs.lib; };
+  prelude = import ../prelude/functions.nix { inherit (inputs.nixpkgs) lib; };
 
   inherit (prelude)
     map-attrs'
     to-upper
     replace
-    join
-    head
     to-string
     ;
 

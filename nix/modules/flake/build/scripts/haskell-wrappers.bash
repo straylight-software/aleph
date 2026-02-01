@@ -9,6 +9,6 @@ chmod +x bin/haddock
 
 # Generate hie.yaml for HLS if not exists
 if [ ! -e "hie.yaml" ]; then
-	cp @scriptsDir@/hie.yaml.template hie.yaml
-	echo "Generated hie.yaml for HLS"
+  cp @scriptsDir@/hie.yaml.template hie.yaml
+  echo "Generated hie.yaml for HLS"
 fi

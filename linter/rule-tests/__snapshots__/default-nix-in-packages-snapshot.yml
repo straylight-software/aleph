@@ -1,8 +1,0 @@
-id: default-nix-in-packages
-snapshots:
-  '{ }':
-    labels:
-    - source: '{ }'
-      style: primary
-      start: 0
-      end: 3

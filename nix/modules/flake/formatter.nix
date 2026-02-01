@@ -57,6 +57,9 @@ in
             excludes = [ "nix/templates/*" ];
           };
           programs.statix.enable = true;
+          programs.nixf-diagnose.enable = true;
+
+          programs.dhall.enable = true;
 
           programs.shfmt = {
             enable = true;

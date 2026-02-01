@@ -46,10 +46,8 @@ let
   # ──────────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for lib.* functions
   # ──────────────────────────────────────────────────────────────────────────────
-  mk-option = lib.mkOption;
   mk-enable-option = lib.mkEnableOption;
   mk-if = lib.mkIf;
-  optional-string = lib.optionalString;
   mk-per-system-option = flake-parts-lib.mkPerSystemOption;
 
   cfg = config.aleph.shortlist;
@@ -191,7 +189,7 @@ in
         aleph.shortlist = {
           inherit libraries;
           buckconfig = buckconfig-section;
-          shortlist-file = shortlist-file;
+          inherit shortlist-file;
           shellHook = shortlist-shell-hook;
         };
       };

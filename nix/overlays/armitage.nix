@@ -17,7 +17,6 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 final: prev:
 let
-  inherit (prev) lib;
 
   # Source directory
   armitage-src = ../../src/armitage;

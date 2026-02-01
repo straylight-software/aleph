@@ -1,9 +1,10 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+
 module Main where
 
-import Aleph.Nix.Value (Value(..))
-import Aleph.Nix.Derivation (drvToNixAttrs)
 import Aleph.Nix (nixWasmInit)
+import Aleph.Nix.Derivation (drvToNixAttrs)
+import Aleph.Nix.Value (Value (..))
 import qualified Pkg (pkg)
 
 main :: IO ()

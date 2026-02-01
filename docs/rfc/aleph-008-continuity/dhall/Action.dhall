@@ -2,38 +2,20 @@
 --|
 --| The unit of computation in the build graph.
 --| This is what Buck2 runs.
-
 let Toolchain = ./Toolchain.dhall
+
 let Target = ./Target.dhall
 
 let Artifact = Toolchain.Artifact
 
 let ActionCategory =
-      < Compile
-      | Link
-      | Archive
-      | Copy
-      | Write
-      | Run
-      | Test
-      | Custom : Text
-      >
+      < Compile | Link | Archive | Copy | Write | Run | Test | Custom : Text >
 
-let EnvVar =
-      { name : Text
-      , value : Text
-      }
+let EnvVar = { name : Text, value : Text }
 
-let Input =
-      < Artifact : Artifact
-      | Source : Text          -- Source file path
-      | Dep : Text             -- Dependency target label
-      >
+let Input = < Artifact : Artifact | Source : Text | Dep : Text >
 
-let Output =
-      { name : Text
-      , binding : Optional Text  -- Environment variable to bind path to
-      }
+let Output = { name : Text, binding : Optional Text }
 
 let Action =
       { category : ActionCategory
@@ -45,8 +27,6 @@ let Action =
       , toolchain : Optional Toolchain.Toolchain
       }
 
--- Action constructors
-
 let compile
     : Text -> List Text -> Text -> Toolchain.Toolchain -> Action
     = \(identifier : Text) ->
@@ -57,7 +37,7 @@ let compile
         , identifier
         , inputs = List/map Text Input (\(s : Text) -> Input.Source s) srcs
         , outputs = [ { name = output, binding = Some "OUT" } ]
-        , command = [] : List Text  -- Filled by rule
+        , command = [] : List Text
         , env = [] : List EnvVar
         , toolchain = Some toolchain
         }
@@ -70,7 +50,12 @@ let link
       \(toolchain : Toolchain.Toolchain) ->
         { category = ActionCategory.Link
         , identifier
-        , inputs = List/map Artifact Input (\(a : Artifact) -> Input.Artifact a) objects
+        , inputs =
+            List/map
+              Artifact
+              Input
+              (\(a : Artifact) -> Input.Artifact a)
+              objects
         , outputs = [ { name = output, binding = Some "OUT" } ]
         , command = [] : List Text
         , env = [] : List EnvVar
@@ -100,7 +85,7 @@ let write
         , identifier
         , inputs = [] : List Input
         , outputs = [ { name = output, binding = None Text } ]
-        , command = [] : List Text  -- Content written directly
+        , command = [] : List Text
         , env = [] : List EnvVar
         , toolchain = None Toolchain.Toolchain
         }

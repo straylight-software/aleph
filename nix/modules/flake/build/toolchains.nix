@@ -18,7 +18,7 @@ let
     };
 
   # LLVM 22 from llvm-git overlay (added by flake-module.nix)
-  llvm-git = pkgs.llvm-git;
+  inherit (pkgs) llvm-git;
 
   # GCC for libstdc++ headers and runtime
   gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
@@ -27,10 +27,10 @@ let
   triple = pkgs.stdenv.hostPlatform.config;
 
   # NVIDIA SDK (added by flake-module.nix)
-  nvidia-sdk = pkgs.nvidia-sdk;
+  inherit (pkgs) nvidia-sdk;
 
   # mdspan (Kokkos reference implementation, added by flake-module.nix)
-  mdspan = pkgs.mdspan;
+  inherit (pkgs) mdspan;
 
   # Haskell
   hs-pkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;

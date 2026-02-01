@@ -37,7 +37,7 @@ let
     {
       ghc-wasm = ghc-wasm-pkgs.wasm32-wasi-ghc-9_12;
       ghc-wasm-cabal = ghc-wasm-pkgs.wasm32-wasi-cabal-9_12;
-      wasi-sdk = ghc-wasm-pkgs.wasi-sdk;
+      inherit (ghc-wasm-pkgs) wasi-sdk;
     }
     # Alternative GHC versions (optional)
     # NOTE: Package names are from ghc-wasm-meta (external API), accessed via string

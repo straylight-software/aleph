@@ -13,6 +13,6 @@ echo "Running..."
 # Verify output
 OUTPUT=$(./hello)
 if [ "$OUTPUT" != "Hello from GHC!" ]; then
-	echo "ERROR: Unexpected output: $OUTPUT"
-	exit 1
+  echo "ERROR: Unexpected output: $OUTPUT"
+  exit 1
 fi

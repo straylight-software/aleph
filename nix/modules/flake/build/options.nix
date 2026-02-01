@@ -22,33 +22,30 @@ in
   # ════════════════════════════════════════════════════════════════════════════
   # Per-system options for aleph.build
   # ════════════════════════════════════════════════════════════════════════════
-  perSystem = mk-per-system-option (
-    { ... }:
-    {
-      options.aleph.build = {
-        buck2-toolchain = mk-option {
-          type = types.raw;
-          default = { };
-          description = "Buck2 toolchain paths from .buckconfig.local";
-        };
-        buckconfig-local = mk-option {
-          type = types.null-or types.path;
-          default = null;
-          description = "Path to generated .buckconfig.local";
-        };
-        shellHook = mk-option {
-          type = types.lines;
-          default = "";
-          description = "Shell hook for Buck2 setup";
-        };
-        packages = mk-option {
-          type = types.list-of types.package;
-          default = [ ];
-          description = "Packages for Buck2 toolchains";
-        };
+  perSystem = mk-per-system-option (_: {
+    options.aleph.build = {
+      buck2-toolchain = mk-option {
+        type = types.raw;
+        default = { };
+        description = "Buck2 toolchain paths from .buckconfig.local";
       };
-    }
-  );
+      buckconfig-local = mk-option {
+        type = types.null-or types.path;
+        default = null;
+        description = "Path to generated .buckconfig.local";
+      };
+      shellHook = mk-option {
+        type = types.lines;
+        default = "";
+        description = "Shell hook for Buck2 setup";
+      };
+      packages = mk-option {
+        type = types.list-of types.package;
+        default = [ ];
+        description = "Packages for Buck2 toolchains";
+      };
+    };
+  });
 
   # ════════════════════════════════════════════════════════════════════════════
   # Top-level aleph.build options
