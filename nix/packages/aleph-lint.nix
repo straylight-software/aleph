@@ -37,15 +37,13 @@ write-shell-application {
     cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
     trap 'rm -rf ./__aleph-lint-config' EXIT
 
-    ls --tree
-
-    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yaml test
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yml test --update-all
   '';
 
   text = ''
     cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
     trap 'rm -rf ./__aleph-lint-config' EXIT
 
-    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yaml scan --context 2 --color always "$@"
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yml scan --context 2 --color always "$@"
   '';
 }
