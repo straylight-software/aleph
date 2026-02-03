@@ -38,6 +38,9 @@ let lints
       , ./lints/nix/rec-anywhere.dhall
       , ./lints/nix/rec-in-derivation.dhall
       , ./lints/nix/with-lib.dhall
+      , ./lints/haskell/no-short-abbreviations.dhall
+      , ./lints/haskell/prefer-guards-over-nested-case.dhall
+      , ./lints/haskell/prefer-newtype-over-type-alias.dhall
       ]
 
 let renderToEntry

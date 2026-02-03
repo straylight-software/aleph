@@ -41,6 +41,7 @@ let NodeMatcherF =
         , regex : Optional Text
         , has : Optional r
         , inside : Optional r
+        , stopBy : Optional Text
         }
 
 let NodeMatcher = ∀(r : Type) → (NodeMatcherF r → r) → r
@@ -61,6 +62,7 @@ let nodeMatcher
               , regex = fm.regex
               , has = mapOpt NodeMatcher r (foldNodeMatcher r f) fm.has
               , inside = mapOpt NodeMatcher r (foldNodeMatcher r f) fm.inside
+              , stopBy = fm.stopBy
               }
 
 let NodeMatcherWithDefaults =
@@ -71,6 +73,7 @@ let NodeMatcherWithDefaults =
         , regex = None Text
         , has = None NodeMatcher
         , inside = None NodeMatcher
+        , stopBy = None Text
         }
       }
 
@@ -84,12 +87,14 @@ let SubRule =
           , field : Optional Text
           , regex : Optional Text
           , has : Optional NodeMatcher
+          , stopBy : Optional Text
           }
       , default =
         { kind = None Text
         , field = None Text
         , regex = None Text
         , has = None NodeMatcher
+        , stopBy = None Text
         }
       }
 
@@ -162,6 +167,7 @@ let nodeMatcherFToJSON =
           , maybeField "regex" JSON.string fm.regex
           , maybeNodeField "has" fm.has
           , maybeNodeField "inside" fm.inside
+          , maybeField "stopBy" JSON.string fm.stopBy
           ]
 
 let nodeMatcherToJSON
@@ -201,6 +207,7 @@ let subRuleToJSON
                 , maybeField "field" JSON.string sr.field
                 , maybeField "regex" JSON.string sr.regex
                 , maybeNodeMatcherField "has" sr.has
+                , maybeField "stopBy" JSON.string sr.stopBy
                 ]
 
         in  JSON.object
