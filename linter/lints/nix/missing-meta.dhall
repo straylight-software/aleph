@@ -1,4 +1,5 @@
-let Schema = ../schemas/Lint.dhall
+let Schema = ../../schemas/Lint.dhall
+
 let Severity = Schema.Severity
 
 in  { id = "missing-meta"
@@ -18,15 +19,15 @@ in  { id = "missing-meta"
         Add a `meta` attribute with at least basic information.
         ''
     , tests =
-        { valid = 
-            [ "{ meta = {}; }"
-            , "{ meta = { description = \"foo\"; }; }"
-            , "{ meta = { license = lib.licenses.mit; }; }"
-            ]
-        , invalid = 
-            [ "mkDerivation { name = \"foo\"; }"
-            , "mkDerivation { pname = \"bar\"; version = \"1.0\"; }"
-            , "mkDerivation { src = ./.; }"
-            ]
-        }
+      { valid =
+        [ "{ meta = {}; }"
+        , "{ meta = { description = \"foo\"; }; }"
+        , "{ meta = { license = lib.licenses.mit; }; }"
+        ]
+      , invalid =
+        [ "mkDerivation { name = \"foo\"; }"
+        , "mkDerivation { pname = \"bar\"; version = \"1.0\"; }"
+        , "mkDerivation { src = ./.; }"
+        ]
+      }
     }

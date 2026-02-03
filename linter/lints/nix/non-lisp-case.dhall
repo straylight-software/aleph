@@ -1,4 +1,5 @@
-let Schema = ../schemas/Lint.dhall
+let Schema = ../../schemas/Lint.dhall
+
 let Severity = Schema.Severity
 
 in  { id = "non-lisp-case"
@@ -20,15 +21,7 @@ in  { id = "non-lisp-case"
         ```
         ''
     , tests =
-        { valid = 
-            [ "my-function = 1"
-            , "my_function = 1"
-            , "lowercase = 1"
-            ]
-        , invalid = 
-            [ "myFunction = 1"
-            , "SomeValue = 1"
-            , "IORef = 1"
-            ]
-        }
+      { valid = [ "my-function = 1", "my_function = 1", "lowercase = 1" ]
+      , invalid = [ "myFunction = 1", "SomeValue = 1", "IORef = 1" ]
+      }
     }

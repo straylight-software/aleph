@@ -1,6 +1,9 @@
-let Schema = ../schemas/Lint.dhall
+let Schema = ../../schemas/Lint.dhall
+
 let Severity = Schema.Severity
+
 let node = Schema.someNodeMatcher
+
 let Match = Schema.NodeMatcherWithDefaults
 
 in  { id = "no-translate-attrs-outside-prelude"
@@ -9,16 +12,17 @@ in  { id = "no-translate-attrs-outside-prelude"
     , rule = Schema.Rule::{
       , kind = "apply_expression"
       , any = Some
-          [ Schema.SubRule::{
-            , field = Some "function"
-            , kind = Some "variable_expression"
-            , has = node
+        [ Schema.SubRule::{
+          , field = Some "function"
+          , kind = Some "variable_expression"
+          , has =
+              node
                 Match::{
                 , kind = Some "identifier"
-                , regex = Some "^translate-attrs$"
+                , regex = Some "^translate-attrs\$"
                 }
-            }
-          ]
+          }
+        ]
       }
     , message = "ALEPH-E013: translate-attrs used outside prelude"
     , note =
@@ -31,15 +35,15 @@ in  { id = "no-translate-attrs-outside-prelude"
         Use `aleph.stdenv.default` or `prelude.mk-package` instead.
         ''
     , tests =
-        { valid = 
-            [ "aleph.stdenv.default { }"
-            , "prelude.mk-package { name = \"foo\"; }"
-            , "pkgs.stdenv.mkDerivation { name = \"bar\"; }"
-            ]
-        , invalid = 
-            [ "translate-attrs { }"
-            , "translate-attrs { cmake = pkgs.cmake; }"
-            , "translate-attrs config // { extra = true; }"
-            ]
-        }
+      { valid =
+        [ "aleph.stdenv.default { }"
+        , "prelude.mk-package { name = \"foo\"; }"
+        , "pkgs.stdenv.mkDerivation { name = \"bar\"; }"
+        ]
+      , invalid =
+        [ "translate-attrs { }"
+        , "translate-attrs { cmake = pkgs.cmake; }"
+        , "translate-attrs config // { extra = true; }"
+        ]
+      }
     }

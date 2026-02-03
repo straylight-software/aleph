@@ -1,4 +1,5 @@
-let Schema = ../schemas/Lint.dhall
+let Schema = ../../schemas/Lint.dhall
+
 let Severity = Schema.Severity
 
 in  { id = "default-nix-in-packages"
@@ -18,15 +19,15 @@ in  { id = "default-nix-in-packages"
         Use explicit file names that describe the package.
         ''
     , tests =
-        { valid = 
-            [ "\"./hello.nix\""
-            , "\"./my-package.nix\""
-            , "\"nix/packages/foo/package.nix\""
-            ]
-        , invalid = 
-            [ "\"./default.nix\""
-            , "\"nix/packages/bar/default.nix\""
-            , "\"./package/default.nix\""
-            ]
-        }
+      { valid =
+        [ "\"./hello.nix\""
+        , "\"./my-package.nix\""
+        , "\"nix/packages/foo/package.nix\""
+        ]
+      , invalid =
+        [ "\"./default.nix\""
+        , "\"nix/packages/bar/default.nix\""
+        , "\"./package/default.nix\""
+        ]
+      }
     }

@@ -21,23 +21,23 @@ let Entry = { mapKey : Text, mapValue : Text }
 
 let lints
     : List Lint
-    = [ ./lints/default-nix-in-packages.dhall
-      , ./lints/long-inline-string.dhall
-      , ./lints/missing-class.dhall
-      , ./lints/missing-description.dhall
-      , ./lints/missing-meta.dhall
-      , ./lints/no-heredoc-in-inline-bash.dhall
-      , ./lints/non-lisp-case.dhall
-      , ./lints/no-raw-mkderivation.dhall
-      , ./lints/no-raw-runcommand.dhall
-      , ./lints/no-raw-writeshellapplication.dhall
-      , ./lints/no-substitute-all.dhall
-      , ./lints/no-translate-attrs-outside-prelude.dhall
-      , ./lints/or-null-fallback.dhall
-      , ./lints/prefer-write-shell-application.dhall
-      , ./lints/rec-anywhere.dhall
-      , ./lints/rec-in-derivation.dhall
-      , ./lints/with-lib.dhall
+    = [ ./lints/nix/default-nix-in-packages.dhall
+      , ./lints/nix/long-inline-string.dhall
+      , ./lints/nix/missing-class.dhall
+      , ./lints/nix/missing-description.dhall
+      , ./lints/nix/missing-meta.dhall
+      , ./lints/nix/no-heredoc-in-inline-bash.dhall
+      , ./lints/nix/non-lisp-case.dhall
+      , ./lints/nix/no-raw-mkderivation.dhall
+      , ./lints/nix/no-raw-runcommand.dhall
+      , ./lints/nix/no-raw-writeshellapplication.dhall
+      , ./lints/nix/no-substitute-all.dhall
+      , ./lints/nix/no-translate-attrs-outside-prelude.dhall
+      , ./lints/nix/or-null-fallback.dhall
+      , ./lints/nix/prefer-write-shell-application.dhall
+      , ./lints/nix/rec-anywhere.dhall
+      , ./lints/nix/rec-in-derivation.dhall
+      , ./lints/nix/with-lib.dhall
       ]
 
 let renderToEntry

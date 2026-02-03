@@ -1,13 +1,11 @@
-let Schema = ../schemas/Lint.dhall
+let Schema = ../../schemas/Lint.dhall
+
 let Severity = Schema.Severity
 
 in  { id = "no-heredoc-in-inline-bash"
     , language = "nix"
     , severity = Severity.Error
-    , rule = Schema.Rule::{
-      , kind = "string_fragment"
-      , regex = Some "<<"
-      }
+    , rule = Schema.Rule::{ kind = "string_fragment", regex = Some "<<" }
     , message = "ALEPH-E006: heredoc in inline bash string"
     , note =
         ''
@@ -18,15 +16,7 @@ in  { id = "no-heredoc-in-inline-bash"
         Consider moving the content to a file.
         ''
     , tests =
-        { valid = 
-            [ "''echo hello''"
-            , "''ls -la''"
-            , "''pwd && ls''"
-            ]
-        , invalid = 
-            [ "''cat <<EOF''"
-            , "''tee <<INPUT''"
-            , "''bash <<SCRIPT''"
-            ]
-        }
+      { valid = [ "''echo hello''", "''ls -la''", "''pwd && ls''" ]
+      , invalid = [ "''cat <<EOF''", "''tee <<INPUT''", "''bash <<SCRIPT''" ]
+      }
     }
