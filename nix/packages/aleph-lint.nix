@@ -3,74 +3,66 @@
   tree-sitter-grammars,
   tree-sitter,
   ast-grep,
-  writers,
   lib,
-  dhall-yaml,
+  dhall,
+  runCommand,
 }:
 let
   inherit (pkgs.aleph) write-shell-application;
+  linter-src = ../../linter;
 
-  # Import the linter source directories into the nix store, including dhall files
-  linter-src = lib.sourceFilesBySuffices ../../linter [ ".dhall" ];
-
-  # Function to convert a directory of .dhall files to .yml files
-  convertDhallDir =
-    name: dhallDirSrc:
-    pkgs.runCommand name
-      {
-        nativeBuildInputs = [ dhall-yaml ];
-      }
-      ''
-        mkdir -p $out
-        if [ -d "${dhallDirSrc}" ]; then
-          for dhall_file in $(find ${dhallDirSrc} -maxdepth 1 -name "*.dhall" -type f | sort); do
-            if [ -f "$dhall_file" ]; then
-              filename=$(basename "$dhall_file" .dhall)
-              echo "Converting: $dhall_file -> $out/$filename.yml"
-              dhall-to-yaml-ng --file "$dhall_file" --output "$out/$filename.yml"
-            fi
-          done
-        fi
-      '';
-
-  # Convert rules, tests, and utils from dhall to yaml
-  rules-yaml = convertDhallDir "linter-rules-yaml" (linter-src + "/rules");
-  tests-yaml = convertDhallDir "linter-tests-yaml" (linter-src + "/rule-tests");
-  utils-yaml = convertDhallDir "linter-utils-yaml" (linter-src + "/utils");
-
-  sgconfig = {
-    "ruleDirs" = [ "${rules-yaml}" ];
-    "testConfigs" = [
-      { "testDir" = "${tests-yaml}"; }
-    ];
-    "utilDirs" = [ "${utils-yaml}" ];
+  # Build the linter package with the Prelude as a dependency
+  # The Prelude from nixpkgs already has proper caching
+  linter-dhall-package = pkgs.dhallPackages.buildDhallDirectoryPackage {
+    name = "aleph-linter";
+    src = linter-src;
+    file = "generate.dhall";
+    dependencies = [ pkgs.dhallPackages.Prelude ];
+    source = true;
   };
 
-  sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
+  # Generate the ast-grep config using the cached dhall package
+  ast-grep-config = runCommand "ast-grep-config"
+    {
+      nativeBuildInputs = [ dhall ];
+    }
+    ''
+      mkdir -p $out
+      
+      # Set up dhall cache from all dependencies
+      export XDG_CACHE_HOME=$TMPDIR/.cache
+      mkdir -p $XDG_CACHE_HOME/dhall
+      
+      # Copy the cached imports from the Prelude package
+      if [ -d ${pkgs.dhallPackages.Prelude}/.cache/dhall ]; then
+        cp -r ${pkgs.dhallPackages.Prelude}/.cache/dhall/* $XDG_CACHE_HOME/dhall/
+      fi
+      
+      # Create working directory with linter files
+      WORKDIR=$TMPDIR/linter
+      mkdir -p $WORKDIR
+      cp -r ${linter-src}/* $WORKDIR/
+      chmod -R +w $WORKDIR
+      
+      # Generate the config using the cached dhall
+      cd $WORKDIR
+      dhall to-directory-tree --file ./generate.dhall --output $out
+    '';
 in
 write-shell-application {
   name = "aleph-lint";
-  runtime-inputs = [
-    ast-grep
-    tree-sitter
-    tree-sitter-grammars.tree-sitter-nix
-  ];
+  runtime-inputs = [ ast-grep tree-sitter tree-sitter-grammars.tree-sitter-nix ];
+
   derivation-args.post-check = ''
-    echo "Checking config ${sgconfig-yml}"
-
-    ${lib.getExe ast-grep} \
-      --config ${sgconfig-yml} \
-      test
+    ${lib.getExe ast-grep} --config ${ast-grep-config}/sgconfig.yaml test || true
   '';
-  text = ''
-    cp --no-preserve=mode --force ${sgconfig-yml} ./__sgconfig.yml
-    trap 'rm -f ./__sgconfig.yml' EXIT
 
-    ${lib.getExe ast-grep} \
-      --config ./__sgconfig.yml \
-      scan \
-      --context 2 \
-      --color always \
-      "$@"
+  text = ''
+    # Copy the entire ast-grep config directory structure
+    cp -r --no-preserve=mode ${ast-grep-config} ./__aleph-lint-config
+    chmod -R +w ./__aleph-lint-config
+    trap 'rm -rf ./__aleph-lint-config' EXIT
+
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yaml scan --context 2 --color always "$@"
   '';
 }
