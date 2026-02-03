@@ -18,7 +18,15 @@ in  { id = "no-raw-writeshellapplication"
         Use `prelude.write-shell-application` instead.
         ''
     , tests =
-        { valid = [ "prelude.write-shell-application { name = \"foo\"; text = \"echo hi\"; }" ]
-        , invalid = [ "pkgs.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
+        { valid = 
+            [ "prelude.write-shell-application { name = \"foo\"; text = \"echo hi\"; }"
+            , "aleph.write-shell-application { name = \"bar\"; text = \"ls\"; }"
+            , "myProject.write-shell-application { name = \"script\"; text = \"pwd\"; }"
+            ]
+        , invalid = 
+            [ "pkgs.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }"
+            , "nixpkgs.writeShellApplication { name = \"bar\"; text = \"test\"; }"
+            , "final.writeShellApplication { name = \"script\"; text = \"ls\"; }"
+            ]
         }
     }

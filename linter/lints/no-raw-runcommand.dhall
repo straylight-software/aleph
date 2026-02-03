@@ -18,7 +18,15 @@ in  { id = "no-raw-runcommand"
         Use `prelude.run-command` instead.
         ''
     , tests =
-        { valid = [ "prelude.run-command \"foo\" { } \"echo hi\"" ]
-        , invalid = [ "pkgs.runCommand \"foo\" { } \"echo hi\"" ]
+        { valid = 
+            [ "prelude.run-command \"foo\" { } \"echo hi\""
+            , "aleph.run-command \"bar\" {} \"ls\""
+            , "myProject.run-command \"script\" {} \"pwd\""
+            ]
+        , invalid = 
+            [ "pkgs.runCommand \"foo\" { } \"echo hi\""
+            , "nixpkgs.runCommand \"bar\" {} \"test\""
+            , "final.runCommand \"script\" {} \"ls\""
+            ]
         }
     }

@@ -18,7 +18,15 @@ in  { id = "missing-class"
         Add `_class` to the module attrset.
         ''
     , tests =
-        { valid = [ "[]" ]
-        , invalid = [ "{ config = {}; }" ]
+        { valid = 
+            [ "[]"
+            , "\"string\""
+            , "123"
+            ]
+        , invalid = 
+            [ "{ config = {}; }"
+            , "{ options = {}; config = {}; }"
+            , "{ imports = []; }"
+            ]
         }
     }

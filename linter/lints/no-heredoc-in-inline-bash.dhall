@@ -18,7 +18,15 @@ in  { id = "no-heredoc-in-inline-bash"
         Consider moving the content to a file.
         ''
     , tests =
-        { valid = [ "''echo hello''" ]
-        , invalid = [ "''cat <<EOF''" ]
+        { valid = 
+            [ "''echo hello''"
+            , "''ls -la''"
+            , "''pwd && ls''"
+            ]
+        , invalid = 
+            [ "''cat <<EOF''"
+            , "''tee <<INPUT''"
+            , "''bash <<SCRIPT''"
+            ]
         }
     }

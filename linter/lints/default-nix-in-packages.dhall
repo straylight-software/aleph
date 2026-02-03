@@ -18,7 +18,15 @@ in  { id = "default-nix-in-packages"
         Use explicit file names that describe the package.
         ''
     , tests =
-        { valid = [ "\"./hello.nix\"" ]
-        , invalid = [ "\"./default.nix\"" ]
+        { valid = 
+            [ "\"./hello.nix\""
+            , "\"./my-package.nix\""
+            , "\"nix/packages/foo/package.nix\""
+            ]
+        , invalid = 
+            [ "\"./default.nix\""
+            , "\"nix/packages/bar/default.nix\""
+            , "\"./package/default.nix\""
+            ]
         }
     }

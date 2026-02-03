@@ -1,29 +1,22 @@
 let Schema = ../schemas/Lint.dhall
-let Severity = Schema.Severity
-let nodeMatcher = Schema.nodeMatcher
+let node = Schema.someNodeMatcher
+let Match = Schema.NodeMatcherWithDefaults
 
 in  { id = "or-null-fallback"
     , language = "nix"
-    , severity = Severity.Warning
+    , severity = Schema.Severity.Warning
     , rule = Schema.Rule::{
       , kind = "select_expression"
-      , has = Some
-          ( nodeMatcher
-              { kind = Some "variable_expression"
-              , field = Some "default"
-              , regex = None Text
-              , has = Some
-                  ( nodeMatcher
-                      { kind = Some "identifier"
-                      , field = None Text
-                      , regex = Some "^null$"
-                      , has = None Schema.NodeMatcher
-                      , inside = None Schema.NodeMatcher
-                      }
-                  )
-              , inside = None Schema.NodeMatcher
+      , has = node
+          Match::{
+          , kind = Some "variable_expression"
+          , field = Some "default"
+          , has = node
+              Match::{
+              , kind = Some "identifier"
+              , regex = Some "^null$"
               }
-          )
+          }
       }
     , message = "ALEPH-W004: defensive `or null` fallback"
     , note =
@@ -35,7 +28,15 @@ in  { id = "or-null-fallback"
         If the attribute must exist, remove the fallback and let it fail.
         ''
     , tests =
-        { valid = [ "{ foo ? null }: foo" ]
-        , invalid = [ "args.foo or null" ]
+        { valid = 
+            [ "{ foo ? null }: foo"
+            , "config.foo or true"
+            , "pkgs.bar or pkgs.baz"
+            ]
+        , invalid = 
+            [ "args.foo or null"
+            , "pkgs.hello or null"
+            , "config.value or null"
+            ]
         }
     }

@@ -18,7 +18,15 @@ in  { id = "missing-description"
         Add a human-readable `description` for the option.
         ''
     , tests =
-        { valid = [ "{}" ]
-        , invalid = [ "mkOption { type = types.str; }" ]
+        { valid = 
+            [ "{ description = \"foo\"; }"
+            , "{ description = \"Enable feature\"; type = types.bool; }"
+            , "{ type = types.str; description = \"Path to file\"; }"
+            ]
+        , invalid = 
+            [ "mkOption { type = types.str; }"
+            , "mkOption { type = types.int; default = 0; }"
+            , "mkOption { type = types.bool; default = false; }"
+            ]
         }
     }

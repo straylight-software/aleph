@@ -1,6 +1,7 @@
 let Schema = ../schemas/Lint.dhall
 let Severity = Schema.Severity
-let nodeMatcher = Schema.nodeMatcher
+let node = Schema.someNodeMatcher
+let Match = Schema.NodeMatcherWithDefaults
 
 in  { id = "no-translate-attrs-outside-prelude"
     , language = "nix"
@@ -11,15 +12,11 @@ in  { id = "no-translate-attrs-outside-prelude"
           [ Schema.SubRule::{
             , field = Some "function"
             , kind = Some "variable_expression"
-            , has = Some
-                ( nodeMatcher
-                    { kind = Some "identifier"
-                    , field = None Text
-                    , regex = Some "^translate-attrs$"
-                    , has = None Schema.NodeMatcher
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
+            , has = node
+                Match::{
+                , kind = Some "identifier"
+                , regex = Some "^translate-attrs$"
+                }
             }
           ]
       }
@@ -34,7 +31,15 @@ in  { id = "no-translate-attrs-outside-prelude"
         Use `aleph.stdenv.default` or `prelude.mk-package` instead.
         ''
     , tests =
-        { valid = [ "aleph.stdenv.default { }" ]
-        , invalid = [ "translate-attrs { }" ]
+        { valid = 
+            [ "aleph.stdenv.default { }"
+            , "prelude.mk-package { name = \"foo\"; }"
+            , "pkgs.stdenv.mkDerivation { name = \"bar\"; }"
+            ]
+        , invalid = 
+            [ "translate-attrs { }"
+            , "translate-attrs { cmake = pkgs.cmake; }"
+            , "translate-attrs config // { extra = true; }"
+            ]
         }
     }

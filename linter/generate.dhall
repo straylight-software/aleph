@@ -2,9 +2,9 @@
 Generate ast-grep configuration directory tree.
 
 Produces the following structure via `dhall to-directory-tree`:
-- sgconfig.yaml  - Main ast-grep configuration
+- sgconfig.yml  - Main ast-grep configuration
 - rules/*.yml    - Individual rule definitions
-- tests/*.yml    - Test case files
+- rule-tests/*.yml    - Test case files
 
 Usage:
     dhall to-directory-tree --file ./generate.dhall --output ./ast-grep-config/
@@ -55,6 +55,22 @@ let foldEntries
           (Prelude.Map.Type Text Text)
           (λ(e : Entry) → λ(acc : Prelude.Map.Type Text Text) → acc # [ e ])
           ([] : Prelude.Map.Type Text Text)
+
+let validateTestCount
+    : Lint → Bool
+    = λ(lint : Lint) →
+        let validCount = Prelude.List.length Text lint.tests.valid
+
+        let invalidCount = Prelude.List.length Text lint.tests.invalid
+
+        in      Prelude.Natural.greaterThanEqual validCount 3
+            &&  Prelude.Natural.greaterThanEqual invalidCount 3
+
+let allTestsHaveAtLeast3Values
+    : Bool
+    = Prelude.List.all Lint validateTestCount lints
+
+let _ = assert : allTestsHaveAtLeast3Values ≡ True
 
 in  { `sgconfig.yml` = Schema.renderSGConfigYAML
     , rules =

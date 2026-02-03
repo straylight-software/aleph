@@ -1,6 +1,7 @@
 let Schema = ../schemas/Lint.dhall
 let Severity = Schema.Severity
-let nodeMatcher = Schema.nodeMatcher
+let node = Schema.someNodeMatcher
+let Match = Schema.NodeMatcherWithDefaults
 
 in  { id = "prefer-write-shell-application"
     , language = "nix"
@@ -11,28 +12,21 @@ in  { id = "prefer-write-shell-application"
           [ Schema.SubRule::{
             , field = Some "function"
             , kind = Some "select_expression"
-            , has = Some
-                ( nodeMatcher
-                    { kind = Some "attrpath"
-                    , field = Some "attrpath"
-                    , regex = Some "^(writeShellScript|writeShellScriptBin)$"
-                    , has = None Schema.NodeMatcher
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
+            , has = node
+                Match::{
+                , kind = Some "attrpath"
+                , field = Some "attrpath"
+                , regex = Some "^(writeShellScript|writeShellScriptBin)$"
+                }
             }
           , Schema.SubRule::{
             , field = Some "function"
             , kind = Some "variable_expression"
-            , has = Some
-                ( nodeMatcher
-                    { kind = Some "identifier"
-                    , field = None Text
-                    , regex = Some "^(writeShellScript|writeShellScriptBin)$"
-                    , has = None Schema.NodeMatcher
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
+            , has = node
+                Match::{
+                , kind = Some "identifier"
+                , regex = Some "^(writeShellScript|writeShellScriptBin)$"
+                }
             }
           ]
       }
@@ -46,10 +40,15 @@ in  { id = "prefer-write-shell-application"
         Use `writeShellApplication` instead.
         ''
     , tests =
-        { valid = [ "writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
-        , invalid = 
+        { valid =
+            [ "writeShellApplication { name = \"foo\"; text = \"echo hi\"; }"
+            , "writeShellApplication { name = \"script\"; text = \"ls -la\"; }"
+            , "writeShellApplication { name = \"checker\"; text = \"test -f file\"; }"
+            ]
+        , invalid =
             [ "writeShellScript \"foo\" \"echo hi\""
             , "writeShellScriptBin \"foo\" \"echo hi\""
+            , "pkgs.writeShellScript \"bar\" \"ls\""
             ]
         }
     }

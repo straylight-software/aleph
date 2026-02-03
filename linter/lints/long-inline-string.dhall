@@ -18,7 +18,15 @@ in  { id = "long-inline-string"
         Consider moving the content to a file.
         ''
     , tests =
-        { valid = [ "''short''" ]
-        , invalid = [ "''\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n''" ]
+        { valid = 
+            [ "''short''"
+            , "''\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10''"
+            , "''single line''"
+            ]
+        , invalid = 
+            [ "''\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n''"
+            , "''\na\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\n''"
+            , "''\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n''"
+            ]
         }
     }

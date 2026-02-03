@@ -18,7 +18,15 @@ in  { id = "missing-meta"
         Add a `meta` attribute with at least basic information.
         ''
     , tests =
-        { valid = [ "{}" ]
-        , invalid = [ "mkDerivation { name = \"foo\"; }" ]
+        { valid = 
+            [ "{ meta = {}; }"
+            , "{ meta = { description = \"foo\"; }; }"
+            , "{ meta = { license = lib.licenses.mit; }; }"
+            ]
+        , invalid = 
+            [ "mkDerivation { name = \"foo\"; }"
+            , "mkDerivation { pname = \"bar\"; version = \"1.0\"; }"
+            , "mkDerivation { src = ./.; }"
+            ]
         }
     }

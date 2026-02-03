@@ -18,7 +18,15 @@ in  { id = "no-raw-mkderivation"
         Use `prelude.mk-derivation` instead.
         ''
     , tests =
-        { valid = [ "prelude.mk-derivation { name = \"foo\"; }" ]
-        , invalid = [ "pkgs.stdenv.mkDerivation { name = \"foo\"; }" ]
+        { valid = 
+            [ "prelude.mk-derivation { name = \"foo\"; }"
+            , "aleph.mk-derivation { pname = \"bar\"; }"
+            , "myProject.mk-derivation {}"
+            ]
+        , invalid = 
+            [ "pkgs.stdenv.mkDerivation { name = \"foo\"; }"
+            , "nixpkgs.stdenv.mkDerivation {}"
+            , "final.stdenv.mkDerivation { pname = \"baz\"; }"
+            ]
         }
     }

@@ -64,6 +64,22 @@ let nodeMatcher
               , inside = mapOpt NodeMatcher r (foldNodeMatcher r f) fm.inside
               }
 
+-- | Node matcher type with defaults for :: operator
+let NodeMatcherWithDefaults =
+      { Type = NodeMatcherF NodeMatcher
+      , default =
+        { kind = None Text
+        , field = None Text
+        , regex = None Text
+        , has = None NodeMatcher
+        , inside = None NodeMatcher
+        }
+      }
+
+-- | Helper to create an optional node matcher (since 'has' always needs Some)
+let someNodeMatcher : NodeMatcherF NodeMatcher → Optional NodeMatcher =
+      λ(fm : NodeMatcherF NodeMatcher) → Some (nodeMatcher fm)
+
 -- | Sub-rule for all/any combinators (simplified - only node matchers, not nested rules)
 let SubRule =
       { Type =
@@ -314,7 +330,9 @@ in  { Severity
     , NodeMatcherF
     , NodeMatcher
     , nodeMatcher
+    , someNodeMatcher
     , foldNodeMatcher
+    , NodeMatcherWithDefaults
     , SubRule
     , RuleNot
     , Rule

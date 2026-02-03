@@ -1,6 +1,7 @@
 let Schema = ../schemas/Lint.dhall
 let Severity = Schema.Severity
-let nodeMatcher = Schema.nodeMatcher
+let node = Schema.someNodeMatcher
+let Match = Schema.NodeMatcherWithDefaults
 
 in  { id = "no-substitute-all"
     , language = "nix"
@@ -11,36 +12,25 @@ in  { id = "no-substitute-all"
           [ Schema.SubRule::{
             , field = Some "function"
             , kind = Some "select_expression"
-            , has = Some
-                ( nodeMatcher
-                    { kind = Some "attrpath"
-                    , field = Some "attrpath"
-                    , regex = None Text
-                    , has = Some
-                        ( nodeMatcher
-                            { kind = Some "identifier"
-                            , field = None Text
-                            , regex = Some "^(substituteAll|replaceVars|substitute)$"
-                            , has = None Schema.NodeMatcher
-                            , inside = None Schema.NodeMatcher
-                            }
-                        )
-                    , inside = None Schema.NodeMatcher
+            , has = node
+                Match::{
+                , kind = Some "attrpath"
+                , field = Some "attrpath"
+                , has = node
+                    Match::{
+                    , kind = Some "identifier"
+                    , regex = Some "^(substituteAll|replaceVars|substitute)$"
                     }
-                )
+                }
             }
           , Schema.SubRule::{
             , field = Some "function"
             , kind = Some "variable_expression"
-            , has = Some
-                ( nodeMatcher
-                    { kind = Some "identifier"
-                    , field = None Text
-                    , regex = Some "^(substituteAll|replaceVars|substitute)$"
-                    , has = None Schema.NodeMatcher
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
+            , has = node
+                Match::{
+                , kind = Some "identifier"
+                , regex = Some "^(substituteAll|replaceVars|substitute)$"
+                }
             }
           ]
       }
@@ -52,7 +42,15 @@ in  { id = "no-substitute-all"
         All text generation must use Dhall templates.
         ''
     , tests =
-        { valid = [ "builtins.readFile ./file" ]
-        , invalid = [ "substituteAll { src = ./file; }" ]
+        { valid = 
+            [ "builtins.readFile ./file"
+            , "\"plain text\""
+            , "pkgs.writeText \"config\" configText"
+            ]
+        , invalid = 
+            [ "substituteAll { src = ./file; }"
+            , "replaceVars ./template { var = value; }"
+            , "substitute { src = script.sh; }"
+            ]
         }
     }
