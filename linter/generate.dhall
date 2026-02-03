@@ -9,7 +9,6 @@ Produces the following structure via `dhall to-directory-tree`:
 Usage:
     dhall to-directory-tree --file ./generate.dhall --output ./ast-grep-config/
 -}
-
 let Schema = ./schemas/Lint.dhall
 
 let Prelude =
@@ -43,7 +42,8 @@ let lints
 
 let renderToEntry
     : (Lint → Text) → Lint → Entry
-    = λ(render : Lint → Text) → λ(lint : Lint) →
+    = λ(render : Lint → Text) →
+      λ(lint : Lint) →
         { mapKey = lint.id ++ ".yml", mapValue = render lint }
 
 let foldEntries
@@ -56,7 +56,21 @@ let foldEntries
           (λ(e : Entry) → λ(acc : Prelude.Map.Type Text Text) → acc # [ e ])
           ([] : Prelude.Map.Type Text Text)
 
-in  { `sgconfig.yaml` = Schema.renderSGConfigYAML
-    , rules = foldEntries (Prelude.List.map Lint Entry (renderToEntry Schema.renderRuleYAML) lints)
-    , tests = foldEntries (Prelude.List.map Lint Entry (renderToEntry Schema.renderTestYAML) lints)
+in  { `sgconfig.yml` = Schema.renderSGConfigYAML
+    , rules =
+        foldEntries
+          ( Prelude.List.map
+              Lint
+              Entry
+              (renderToEntry Schema.renderRuleYAML)
+              lints
+          )
+    , rule-tests =
+        foldEntries
+          ( Prelude.List.map
+              Lint
+              Entry
+              (renderToEntry Schema.renderTestYAML)
+              lints
+          )
     }
