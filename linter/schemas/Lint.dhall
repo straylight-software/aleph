@@ -34,7 +34,6 @@ let severityToText =
           { Error = "error", Warning = "warning", Info = "info", Hint = "hint" }
           s
 
--- | Node matcher for AST pattern matching
 let NodeMatcherF =
       λ(r : Type) →
         { kind : Optional Text
@@ -64,7 +63,6 @@ let nodeMatcher
               , inside = mapOpt NodeMatcher r (foldNodeMatcher r f) fm.inside
               }
 
--- | Node matcher type with defaults for :: operator
 let NodeMatcherWithDefaults =
       { Type = NodeMatcherF NodeMatcher
       , default =
@@ -76,11 +74,10 @@ let NodeMatcherWithDefaults =
         }
       }
 
--- | Helper to create an optional node matcher (since 'has' always needs Some)
-let someNodeMatcher : NodeMatcherF NodeMatcher → Optional NodeMatcher =
-      λ(fm : NodeMatcherF NodeMatcher) → Some (nodeMatcher fm)
+let someNodeMatcher
+    : NodeMatcherF NodeMatcher → Optional NodeMatcher
+    = λ(fm : NodeMatcherF NodeMatcher) → Some (nodeMatcher fm)
 
--- | Sub-rule for all/any combinators (simplified - only node matchers, not nested rules)
 let SubRule =
       { Type =
           { kind : Optional Text
@@ -96,14 +93,12 @@ let SubRule =
         }
       }
 
--- | Not clause for rules
 let RuleNot =
       { has : Optional NodeMatcher
       , inside : Optional NodeMatcher
       , regex : Optional Text
       }
 
--- | Rule configuration with all/any combinators
 let Rule =
       { Type =
           { kind : Text
@@ -196,7 +191,6 @@ let notFieldsToJSON =
           , maybeField "regex" JSON.string n.regex
           ]
 
--- | Convert SubRule to JSON - wraps fields in a 'has' structure
 let subRuleToJSON
     : SubRule.Type → JSON.Type
     = λ(sr : SubRule.Type) →
@@ -208,23 +202,14 @@ let subRuleToJSON
                 , maybeField "regex" JSON.string sr.regex
                 , maybeNodeMatcherField "has" sr.has
                 ]
-        in  JSON.object
-              [ { mapKey = "has"
-                , mapValue = JSON.object innerFields
-                }
-              ]
 
--- | Convert a list of sub-rules to JSON array
+        in  JSON.object
+              [ { mapKey = "has", mapValue = JSON.object innerFields } ]
+
 let subRulesListToJSON
     : List SubRule.Type → JSON.Type
     = λ(rules : List SubRule.Type) →
-        JSON.array
-          ( Prelude.List.map
-              SubRule.Type
-              JSON.Type
-              subRuleToJSON
-              rules
-          )
+        JSON.array (Prelude.List.map SubRule.Type JSON.Type subRuleToJSON rules)
 
 let ruleToJSON
     : Rule.Type → JSON.Type
@@ -253,7 +238,11 @@ let ruleToJSON
                       ( Prelude.Optional.map
                           (List SubRule.Type)
                           JSONField
-                          (λ(rules : List SubRule.Type) → { mapKey = "all", mapValue = subRulesListToJSON rules })
+                          ( λ(rules : List SubRule.Type) →
+                              { mapKey = "all"
+                              , mapValue = subRulesListToJSON rules
+                              }
+                          )
                           rule.all
                       )
                   , toList
@@ -261,7 +250,11 @@ let ruleToJSON
                       ( Prelude.Optional.map
                           (List SubRule.Type)
                           JSONField
-                          (λ(rules : List SubRule.Type) → { mapKey = "any", mapValue = subRulesListToJSON rules })
+                          ( λ(rules : List SubRule.Type) →
+                              { mapKey = "any"
+                              , mapValue = subRulesListToJSON rules
+                              }
+                          )
                           rule.any
                       )
                   ]

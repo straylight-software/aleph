@@ -4,8 +4,6 @@
 --| This is what Buck2 runs.
 let Toolchain = ./Toolchain.dhall
 
-let Target = ./Target.dhall
-
 let Artifact = Toolchain.Artifact
 
 let ActionCategory =

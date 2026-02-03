@@ -4,11 +4,7 @@
 --| No globs. No strings. Real types.
 let DICE = ./package.dhall
 
-let clang_artifact = { hash.sha256 = "abc123...", name = "clang-18.1.0" }
-
 let rustc_artifact = { hash.sha256 = "def456...", name = "rustc-1.80.0" }
-
-let lean_artifact = { hash.sha256 = "789abc...", name = "lean-4.12.0" }
 
 let orin_sysroot = { hash.sha256 = "deadbeef...", name = "jetpack-6-sysroot" }
 
