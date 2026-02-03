@@ -33,6 +33,15 @@ write-shell-application {
     tree-sitter-grammars.tree-sitter-nix
   ];
 
+  derivation-args.postCheck = ''
+    cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
+    trap 'rm -rf ./__aleph-lint-config' EXIT
+
+    ls --tree
+
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yaml test
+  '';
+
   text = ''
     cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
     trap 'rm -rf ./__aleph-lint-config' EXIT

@@ -11,49 +11,14 @@ in  { id = "no-translate-attrs-outside-prelude"
         , pattern = None Text
         , has = Some
             ( nodeMatcher
-                { kind = Some "attrpath"
+                { kind = Some "identifier"
                 , field = Some "attrpath"
-                , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "identifier"
-                        , field = None Text
-                        , regex = Some "^translateAttrs$"
-                        , has = None Schema.NodeMatcher
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
+                , regex = Some "^translateAttrs$"
+                , has = None Schema.NodeMatcher
                 , inside = None Schema.NodeMatcher
                 }
             )
-        , not = Some
-            { has = None Schema.NodeMatcher
-            , inside = Some
-                ( nodeMatcher
-                    { kind = Some "select_expression"
-                    , field = None Text
-                    , regex = None Text
-                    , has = Some
-                        ( nodeMatcher
-                            { kind = Some "attrpath"
-                            , field = Some "attrpath"
-                            , regex = None Text
-                            , has = Some
-                                ( nodeMatcher
-                                    { kind = Some "identifier"
-                                    , field = None Text
-                                    , regex = Some "^aleph$"
-                                    , has = None Schema.NodeMatcher
-                                    , inside = None Schema.NodeMatcher
-                                    }
-                                )
-                            , inside = None Schema.NodeMatcher
-                            }
-                        )
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
-            }
+        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
         }
     , message = "ALEPH-E003: translateAttrs should only be used in prelude"
     , note =
@@ -69,7 +34,7 @@ in  { id = "no-translate-attrs-outside-prelude"
         Use standard attribute manipulation functions instead.
         ''
     , tests =
-        { valid = [ "test" ]
-        , invalid = [ "test" ]
+        { valid = [ "lib.translateAttrs {}" ]
+        , invalid = [ "translateAttrs {}" ]
         }
     }

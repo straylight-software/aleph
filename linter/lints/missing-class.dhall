@@ -11,36 +11,20 @@ in  { id = "missing-class"
         , pattern = None Text
         , has = Some
             ( nodeMatcher
-                { kind = Some "variable_expression"
+                { kind = Some "identifier"
                 , field = Some "function"
-                , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "identifier"
-                        , field = None Text
-                        , regex = Some "^mkDerivation$"
-                        , has = None Schema.NodeMatcher
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
+                , regex = Some "^mkDerivation$"
+                , has = None Schema.NodeMatcher
                 , inside = None Schema.NodeMatcher
                 }
             )
         , not = Some
             { has = Some
                 ( nodeMatcher
-                    { kind = Some "attrset_expression"
-                    , field = Some "argument"
-                    , regex = None Text
-                    , has = Some
-                        ( nodeMatcher
-                            { kind = Some "attrpath"
-                            , field = None Text
-                            , regex = Some "^pname$"
-                            , has = None Schema.NodeMatcher
-                            , inside = None Schema.NodeMatcher
-                            }
-                        )
+                    { kind = Some "binding"
+                    , field = Some "binding"
+                    , regex = Some "^pname$"
+                    , has = None Schema.NodeMatcher
                     , inside = None Schema.NodeMatcher
                     }
                 )
@@ -68,15 +52,7 @@ in  { id = "missing-class"
         ```
         ''
     , tests =
-        { valid =
-            [ ''
-              stdenv.mkDerivation { pname = "foo"; }
-              ''
-            ]
-        , invalid =
-            [ ''
-              stdenv.mkDerivation { name = "foo"; }
-              ''
-            ]
+        { valid = [ "mkDerivation { pname = \"foo\"; }" ]
+        , invalid = [ "mkDerivation { name = \"foo\"; }" ]
         }
     }

@@ -11,26 +11,10 @@ in  { id = "prefer-write-shell-application"
         , pattern = None Text
         , has = Some
             ( nodeMatcher
-                { kind = Some "select_expression"
+                { kind = Some "identifier"
                 , field = Some "function"
-                , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "attrpath"
-                        , field = Some "attrpath"
-                        , regex = None Text
-                        , has = Some
-                            ( nodeMatcher
-                                { kind = Some "identifier"
-                                , field = None Text
-                                , regex = Some "^writeShellScript(Bin)?$"
-                                , has = None Schema.NodeMatcher
-                                , inside = None Schema.NodeMatcher
-                                }
-                            )
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
+                , regex = Some "^writeShellScript(Bin)?$"
+                , has = None Schema.NodeMatcher
                 , inside = None Schema.NodeMatcher
                 }
             )
@@ -53,18 +37,10 @@ in  { id = "prefer-write-shell-application"
         - Better error messages
         ''
     , tests =
-        { valid =
-            [ ''
-              aleph.writeShellApplication { name = "foo"; text = "echo hi"; }
-              ''
-            ]
-        , invalid =
-            [ ''
-              writeShellScript "foo" "echo hi"
-              ''
-            , ''
-              writeShellScriptBin "foo" "echo hi"
-              ''
+        { valid = [ "aleph.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
+        , invalid = 
+            [ "writeShellScript \"foo\" \"echo hi\""
+            , "writeShellScriptBin \"foo\" \"echo hi\""
             ]
         }
     }

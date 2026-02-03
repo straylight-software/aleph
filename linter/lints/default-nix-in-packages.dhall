@@ -5,8 +5,8 @@ in  { id = "default-nix-in-packages"
     , language = "nix"
     , severity = Severity.Error
     , rule =
-        { kind = "identifier"
-        , regex = Some "^default\\.nix$"
+        { kind = "string_fragment"
+        , regex = Some "default\\.nix"
         , pattern = None Text
         , has = None Schema.NodeMatcher
         , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
@@ -25,11 +25,7 @@ in  { id = "default-nix-in-packages"
         Use explicit file names that describe the package.
         ''
     , tests =
-        { valid =
-            [ "hello = callPackage ./hello.nix { };"
-            ]
-        , invalid =
-            [ "hello = callPackage ./default.nix { };"
-            ]
+        { valid = [ "hello = callPackage ./hello.nix { };" ]
+        , invalid = [ "hello = callPackage ./default.nix { };" ]
         }
     }

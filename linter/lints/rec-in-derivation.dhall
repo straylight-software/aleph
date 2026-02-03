@@ -14,15 +14,7 @@ in  { id = "rec-in-derivation"
                 { kind = Some "rec_attrset_expression"
                 , field = Some "argument"
                 , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "identifier"
-                        , field = None Text
-                        , regex = Some "^mkDerivation$"
-                        , has = None Schema.NodeMatcher
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
+                , has = None Schema.NodeMatcher
                 , inside = None Schema.NodeMatcher
                 }
             )
@@ -48,18 +40,10 @@ in  { id = "rec-in-derivation"
         ```
         ''
     , tests =
-        { valid =
-            [ ''
-              stdenv.mkDerivation (finalAttrs: { name = "foo"; })
-              ''
-            , ''
-              stdenv.mkDerivation { name = "foo"; }
-              ''
+        { valid = 
+            [ "stdenv.mkDerivation (finalAttrs: { name = \"foo\"; })"
+            , "stdenv.mkDerivation { name = \"foo\"; }"
             ]
-        , invalid =
-            [ ''
-              stdenv.mkDerivation rec { name = "foo"; }
-              ''
-            ]
+        , invalid = [ "stdenv.mkDerivation rec { name = \"foo\"; }" ]
         }
     }

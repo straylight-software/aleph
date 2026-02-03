@@ -1,14 +1,13 @@
-{- Generate ast-grep configuration directory tree using dhall to-directory-tree
+{-
+Generate ast-grep configuration directory tree.
 
-   This script generates the ast-grep configuration files:
-   - sgconfig.yaml - The main configuration
-   - rules/*.yml   - Individual rule files
-   - tests/*.yml   - Test case files
-   
-   Usage in nix:
-       dhall to-directory-tree --file ./generate.dhall --output ./ast-grep-config/
-   
-   See: https://hackage.haskell.org/package/dhall-1.41.2/docs/Dhall-DirectoryTree.html
+Produces the following structure via `dhall to-directory-tree`:
+- sgconfig.yaml  - Main ast-grep configuration
+- rules/*.yml    - Individual rule definitions
+- tests/*.yml    - Test case files
+
+Usage:
+    dhall to-directory-tree --file ./generate.dhall --output ./ast-grep-config/
 -}
 
 let Schema = ./schemas/Lint.dhall
@@ -19,9 +18,11 @@ let Prelude =
 
 let Lint = Schema.Lint
 
--- All lint definitions
-let lints =
-      [ ./lints/default-nix-in-packages.dhall
+let Entry = { mapKey : Text, mapValue : Text }
+
+let lints
+    : List Lint
+    = [ ./lints/default-nix-in-packages.dhall
       , ./lints/long-inline-string.dhall
       , ./lints/missing-class.dhall
       , ./lints/missing-description.dhall
@@ -40,34 +41,22 @@ let lints =
       , ./lints/with-lib.dhall
       ]
 
--- Generate rule file entries from lints
-let ruleEntries =
-      Prelude.List.map
-        Lint
-        { mapKey : Text, mapValue : Text }
-        (λ(lint : Lint) → { mapKey = lint.id ++ ".yml", mapValue = Schema.renderRuleYAML lint })
-        lints
+let renderToEntry
+    : (Lint → Text) → Lint → Entry
+    = λ(render : Lint → Text) → λ(lint : Lint) →
+        { mapKey = lint.id ++ ".yml", mapValue = render lint }
 
--- Generate test file entries from lints
-let testEntries =
-      Prelude.List.map
-        Lint
-        { mapKey : Text, mapValue : Text }
-        (λ(lint : Lint) → { mapKey = lint.id ++ ".yml", mapValue = Schema.renderTestYAML lint })
-        lints
+let foldEntries
+    : List Entry → Prelude.Map.Type Text Text
+    = λ(entries : List Entry) →
+        Prelude.List.fold
+          Entry
+          entries
+          (Prelude.Map.Type Text Text)
+          (λ(e : Entry) → λ(acc : Prelude.Map.Type Text Text) → acc # [ e ])
+          ([] : Prelude.Map.Type Text Text)
 
--- Build directory tree
 in  { `sgconfig.yaml` = Schema.renderSGConfigYAML
-    , `rules` = Prelude.List.fold
-          { mapKey : Text, mapValue : Text }
-          ruleEntries
-          (Prelude.Map.Type Text Text)
-          (λ(entry : { mapKey : Text, mapValue : Text }) → λ(acc : Prelude.Map.Type Text Text) → acc # [ entry ])
-          ([] : Prelude.Map.Type Text Text)
-    , `tests` = Prelude.List.fold
-          { mapKey : Text, mapValue : Text }
-          testEntries
-          (Prelude.Map.Type Text Text)
-          (λ(entry : { mapKey : Text, mapValue : Text }) → λ(acc : Prelude.Map.Type Text Text) → acc # [ entry ])
-          ([] : Prelude.Map.Type Text Text)
+    , rules = foldEntries (Prelude.List.map Lint Entry (renderToEntry Schema.renderRuleYAML) lints)
+    , tests = foldEntries (Prelude.List.map Lint Entry (renderToEntry Schema.renderTestYAML) lints)
     }

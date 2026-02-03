@@ -11,57 +11,14 @@ in  { id = "no-raw-writeshellapplication"
         , pattern = None Text
         , has = Some
             ( nodeMatcher
-                { kind = Some "select_expression"
+                { kind = Some "identifier"
                 , field = Some "function"
-                , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "attrpath"
-                        , field = Some "attrpath"
-                        , regex = None Text
-                        , has = Some
-                            ( nodeMatcher
-                                { kind = Some "identifier"
-                                , field = None Text
-                                , regex = Some "^writeShellApplication$"
-                                , has = None Schema.NodeMatcher
-                                , inside = None Schema.NodeMatcher
-                                }
-                            )
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
+                , regex = Some "^writeShellApplication$"
+                , has = None Schema.NodeMatcher
                 , inside = None Schema.NodeMatcher
                 }
             )
-        , not = Some
-            { has = None Schema.NodeMatcher
-            , inside = Some
-                ( nodeMatcher
-                    { kind = Some "select_expression"
-                    , field = None Text
-                    , regex = None Text
-                    , has = Some
-                        ( nodeMatcher
-                            { kind = Some "attrpath"
-                            , field = Some "attrpath"
-                            , regex = None Text
-                            , has = Some
-                                ( nodeMatcher
-                                    { kind = Some "identifier"
-                                    , field = None Text
-                                    , regex = Some "^aleph$"
-                                    , has = None Schema.NodeMatcher
-                                    , inside = None Schema.NodeMatcher
-                                    }
-                                )
-                            , inside = None Schema.NodeMatcher
-                            }
-                        )
-                    , inside = None Schema.NodeMatcher
-                    }
-                )
-            }
+        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
         }
     , message = "ALEPH-W005: Use aleph.writeShellApplication"
     , note =
@@ -77,7 +34,7 @@ in  { id = "no-raw-writeshellapplication"
         Use `aleph.writeShellApplication` instead.
         ''
     , tests =
-        { valid = [ "test" ]
-        , invalid = [ "test" ]
+        { valid = [ "aleph.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
+        , invalid = [ "writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
         }
     }
