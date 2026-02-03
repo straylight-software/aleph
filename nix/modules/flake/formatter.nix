@@ -47,7 +47,7 @@ in
 
   config = lib.mkIf cfg.enable {
     perSystem =
-      { system, ... }:
+      { system, pkgs, ... }:
       {
         treefmt = {
           projectRootFile = "flake.nix";
@@ -59,7 +59,10 @@ in
           programs.statix.enable = true;
           programs.nixf-diagnose.enable = true;
 
-          programs.dhall.enable = true;
+          programs.dhall = {
+            enable = true;
+            lint = true;
+          };
 
           programs.shfmt = {
             enable = true;
