@@ -38,6 +38,13 @@ let lints
       , ./lints/nix/rec-anywhere.dhall
       , ./lints/nix/rec-in-derivation.dhall
       , ./lints/nix/with-lib.dhall
+      , ./lints/cpp/no-short-abbreviations.dhall
+      , ./lints/cpp/snake-case.dhall
+      , ./lints/cpp/no-using-namespace.dhall
+      , ./lints/cpp/no-exceptions.dhall
+      , ./lints/cpp/explicit-types.dhall
+      , ./lints/cpp/enum-class.dhall
+      , ./lints/cpp/no-c-style-cast.dhall
       , ./lints/haskell/no-short-abbreviations.dhall
       , ./lints/haskell/prefer-guards-over-nested-case.dhall
       , ./lints/haskell/prefer-newtype-over-type-alias.dhall
