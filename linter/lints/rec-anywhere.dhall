@@ -4,12 +4,12 @@ let Severity = Schema.Severity
 in  { id = "rec-anywhere"
     , language = "nix"
     , severity = Severity.Warning
-    , rule =
-        { kind = "rec_attrset_expression"
+    , rule = Schema.Rule::{
+      , kind = "rec_attrset_expression"
         , regex = None Text
         , pattern = None Text
         , has = None Schema.NodeMatcher
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
+        , not = None Schema.RuleNot
         }
     , message = "ALEPH-W001: `rec` usage detected"
     , note =

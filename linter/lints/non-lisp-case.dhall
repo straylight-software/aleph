@@ -4,12 +4,12 @@ let Severity = Schema.Severity
 in  { id = "non-lisp-case"
     , language = "nix"
     , severity = Severity.Warning
-    , rule =
-        { kind = "identifier"
+    , rule = Schema.Rule::{
+      , kind = "identifier"
         , regex = Some "[A-Z]"
         , pattern = None Text
         , has = None Schema.NodeMatcher
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
+        , not = None Schema.RuleNot
         }
     , message = "ALEPH-W004: Use lisp-case for identifiers"
     , note =

@@ -5,44 +5,37 @@ let nodeMatcher = Schema.nodeMatcher
 in  { id = "or-null-fallback"
     , language = "nix"
     , severity = Severity.Warning
-    , rule =
-        { kind = "binary_expression"
-        , regex = None Text
-        , pattern = Some "$_ or null"
-        , has = Some
-            ( nodeMatcher
-                { kind = None Text
-                , field = Some "operator"
-                , regex = Some "^\\|$"
-                , has = None Schema.NodeMatcher
-                , inside = None Schema.NodeMatcher
-                }
-            )
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
-        }
-    , message = "ALEPH-W003: Consider using `? null` default instead of `or null`"
+    , rule = Schema.Rule::{
+      , kind = "select_expression"
+      , has = Some
+          ( nodeMatcher
+              { kind = Some "variable_expression"
+              , field = Some "default"
+              , regex = None Text
+              , has = Some
+                  ( nodeMatcher
+                      { kind = Some "identifier"
+                      , field = None Text
+                      , regex = Some "^null$"
+                      , has = None Schema.NodeMatcher
+                      , inside = None Schema.NodeMatcher
+                      }
+                  )
+              , inside = None Schema.NodeMatcher
+              }
+          )
+      }
+    , message = "ALEPH-W004: defensive `or null` fallback"
     , note =
         ''
         ## What's wrong?
-        Using `or null` as a fallback pattern.
-
-        This is discouraged because it:
-        - Is less idiomatic than using default values
-        - Can mask missing values
+        Using `x or null` as a fallback hides errors instead of failing fast.
 
         ## What can I do to fix this?
-        Consider using `? null` in the function arguments instead:
-
-        ```nix
-        { foo ? null }: ...
-        ```
+        If the attribute must exist, remove the fallback and let it fail.
         ''
     , tests =
-        { valid =
-            [ "{ foo ? null }: foo"
-            ]
-        , invalid =
-            [ "args.foo or null"
-            ]
+        { valid = [ "{ foo ? null }: foo" ]
+        , invalid = [ "args.foo or null" ]
         }
     }

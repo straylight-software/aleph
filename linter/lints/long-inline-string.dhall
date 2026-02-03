@@ -4,30 +4,21 @@ let Severity = Schema.Severity
 in  { id = "long-inline-string"
     , language = "nix"
     , severity = Severity.Warning
-    , rule =
-        { kind = "string_fragment"
-        , regex = Some "^.{200,}$"
-        , pattern = None Text
-        , has = None Schema.NodeMatcher
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
-        }
-    , message = "ALEPH-W010: Long inline string detected"
+    , rule = Schema.Rule::{
+      , kind = "indented_string_expression"
+      , regex = Some "(?s)(?:.*\\n){12,}"
+      }
+    , message = "ALEPH-W003: long inline string"
     , note =
         ''
         ## What's wrong?
-        An inline string with more than 200 characters was detected.
-
-        This is discouraged because it:
-        - Makes code harder to read
-        - Is harder to maintain
+        A multi-line string exceeds 10 lines.
 
         ## What can I do to fix this?
-        Consider extracting long strings to separate files.
+        Consider moving the content to a file.
         ''
     , tests =
-        { valid = [ "short string" ]
-        , invalid = 
-            [ "this is a very long string that exceeds the limit of two hundred characters and should definitely trigger the linter rule for long inline strings in the codebase because it is way too long"
-            ]
+        { valid = [ "''short''" ]
+        , invalid = [ "''\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n''" ]
         }
     }

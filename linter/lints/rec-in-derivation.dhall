@@ -5,8 +5,8 @@ let nodeMatcher = Schema.nodeMatcher
 in  { id = "rec-in-derivation"
     , language = "nix"
     , severity = Severity.Error
-    , rule =
-        { kind = "apply_expression"
+    , rule = Schema.Rule::{
+      , kind = "apply_expression"
         , regex = None Text
         , pattern = None Text
         , has = Some
@@ -18,7 +18,7 @@ in  { id = "rec-in-derivation"
                 , inside = None Schema.NodeMatcher
                 }
             )
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
+        , not = None Schema.RuleNot
         }
     , message = "ALEPH-E002: `rec` used with mkDerivation"
     , note =

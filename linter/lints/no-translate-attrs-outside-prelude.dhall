@@ -5,36 +5,36 @@ let nodeMatcher = Schema.nodeMatcher
 in  { id = "no-translate-attrs-outside-prelude"
     , language = "nix"
     , severity = Severity.Error
-    , rule =
-        { kind = "select_expression"
-        , regex = None Text
-        , pattern = None Text
-        , has = Some
-            ( nodeMatcher
-                { kind = Some "identifier"
-                , field = Some "attrpath"
-                , regex = Some "^translateAttrs$"
-                , has = None Schema.NodeMatcher
-                , inside = None Schema.NodeMatcher
-                }
-            )
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
-        }
-    , message = "ALEPH-E003: translateAttrs should only be used in prelude"
+    , rule = Schema.Rule::{
+      , kind = "apply_expression"
+      , any = Some
+          [ Schema.SubRule::{
+            , field = Some "function"
+            , kind = Some "variable_expression"
+            , has = Some
+                ( nodeMatcher
+                    { kind = Some "identifier"
+                    , field = None Text
+                    , regex = Some "^translate-attrs$"
+                    , has = None Schema.NodeMatcher
+                    , inside = None Schema.NodeMatcher
+                    }
+                )
+            }
+          ]
+      }
+    , message = "ALEPH-E013: translate-attrs used outside prelude"
     , note =
         ''
         ## What's wrong?
-        `translateAttrs` was used outside of the prelude.
-
-        This is forbidden because it:
-        - Is an internal prelude function
-        - Should not be used in user code
+        `translate-attrs` is the prelude's internal translation layer.
+        Using it directly means you're bypassing the typed interface.
 
         ## What can I do to fix this?
-        Use standard attribute manipulation functions instead.
+        Use `aleph.stdenv.default` or `prelude.mk-package` instead.
         ''
     , tests =
-        { valid = [ "lib.translateAttrs {}" ]
-        , invalid = [ "translateAttrs {}" ]
+        { valid = [ "aleph.stdenv.default { }" ]
+        , invalid = [ "translate-attrs { }" ]
         }
     }

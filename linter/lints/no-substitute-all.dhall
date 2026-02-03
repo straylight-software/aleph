@@ -5,56 +5,54 @@ let nodeMatcher = Schema.nodeMatcher
 in  { id = "no-substitute-all"
     , language = "nix"
     , severity = Severity.Error
-    , rule =
-        { kind = "apply_expression"
-        , regex = None Text
-        , pattern = None Text
-        , has = Some
-            ( nodeMatcher
-                { kind = Some "select_expression"
-                , field = Some "function"
-                , regex = None Text
-                , has = Some
-                    ( nodeMatcher
-                        { kind = Some "attrpath"
-                        , field = Some "attrpath"
-                        , regex = None Text
-                        , has = Some
-                            ( nodeMatcher
-                                { kind = Some "identifier"
-                                , field = None Text
-                                , regex = Some "^substituteAll$"
-                                , has = None Schema.NodeMatcher
-                                , inside = None Schema.NodeMatcher
-                                }
-                            )
-                        , inside = None Schema.NodeMatcher
-                        }
-                    )
-                , inside = None Schema.NodeMatcher
-                }
-            )
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
-        }
-    , message = "ALEPH-E004: Avoid using substituteAll"
+    , rule = Schema.Rule::{
+      , kind = "apply_expression"
+      , any = Some
+          [ Schema.SubRule::{
+            , field = Some "function"
+            , kind = Some "select_expression"
+            , has = Some
+                ( nodeMatcher
+                    { kind = Some "attrpath"
+                    , field = Some "attrpath"
+                    , regex = None Text
+                    , has = Some
+                        ( nodeMatcher
+                            { kind = Some "identifier"
+                            , field = None Text
+                            , regex = Some "^(substituteAll|replaceVars|substitute)$"
+                            , has = None Schema.NodeMatcher
+                            , inside = None Schema.NodeMatcher
+                            }
+                        )
+                    , inside = None Schema.NodeMatcher
+                    }
+                )
+            }
+          , Schema.SubRule::{
+            , field = Some "function"
+            , kind = Some "variable_expression"
+            , has = Some
+                ( nodeMatcher
+                    { kind = Some "identifier"
+                    , field = None Text
+                    , regex = Some "^(substituteAll|replaceVars|substitute)$"
+                    , has = None Schema.NodeMatcher
+                    , inside = None Schema.NodeMatcher
+                    }
+                )
+            }
+          ]
+      }
+    , message = "ALEPH-E007: Text templating must use Dhall"
     , note =
         ''
         ## What's wrong?
-        `substituteAll` was used.
-
-        This is forbidden because it:
-        - Is fragile and hard to debug
-        - Makes code harder to understand
-
-        ## What can I do to fix this?
-        Use explicit string interpolation or structured arguments instead.
+        `substituteAll`, `replaceVars`, and `substitute` are forbidden.
+        All text generation must use Dhall templates.
         ''
     , tests =
-        { valid =
-            [ "substitute { src = ./file; }"
-            ]
-        , invalid =
-            [ "substituteAll { src = ./file; }"
-            ]
+        { valid = [ "builtins.readFile ./file" ]
+        , invalid = [ "substituteAll { src = ./file; }" ]
         }
     }

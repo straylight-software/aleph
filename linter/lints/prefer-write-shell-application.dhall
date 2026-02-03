@@ -5,39 +5,48 @@ let nodeMatcher = Schema.nodeMatcher
 in  { id = "prefer-write-shell-application"
     , language = "nix"
     , severity = Severity.Warning
-    , rule =
-        { kind = "apply_expression"
-        , regex = None Text
-        , pattern = None Text
-        , has = Some
-            ( nodeMatcher
-                { kind = Some "identifier"
-                , field = Some "function"
-                , regex = Some "^writeShellScript(Bin)?$"
-                , has = None Schema.NodeMatcher
-                , inside = None Schema.NodeMatcher
-                }
-            )
-        , not = None { has : Optional Schema.NodeMatcher, inside : Optional Schema.NodeMatcher }
-        }
-    , message = "ALEPH-W002: Use writeShellApplication instead of writeShellScript"
+    , rule = Schema.Rule::{
+      , kind = "apply_expression"
+      , any = Some
+          [ Schema.SubRule::{
+            , field = Some "function"
+            , kind = Some "select_expression"
+            , has = Some
+                ( nodeMatcher
+                    { kind = Some "attrpath"
+                    , field = Some "attrpath"
+                    , regex = Some "^(writeShellScript|writeShellScriptBin)$"
+                    , has = None Schema.NodeMatcher
+                    , inside = None Schema.NodeMatcher
+                    }
+                )
+            }
+          , Schema.SubRule::{
+            , field = Some "function"
+            , kind = Some "variable_expression"
+            , has = Some
+                ( nodeMatcher
+                    { kind = Some "identifier"
+                    , field = None Text
+                    , regex = Some "^(writeShellScript|writeShellScriptBin)$"
+                    , has = None Schema.NodeMatcher
+                    , inside = None Schema.NodeMatcher
+                    }
+                )
+            }
+          ]
+      }
+    , message = "ALEPH-W006: prefer writeShellApplication"
     , note =
         ''
         ## What's wrong?
-        `writeShellScript` or `writeShellScriptBin` was used.
-
-        This is discouraged because it:
-        - Doesn't provide shell checking
-        - Doesn't allow runtime inputs
+        `writeShellScript` and `writeShellScriptBin` are deprecated.
 
         ## What can I do to fix this?
-        Use `writeShellApplication` instead which provides:
-        - Shell syntax checking
-        - Runtime dependency management
-        - Better error messages
+        Use `writeShellApplication` instead.
         ''
     , tests =
-        { valid = [ "aleph.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
+        { valid = [ "writeShellApplication { name = \"foo\"; text = \"echo hi\"; }" ]
         , invalid = 
             [ "writeShellScript \"foo\" \"echo hi\""
             , "writeShellScriptBin \"foo\" \"echo hi\""

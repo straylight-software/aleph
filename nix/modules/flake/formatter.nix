@@ -47,7 +47,7 @@ in
 
   config = lib.mkIf cfg.enable {
     perSystem =
-      { system, pkgs, ... }:
+      { system, ... }:
       {
         treefmt = {
           projectRootFile = "flake.nix";
