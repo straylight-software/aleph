@@ -158,6 +158,9 @@ in
               pkgs.buck2
               ghc-with-all-deps
 
+              # nix-compile - type checker for Nix
+              pkgs.aleph.nix-compile.cli
+
               # ════════════════════════════════════════════════════════════════
               # LSP servers - go-to-definition works out of the box
               # ════════════════════════════════════════════════════════════════
