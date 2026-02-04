@@ -36,6 +36,10 @@ module NixCompile.Nix.Types
     applySubst,
     applySubstScheme,
     
+    -- * Free variables
+    freeTypeVars,
+    freeTypeVarsScheme,
+
     -- * Pretty printing
     prettyType,
     prettyScheme,
@@ -71,8 +75,8 @@ data NixType
   | TPath                      -- Paths (including store paths)
   | TNull                      -- null
   | TList !NixType             -- Lists (homogeneous)
-  | TAttrs !(Map Text NixType) -- Attribute sets (known fields)
-  | TAttrsOpen !(Map Text NixType) -- Open attrset (may have more fields)
+  | TAttrs !(Map Text (NixType, Bool)) -- Attribute sets (type, isOptional)
+  | TAttrsOpen !(Map Text (NixType, Bool)) -- Open attrset
   | TFun !NixType !NixType     -- Functions
   | TDerivation                -- Derivations (special)
   | TUnion ![NixType]          -- Union types (for builtins that accept multiple)
@@ -125,8 +129,8 @@ applySubst s = go
     go = \case
       TVar v -> Map.findWithDefault (TVar v) v s
       TList t -> TList (go t)
-      TAttrs m -> TAttrs (Map.map go m)
-      TAttrsOpen m -> TAttrsOpen (Map.map go m)
+      TAttrs m -> TAttrs (Map.map (\(t, o) -> (go t, o)) m)
+      TAttrsOpen m -> TAttrsOpen (Map.map (\(t, o) -> (go t, o)) m)
       TFun a b -> TFun (go a) (go b)
       TUnion ts -> TUnion (map go ts)
       t -> t
@@ -145,8 +149,8 @@ freeTypeVars :: NixType -> Set TypeVar
 freeTypeVars = \case
   TVar v -> Set.singleton v
   TList t -> freeTypeVars t
-  TAttrs m -> Set.unions (map freeTypeVars (Map.elems m))
-  TAttrsOpen m -> Set.unions (map freeTypeVars (Map.elems m))
+  TAttrs m -> Set.unions (map (freeTypeVars . fst) (Map.elems m))
+  TAttrsOpen m -> Set.unions (map (freeTypeVars . fst) (Map.elems m))
   TFun a b -> freeTypeVars a `Set.union` freeTypeVars b
   TUnion ts -> Set.unions (map freeTypeVars ts)
   _ -> Set.empty
@@ -207,8 +211,8 @@ prettyTypeWith mapping = go
     prettyArg t@(TFun _ _) = "(" <> go t <> ")"
     prettyArg t = go t
 
-    prettyAttrs m
+    prettyAttrs m 
       | Map.null m = "{}"
       | otherwise = "{ " <> T.intercalate ", " (map prettyField (Map.toList m)) <> " }"
-
-    prettyField (k, v) = k <> " : " <> go v
+    
+    prettyField (k, (v, opt)) = k <> (if opt then "?" else "") <> " : " <> go v

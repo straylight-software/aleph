@@ -35,7 +35,7 @@ module NixCompile.Nix.Infer
   )
 where
 
-import Control.Monad (foldM, forM, replicateM)
+import Control.Monad (foldM, forM, forM_, replicateM)
 import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Coerce (coerce)
@@ -49,6 +49,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Graph (stronglyConnComp, SCC(..))
 import Nix.Atoms (NAtom (..))
 import Nix.Expr.Types hiding (Binding)
 import qualified Nix.Expr.Types as Nix
@@ -561,33 +562,98 @@ inferBinding env binding = case binding of
     pure $ extendEnv (varNameText name) (Forall [] t) env
   _ -> pure env
 
--- | Infer types for a Let block (recursive)
+-- | Infer types for a Let block (recursive with generalization)
 inferLet :: TypeEnv -> [Nix.Binding NExprLoc] -> NExprLoc -> Infer NixType
 inferLet env bindings body = do
-  -- Recursive let is like recursive attrset
-  let names = mapMaybe bindingName bindings
-  freshVars <- replicateM (length names) freshVar
-  let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env (zip names freshVars)
+  -- 1. Parse bindings into (Name, Expr, Span)
+  let namedBindings = mapMaybe parseBinding bindings
+      
+  -- 2. Build dependency graph
+  let edges = map (buildEdge namedBindings) namedBindings
   
-  -- Infer bodies and unify
-  mapM_ (\(binding, typeVar) -> do
-    case binding of
-      Nix.NamedVar (StaticKey name :| []) expr pos -> do
-        t <- infer env' expr
+  -- 3. SCC analysis
+  let sccs = stronglyConnComp edges
+  
+  -- 4. Process SCCs in order
+  envBody <- foldM (inferGroup env) env sccs
+  
+  -- 5. Infer body
+  infer envBody body
+  where
+    parseBinding (Nix.NamedVar (StaticKey name :| []) expr pos) = 
+      Just (varNameText name, expr, toSpan pos)
+    parseBinding _ = Nothing
+
+    buildEdge allBindings (name, expr, span) =
+      let free = collectFreeVars expr
+          deps = [n | (n, _, _) <- allBindings, n `elem` free]
+       in ((name, expr, span), name, deps)
+
+    inferGroup :: TypeEnv -> TypeEnv -> SCC (Text, NExprLoc, Span) -> Infer TypeEnv
+    inferGroup baseEnv currentEnv scc = do
+      let groupBindings = case scc of
+            AcyclicSCC x -> [x]
+            CyclicSCC list -> list
+            
+      let names = map (\(n, _, _) -> n) groupBindings
+      freshVars <- replicateM (length names) freshVar
+      
+      -- Extend env with monomorphic variables for recursion within the group
+      let envRecursive = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) currentEnv (zip names freshVars)
+      
+      -- Infer bodies
+      forM_ (zip groupBindings freshVars) $ \((name, expr, span), typeVar) -> do
+        t <- infer envRecursive expr
         unify typeVar t
         
-        -- Emit binding
+        -- Emit binding info for IDE/formatting
         t' <- applyCurrentSubst t
-        emitBinding (varNameText name) t' (toSpan pos)
-        
-      _ -> pure ()
-    ) (zip bindings freshVars)
-    
-  infer env' body
-  where
-    bindingName (Nix.NamedVar (StaticKey name :| []) _ _) = Just (varNameText name)
-    bindingName _ = Nothing
+        emitBinding name t' span
 
+      -- Generalize
+      -- Generalize against currentEnv (variables free in group but not in env are quantified)
+      schemes <- mapM (generalize currentEnv) freshVars
+      
+      -- Extend env with generalized schemes
+      pure $ foldr (\(n, s) e -> extendEnv n s e) currentEnv (zip names schemes)
+
+-- | Collect free variables (approximated by all NSym)
+collectFreeVars :: NExprLoc -> [Text]
+collectFreeVars (Fix (Compose (AnnUnit _ expr))) = case expr of
+  NSym name -> [varNameText name]
+  NList elems -> concatMap collectFreeVars elems
+  NSet _ bindings -> concatMap collectFreeVarsBinding bindings
+  NLet bindings body -> concatMap collectFreeVarsBinding bindings ++ collectFreeVars body
+  NIf c t f -> collectFreeVars c ++ collectFreeVars t ++ collectFreeVars f
+  NWith s b -> collectFreeVars s ++ collectFreeVars b
+  NAssert c b -> collectFreeVars c ++ collectFreeVars b
+  NAbs params b -> collectFreeVars b
+  NApp f a -> collectFreeVars f ++ collectFreeVars a
+  NSelect _ b _ -> collectFreeVars b
+  NHasAttr b _ -> collectFreeVars b
+  NUnary _ e -> collectFreeVars e
+  NBinary _ l r -> collectFreeVars l ++ collectFreeVars r
+  _ -> []
+
+collectFreeVarsBinding :: Nix.Binding NExprLoc -> [Text]
+collectFreeVarsBinding (Nix.NamedVar _ expr _) = collectFreeVars expr
+collectFreeVarsBinding _ = []
+
+-- | Generalize a type to a scheme
+generalize :: TypeEnv -> NixType -> Infer Scheme
+generalize env t = do
+  t' <- applyCurrentSubst t
+  envSchemes <- mapM applyCurrentSubstScheme (Map.elems (unTypeEnv env))
+  let freeInEnv = Set.unions (map freeTypeVarsScheme envSchemes)
+  let freeInT = freeTypeVars t'
+  let vars = Set.toList (freeInT `Set.difference` freeInEnv)
+  pure $ Forall vars t'
+
+-- | Apply substitution to a scheme
+applyCurrentSubstScheme :: Scheme -> Infer Scheme
+applyCurrentSubstScheme s = do
+  subst <- gets inferSubst
+  pure $ applySubstScheme subst s
 
 -- | Get type from an atom
 atomType :: NAtom -> NixType
