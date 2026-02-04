@@ -258,10 +258,11 @@ occursCheck v = \case
 
 unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrs expected actual = do
-  -- Closed rows must match exactly
-  if Map.keysSet expected /= Map.keysSet actual
+  -- For closed rows, actual must have at least all expected keys
+  -- (allows extra keys for extensibility)
+  let missing = Set.difference (Map.keysSet expected) (Map.keysSet actual)
+  if not (Set.null missing)
     then do
-      let missing = Set.difference (Map.keysSet expected) (Map.keysSet actual)
       let extra = Set.difference (Map.keysSet actual) (Map.keysSet expected)
       let msg = formatRowError expected actual missing extra
       throwTypeError msg
@@ -487,9 +488,9 @@ inferLambda env params body = case params of
         Nothing -> freshVar
       pure (varNameText name, t)
     
-    let attrsT = if variadic == Variadic
-                   then TAttrsOpen (Map.fromList paramTypes)
-                   else TAttrs (Map.fromList paramTypes)
+    -- Patterns always create open rows - they require at least these fields
+    -- but allow extra fields (width subtyping)
+    let attrsT = TAttrsOpen (Map.fromList paramTypes)
                    
     let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env paramTypes
     
