@@ -39,7 +39,7 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MVar (newMVar, withMVar)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath ((</>), takeExtension, makeRelative, takeDirectory)
-import Control.Monad (forM, forM_, mapM)
+import Control.Exception (catch, evaluate, SomeException)
 
 main :: IO ()
 main = do
@@ -305,21 +305,28 @@ cmdTypeCheck path = do
 
     checkFile :: (T.Text -> IO ()) -> FilePath -> IO Bool
     checkFile log file = do
-      result <- Nix.parseNixFile file
+      -- Catch all exceptions (including pure ones like error calls)
+      result <- try $ do
+        res <- Nix.parseNixFile file
+        case res of
+          Left err -> return $ Left ("Parse error: " <> err)
+          Right expr -> case NixCompile.Nix.Infer.inferExpr expr of
+            Left err -> return $ Left ("Type error: " <> err)
+            Right (t, _) -> return $ Right (NixCompile.Nix.Types.prettyType t)
+            
       case result of
-        Left err -> do
-          log $ T.pack file <> ": Parse error"
-          log $ "  " <> err
+        Left (e :: SomeException) -> do
+          log $ T.pack file <> ": Exception: " <> T.pack (show e)
           return False
-        Right expr -> do
-          case NixCompile.Nix.Infer.inferExpr expr of
-            Left err -> do
-              log $ T.pack file <> ": Type error"
-              log $ "  " <> err
-              return False
-            Right (t, _) -> do
-              log $ T.pack file <> ": " <> NixCompile.Nix.Types.prettyType t
-              return True
+        Right (Left err) -> do
+          log $ T.pack file <> ": " <> err
+          return False
+        Right (Right t) -> do
+          log $ T.pack file <> ": " <> t
+          return True
+
+    try :: IO a -> IO (Either SomeException a)
+    try act = catch (Right <$> evaluate act) (\e -> return (Left e))
 
 -- | Format a Nix file with type annotations
 cmdFmt :: FilePath -> IO ()
