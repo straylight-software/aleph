@@ -35,6 +35,7 @@ import qualified NixCompile.Nix.Types
 import NixCompile.Types (Loc(..), Span(..))
 import qualified NixCompile.Nix.Pretty as Pretty
 import qualified Data.Map.Strict as Map
+import Control.Monad (forM, forM_, mapM)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MVar (newMVar, withMVar)
 import System.Directory (doesDirectoryExist, listDirectory)
