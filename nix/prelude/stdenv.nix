@@ -33,12 +33,12 @@ let
   inherit (final.stdenv.hostPlatform) config;
   # :: t15
   triple = config;
-# :: t17
+  # :: t17
 
   translations = import ./translations.nix { inherit lib; };
   inherit (translations) translate-attrs;
-# :: Bool -> {} -> {}
-# :: t20
+  # :: Bool -> {} -> {}
+  # :: t20
 
   # Prelude functions (avoid non-lisp-case lib.* calls)
   when = cond: val: if cond then val else { };
@@ -59,7 +59,7 @@ let
       # :: t23
       # :: "-std=c++23"
       # :: t24
-      extra ? { },
+      extra ? builtins.fromJSON "{}",
     }:
     let
       enhanced = final.stdenvAdapters.addAttrsToDerivation (
@@ -73,8 +73,8 @@ let
         }
         // extra
       ) base;
-    # :: { aleph : { target : t5 } }
-    # :: { target : t5 }
+      # :: { aleph : { target : t5 } }
+      # :: { target : t5 }
     in
     # :: t5
     enhanced
@@ -84,7 +84,7 @@ let
         let
           # :: t38
           args' = translate-attrs args;
-        # :: { cflags : [t40], ldflags : [t40] } -> {} -> {}
+          # :: { cflags : [t40], ldflags : [t40] } -> {} -> {}
         in
         enhanced.mkDerivation (
           args'
@@ -95,10 +95,10 @@ let
                 # :: t48
                 inherit name cflags ldflags;
                 target = triple;
-              # :: { aleph : { target : t5 } }
-              # :: { target : t5 }
+                # :: { aleph : { target : t5 } }
+                # :: { target : t5 }
               };
-            # :: t5
+              # :: t5
             };
           }
         );
@@ -129,18 +129,18 @@ let
           # :: t61
           target = triple;
           inherit (turing-registry) attrs;
-        # :: {} -> {}
-        # :: "clang-glibc-static"
-        # :: t67
-        # :: t68
-        # :: t69
+          # :: {} -> {}
+          # :: "clang-glibc-static"
+          # :: t67
+          # :: t68
+          # :: t69
         };
       };
-    # :: {} -> {}
-    # :: "clang-musl-dynamic"
-    # :: t75
-    # :: t76
-    # :: t77
+      # :: {} -> {}
+      # :: "clang-musl-dynamic"
+      # :: t75
+      # :: t76
+      # :: t77
     };
 
   # :: {} -> {}
@@ -202,6 +202,7 @@ let
       base = final.stdenvAdapters.overrideCC final.stdenv toolchain.clang-glibc;
       cflags = toolchain.glibc-cflags;
       ldflags = toolchain.glibc-ldflags;
+      extra = { };
     };
 
     clang-glibc-static = mk-stdenv {
@@ -209,6 +210,7 @@ let
       base = final.stdenvAdapters.overrideCC final.stdenv toolchain.clang-glibc;
       cflags = toolchain.glibc-cflags;
       ldflags = toolchain.glibc-static-ldflags;
+      extra = { };
     };
 
     clang-musl-dynamic = mk-stdenv {
@@ -216,6 +218,7 @@ let
       base = final.stdenvAdapters.overrideCC final.pkgsMusl.stdenv toolchain.clang-musl;
       cflags = toolchain.musl-cflags;
       ldflags = toolchain.musl-ldflags;
+      extra = { };
     };
 
     clang-musl-static = mk-stdenv {
@@ -223,9 +226,10 @@ let
       base = final.stdenvAdapters.overrideCC final.pkgsMusl.stdenv toolchain.clang-musl;
       cflags = toolchain.musl-static-cflags;
       ldflags = toolchain.musl-static-ldflags;
+      extra = { };
     };
-# :: Null
-# :: t115
+    # :: Null
+    # :: t115
 
     gcc-glibc-dynamic = mk-stdenv {
       # :: Null
@@ -233,6 +237,7 @@ let
       base = gcc-stdenv;
       cflags = toolchain.glibc-cflags;
       ldflags = toolchain.glibc-ldflags;
+      extra = { };
     };
 
     gcc-glibc-static = mk-stdenv {
@@ -240,6 +245,7 @@ let
       base = gcc-stdenv;
       cflags = toolchain.glibc-cflags;
       ldflags = toolchain.glibc-static-ldflags;
+      extra = { };
     };
 
     gcc-musl-dynamic = mk-stdenv {
@@ -247,6 +253,7 @@ let
       base = musl-gcc-stdenv;
       cflags = toolchain.musl-cflags;
       ldflags = toolchain.musl-ldflags;
+      extra = { };
     };
 
     gcc-musl-static = mk-stdenv {
@@ -254,6 +261,7 @@ let
       base = musl-gcc-stdenv;
       cflags = toolchain.musl-static-cflags;
       ldflags = toolchain.musl-static-ldflags;
+      extra = { };
     };
 
     nvidia = when (toolchain.nvidia-sdk != null) (mk-stdenv {
@@ -281,6 +289,7 @@ let
     base = final.stdenv;
     cflags = turing-registry.cflags-str;
     ldflags = "";
+    extra = { };
   };
 
   # ──────────────────────────────────────────────────────────────────────────

@@ -51,7 +51,7 @@ let
   to-upper = lib.toUpper;
 
   inherit (pkgs.aleph) run-command;
-# :: { attrs : [{}], either : [{ _tag : "left", value : "error" }], int : [Int], list-int : [[Int]], list-string : [["a"]], malformed-either : [{}], non-negative-int : [Int], nullable : [Null], positive-int : [Int], small-int : [Int], string : [String] }
+  # :: { attrs : [{}], either : [{ _tag : "left", value : "error" }], int : [Int], list-int : [[Int]], list-string : [["a"]], malformed-either : [{}], non-negative-int : [Int], nullable : [Null], positive-int : [Int], small-int : [Int], string : [String] }
 
   # :: [Int]
   list-filter = builtins.filter;
@@ -141,7 +141,7 @@ let
         1
         1
         1
-      # :: [["a"]]
+        # :: [["a"]]
       ]
       [
         3
@@ -187,7 +187,7 @@ let
         "baz"
       ]
     ];
-# :: [{ _tag : "left", value : "error" }]
+    # :: [{ _tag : "left", value : "error" }]
 
     # :: "left"
     # :: "error"
@@ -224,10 +224,10 @@ let
       [ ]
       # :: [{}]
       { }
-    # :: Int
+      # :: Int
     ];
-# :: Int
-# :: Int
+    # :: Int
+    # :: Int
 
     # Either values
     # :: { deep : Int }
@@ -252,20 +252,18 @@ let
       {
         _tag = "right";
         value = [ ];
-      # :: [Any] -> (Any -> t46) -> { pass : Bool, passed : Int, total : [Any] -> [Any] }
+        # :: [Any] -> (Any -> t46) -> { pass : Bool, passed : Int, total : [Any] -> [Any] }
       }
     ];
-# :: [Any]
-# :: t45
-# :: t46
+    # :: [Any]
+    # :: t45
+    # :: t46
 
     # :: [Any]
     # Malformed values (for robustness testing)
     malformed-either = [
-      # :: Bool
+      (builtins.fromJSON "null") # Forces [Any] for heterogeneous list
       { }
-      # :: [Any] -> [Any]
-      # :: Int
       { _tag = "left"; }
       { value = 42; }
       { _tag = "invalid"; }
@@ -283,8 +281,8 @@ let
         # :: t72
         a = 1;
         b = 2;
-      # :: t67
-      # :: t68
+        # :: t67
+        # :: t68
       }
       {
         # :: [Any]
@@ -294,10 +292,10 @@ let
           # :: [Any]
           deep = 42;
         };
-      # :: Bool
+        # :: Bool
       }
-    # :: [Any] -> [Any]
-    # :: Int
+      # :: [Any] -> [Any]
+      # :: Int
     ];
   };
 
@@ -306,17 +304,17 @@ let
   # ─────────────────────────────────────────────────────────────────────────
 
   /**
-    Test a property for all values in a generator.
+        Test a property for all values in a generator.
 
-    Returns { pass, failures } where failures is list of failing inputs.
-# :: (t93 -> Any) -> t93 -> t98
+        Returns { pass, failures } where failures is list of failing inputs.
+    # :: (t93 -> Any) -> t93 -> t98
 
-    # Type
+        # Type
 
-    ```
-    # :: (Any -> Any) -> (t101 -> Any) -> t101 -> Bool
-    for-all :: [a] -> (a -> Bool) -> { pass :: Bool; failures :: [a]; }
-    ```
+        ```
+        # :: (Any -> Any) -> (t101 -> Any) -> t101 -> Bool
+        for-all :: [a] -> (a -> Bool) -> { pass :: Bool; failures :: [a]; }
+        ```
   */
   for-all =
     samples: prop:
@@ -327,7 +325,7 @@ let
         passed = prop x;
       }) samples;
       failures = map (r: r.input) (list-filter (r: !r.passed) results);
-    # :: { associative : (t144 -> t144 -> t144) -> [Any] -> t145, commutative : (t151 -> t151 -> t155) -> [Any] -> t156, distributive : (t184 -> t188 -> t188) -> (t188 -> t188 -> t188) -> [Any] -> t189, identity : (t110 -> t113 -> t113) -> t110 -> t111 -> t116 }
+      # :: { associative : (t144 -> t144 -> t144) -> [Any] -> t145, commutative : (t151 -> t151 -> t155) -> [Any] -> t156, distributive : (t184 -> t188 -> t188) -> (t188 -> t188 -> t188) -> [Any] -> t189, identity : (t110 -> t113 -> t113) -> t110 -> t111 -> t116 }
     in
     {
       pass = failures == [ ];
@@ -356,7 +354,7 @@ let
         map (y: {
           fst = x;
           snd = y;
-        # :: (t151 -> t151 -> t155) -> [Any] -> t156
+          # :: (t151 -> t151 -> t155) -> [Any] -> t156
         }) ys
       ) xs;
       results = map (p: {
@@ -492,7 +490,7 @@ let
     "safe.elem-at terminates for any index" = for-all2 generators.small-int generators.list-int (
       i: xs: terminates (prelude.safe.elem-at xs) i
     );
-# :: t191 -> { all : {}, summary : { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] } }
+    # :: t191 -> { all : {}, summary : { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] } }
 
     "safe.div terminates for zero divisor" = for-all generators.int (
       # :: t196
@@ -503,17 +501,17 @@ let
     "safe.is-left handles malformed input" = for-all generators.malformed-either (
       x: terminates prelude.safe.is-left x
     );
-# :: t205
-# :: t210
+    # :: t205
+    # :: t210
 
     "safe.is-right handles malformed input" = for-all generators.malformed-either (
       # :: t200
       x: terminates prelude.safe.is-right x
-    # :: { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] }
-    # :: [Any] -> [Any]
-    # :: [Any] -> [Any]
-    # :: [Any] -> [Any]
-    # :: Bool
+      # :: { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] }
+      # :: [Any] -> [Any]
+      # :: [Any] -> [Any]
+      # :: [Any] -> [Any]
+      # :: Bool
     );
 
     # ─────────────────────────────────────────────────────────────────────
@@ -539,7 +537,7 @@ let
     };
 
     "safe.chunks-of 0 xs == []" = for-all generators.list-int (xs: prelude.safe.chunks-of 0 xs == [ ]);
-# :: String
+    # :: String
 
     "safe.take negative == []" = for-all generators.list-int (xs: prelude.safe.take (-1) xs == [ ]);
 

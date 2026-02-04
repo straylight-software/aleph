@@ -46,7 +46,7 @@ import Nix.Parser (parseNixFileLoc, parseNixTextLoc)
 import qualified Nix.Utils as Nix
 import NixCompile.Nix.Types
 import NixCompile.Types (Loc (..), Span (..))
-import Text.Megaparsec.Pos (unPos)
+import Text.Megaparsec.Pos (unPos, SourcePos(..))
 
 -- ============================================================================
 -- Environment
@@ -269,14 +269,6 @@ unifyAttrsOpenOpen m1 m2 = do
 unifyAttrsClosedOpen :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrsClosedOpen closed open = do
   -- Closed vs Open: 
-  -- Open is a subset of Closed? No, Open can have extra fields.
-  -- But Closed CANNOT have extra fields.
-  -- So keys(Open) must be subset of keys(Closed)? No, Open means "at least these".
-  -- Actually TAttrsOpen m means "contains m, and maybe more".
-  -- TAttrs m means "contains exactly m".
-  -- So TAttrs m ~ TAttrsOpen m'.
-  -- m must contain all of m'.
-  -- Any key in m' must be in m.
   let openKeys = Map.keysSet open
   let closedKeys = Map.keysSet closed
   let missingInClosed = Set.difference openKeys closedKeys
@@ -287,9 +279,6 @@ unifyAttrsClosedOpen closed open = do
       -- Unify common fields
       let common = Map.intersectionWith (,) closed open
       mapM_ (\((t1, _), (t2, _)) -> unify t1 t2) (Map.elems common)
-      -- Check required fields in closed that are missing in open?
-      -- If closed requires 'a', and open doesn't mention 'a'.
-      -- Open allows 'a'. So it's fine.
 
 unifyUnion :: [NixType] -> NixType -> Infer ()
 unifyUnion ts t = case ts of
@@ -508,44 +497,71 @@ inferBindings :: Bool -> TypeEnv -> [Nix.Binding NExprLoc] -> Infer [(Text, NixT
 inferBindings recursive env bindings
   | recursive = do
       -- Recursive: bind all names to fresh vars first
-      let names = mapMaybe bindingName bindings
+      let names = concatMap bindingNames bindings
       freshVars <- replicateM (length names) freshVar
       let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env (zip names freshVars)
       
       -- Infer bodies and unify
-      forM (zip bindings freshVars) $ \(binding, typeVar) -> do
+      concat <$> forM (zip bindings (chunkVars bindings freshVars)) (\(binding, vars) -> do
         case binding of
           Nix.NamedVar (StaticKey name :| []) expr pos -> do
+            let typeVar = head vars
             t <- infer env' expr
             unify typeVar t
-            
-            -- Emit binding
             t' <- applyCurrentSubst t
             emitBinding (varNameText name) t' (toSpan pos)
+            pure [(varNameText name, t)]
             
-            pure (varNameText name, t)
-          _ -> pure ("", typeVar) -- Skip complex bindings for now
+          Nix.Inherit mScope keys pos -> do
+            forM (zip keys vars) $ \(key, typeVar) -> do
+              let name = varNameText key
+              t <- case mScope of
+                Just scope -> infer env' (Fix (Compose (AnnUnit nullSpan (NSelect Nothing scope (StaticKey key :| [])))))
+                Nothing -> case lookupEnv name env' of
+                  Just s -> instantiate s
+                  Nothing -> freshVar
+              unify typeVar t
+              pure (name, t)
+              
+          _ -> pure [] -- Skip complex bindings
+        )
   | otherwise = foldM go [] bindings
   where
+    chunkVars [] _ = []
+    chunkVars (b:bs) vars = 
+      let len = length (bindingNames b)
+          (mine, rest) = splitAt len vars
+      in mine : chunkVars bs rest
+
+    bindingNames (Nix.NamedVar (StaticKey name :| []) _ _) = [varNameText name]
+    bindingNames (Nix.Inherit _ keys _) = map varNameText keys
+    bindingNames _ = []
+    
     go acc binding = case binding of
       Nix.NamedVar (StaticKey name :| []) expr pos -> do
         t <- infer env expr
-        
-        -- Emit binding
         t' <- applyCurrentSubst t
         emitBinding (varNameText name) t' (toSpan pos)
-        
         pure $ acc ++ [(varNameText name, t)]
+        
+      Nix.Inherit mScope keys pos -> do
+        binds <- forM keys $ \key -> do
+          let name = varNameText key
+          t <- case mScope of
+            Just scope -> infer env (Fix (Compose (AnnUnit nullSpan (NSelect Nothing scope (StaticKey key :| [])))))
+            Nothing -> case lookupEnv name env of
+              Just s -> instantiate s
+              Nothing -> freshVar
+          pure (name, t)
+        pure $ acc ++ binds
+        
       _ -> pure acc
-
-    bindingName (Nix.NamedVar (StaticKey name :| []) _ _) = Just (varNameText name)
-    bindingName _ = Nothing
 
 -- | Infer types for a Let block (recursive with generalization)
 inferLet :: TypeEnv -> [Nix.Binding NExprLoc] -> NExprLoc -> Infer NixType
 inferLet env bindings body = do
   -- 1. Parse bindings into (Name, Expr, Span)
-  let namedBindings = mapMaybe parseBinding bindings
+  let namedBindings = concatMap parseBinding bindings
       
   -- 2. Build dependency graph
   let edges = map (buildEdge namedBindings) namedBindings
@@ -560,8 +576,16 @@ inferLet env bindings body = do
   infer envBody body
   where
     parseBinding (Nix.NamedVar (StaticKey name :| []) expr pos) = 
-      Just (varNameText name, expr, toSpan pos)
-    parseBinding _ = Nothing
+      [(varNameText name, expr, toSpan pos)]
+    parseBinding (Nix.Inherit mScope keys pos) = 
+      map (\key -> 
+        let name = varNameText key
+            expr = case mScope of
+              Just scope -> Fix (Compose (AnnUnit nullSpan (NSelect Nothing scope (StaticKey key :| []))))
+              Nothing -> Fix (Compose (AnnUnit nullSpan (NSym key)))
+        in (name, expr, toSpan pos)
+      ) keys
+    parseBinding _ = []
 
     buildEdge allBindings (name, expr, span) =
       let free = collectFreeVars expr
@@ -674,11 +698,11 @@ inferExpr expr =
 
 -- | Helper to convert SrcSpan to Span
 toSpan :: NSourcePos -> Span
-toSpan (NSourcePos _ (NPos l1) (NPos c1)) =
+toSpan (NSourcePos _ l c) =
   -- NExprLoc gives start pos. We don't have end pos easily from here without traversing expr.
   -- But we only need start for insertion.
-  Span (Loc (fromIntegral $ unPos l1) (fromIntegral $ unPos c1))
-       (Loc (fromIntegral $ unPos l1) (fromIntegral $ unPos c1)) 
+  Span (Loc (fromIntegral $ unPos (coerce l)) (fromIntegral $ unPos (coerce c)))
+       (Loc (fromIntegral $ unPos (coerce l)) (fromIntegral $ unPos (coerce c))) 
        Nothing
 
 -- | Infer types for a Nix file
