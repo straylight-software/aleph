@@ -23,23 +23,26 @@ let
 
   sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
 # :: "aleph-lint"
-# :: [t10]
 in
+# :: [a]
 write-shell-application {
   name = "aleph-lint";
+
   runtime-inputs = [
     ast-grep
     tree-sitter
     tree-sitter-grammars.tree-sitter-nix
   ];
+
   derivation-args.post-check = ''
     echo "Checking config ${sgconfig-yml}"
 
-    # :: String
     ${lib.getExe ast-grep} \
+      # :: String
       --config ${sgconfig-yml} \
       test
   '';
+
   text =
     builtins.replaceStrings
       [ "$SGCONFIG_YML" "$AST_GREP_BIN" ]

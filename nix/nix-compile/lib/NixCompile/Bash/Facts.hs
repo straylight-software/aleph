@@ -222,6 +222,14 @@ commonUtilities =
   , "env", "which"
   , "chmod", "chown", "chgrp", "touch"
   , "sleep"
+  , "mount", "umount", "hostname", "ip", "modprobe", "seq"
+  , "clear", "nproc", "free", "udhcpc"
+  , "runHook" -- stdenv function
+  , "makeWrapper", "wrapProgram" -- stdenv setup hooks
+  , "fakeroot", "tune2fs"
+  , "sha256sum"
+  , "file", "patchelf", "unzip", "tar", "gzip" -- common build deps
+  , "curl", "date", "git"
   ]
 
 -- | Facts from command invocation
@@ -232,6 +240,7 @@ cmdInvocationFacts span cmd args = pathFact ++ argFacts
     pathFact
       | isStorePath cmd = [UsesStorePath (StorePath cmd) span]
       | "$" `T.isPrefixOf` cmd = [DynamicCommand (T.drop 1 cmd) span]
+      | "@" `T.isPrefixOf` cmd = [] -- Ignore substitution placeholders like @foo@
       | isIgnoredCommand cmd = []  -- builtins/utils are OK
       | otherwise = [BareCommand cmd span]
 
