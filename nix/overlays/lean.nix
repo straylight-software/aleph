@@ -28,11 +28,15 @@ in
 
   # lean4-mathlib-env - Lean 4 environment with mathlib cache
   # Uses elan to fetch the correct toolchain
+  # :: t7
+  # :: "lean4-mathlib-env"
+  # :: [t6]
   lean4-mathlib-env = build-env {
     name = "lean4-mathlib-env";
     paths = [
       final.elan
       prev.git
+      # :: ["/bin"]
       prev.curl
       prev.cacert
     ];

@@ -35,12 +35,17 @@
 let
   # lisp-case aliases for lib functions
   inherit (lib) optionalAttrs;
+  # :: t13
   optional-attrs = optionalAttrs;
 
   # lisp-case aliases for nixpkgs cross-compilation
+  # :: t14
   inherit (final) pkgsCross;
   pkgs-cross = pkgsCross;
 
+  # :: t15
+  # :: t16
+  # :: t17
   # lisp-case aliases for gpu targets
   inherit (gpu) sm_90 sm_90a sm_120;
   sm-90 = sm_90;
@@ -65,64 +70,67 @@ let
         };
       }
     );
+
+  x86-targets = {
+    # Grace Hopper: aarch64 + Hopper GPU
+    grace = rec {
+      name = "grace";
+      arch = "aarch64";
+      target-gpu = sm-90a;
+      pkgs = pkgs-cross.aarch64-multiplatform;
+
+      mk-derivation = mk-cross-derivation name pkgs;
+
+      __functor = _self: mk-derivation;
+    };
+
+    # Jetson Thor: aarch64 + Thor GPU
+    jetson = rec {
+      name = "jetson";
+      arch = "aarch64";
+      target-gpu = sm-90;
+      pkgs = pkgs-cross.aarch64-multiplatform;
+
+      mk-derivation = mk-cross-derivation name pkgs;
+
+      __functor = _self: mk-derivation;
+    };
+
+    # Generic aarch64: no GPU
+    aarch64 = rec {
+      name = "aarch64";
+      arch = "aarch64";
+      target-gpu = gpu.none;
+      pkgs = pkgs-cross.aarch64-multiplatform;
+
+      mk-derivation = mk-cross-derivation name pkgs;
+
+      __functor = _self: mk-derivation;
+    };
+  };
+
+  arm-targets = {
+    # Reverse: aarch64 → x86_64
+    x86-64 = rec {
+      name = "x86-64";
+      arch = "x86_64";
+      target-gpu = sm-120;
+      pkgs = pkgs-cross.gnu64;
+
+      mk-derivation = mk-cross-derivation name pkgs;
+
+      __functor = _self: mk-derivation;
+    };
+  };
 in
 
 # ────────────────────────────────────────────────────────────────────────────
-#                          // x86 -> arm targets //
+#                          // targets //
 # ────────────────────────────────────────────────────────────────────────────
 
-optional-attrs platform.is-x86 {
-  # Grace Hopper: aarch64 + Hopper GPU
-  grace = rec {
-    name = "grace";
-    arch = "aarch64";
-    target-gpu = sm-90a;
-    pkgs = pkgs-cross.aarch64-multiplatform;
-
-    mk-derivation = mk-cross-derivation name pkgs;
-
-    __functor = _self: mk-derivation;
-  };
-
-  # Jetson Thor: aarch64 + Thor GPU
-  jetson = rec {
-    name = "jetson";
-    arch = "aarch64";
-    target-gpu = sm-90;
-    pkgs = pkgs-cross.aarch64-multiplatform;
-
-    mk-derivation = mk-cross-derivation name pkgs;
-
-    __functor = _self: mk-derivation;
-  };
-
-  # Generic aarch64: no GPU
-  aarch64 = rec {
-    name = "aarch64";
-    arch = "aarch64";
-    target-gpu = gpu.none;
-    pkgs = pkgs-cross.aarch64-multiplatform;
-
-    mk-derivation = mk-cross-derivation name pkgs;
-
-    __functor = _self: mk-derivation;
-  };
-}
-
-# ────────────────────────────────────────────────────────────────────────────
-#                          // arm -> x86 targets //
-# ────────────────────────────────────────────────────────────────────────────
-
-// optional-attrs platform.is-arm {
-  # Reverse: aarch64 → x86_64
-  x86-64 = rec {
-    name = "x86-64";
-    arch = "x86_64";
-    target-gpu = sm-120;
-    pkgs = pkgs-cross.gnu64;
-
-    mk-derivation = mk-cross-derivation name pkgs;
-
-    __functor = _self: mk-derivation;
-  };
-}
+if platform.is-x86 then
+  x86-targets
+else if platform.is-arm then
+  arm-targets
+else
+  { }

@@ -17,6 +17,7 @@ let
   # We verify them by importing directly from the shortlist module
 
   # Test that the module composition works by verifying expected attributes exist
+  # :: t9
   test-shortlist-builds = run-command "test-shortlist-builds" { } (
     builtins.readFile ./scripts/test-shortlist-builds.bash
   );

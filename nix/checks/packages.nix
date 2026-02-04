@@ -28,17 +28,24 @@ let
   # ────────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for pkgs.* functions
   # ────────────────────────────────────────────────────────────────────────────
+  # :: t10
   write-text-dir = get' "writeTextDir" pkgs;
 
+  # :: t13
   # Haskell packages alias
   haskell-packages = get' "haskellPackages" pkgs;
+# :: t14 -> t15 -> t16 -> t35
 
   # Render Dhall template with environment variables
+  # :: t30
+  # :: t26
+  # :: t28
   render-dhall =
     name: src: vars:
     let
       env-vars = map-attrs' (k: v: {
         name = to-upper (replace [ "-" ] [ "_" ] k);
+        # :: [t33]
         value = to-string v;
       }) vars;
     in
@@ -53,6 +60,7 @@ let
         dhall text --file ${src} > $out
       '';
 
+  # :: t39
   # ══════════════════════════════════════════════════════════════════════════
   # TEST: mdspan-installation
   # ══════════════════════════════════════════════════════════════════════════

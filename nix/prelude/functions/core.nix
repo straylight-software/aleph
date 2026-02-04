@@ -50,6 +50,7 @@ rec {
     => [ 1 2 3 ]
     ```
   */
+  # :: t42 -> t42
   id = x: x;
 
   /**
@@ -81,6 +82,7 @@ rec {
     const "default" null
     => "default"
     ```
+  # :: t43 -> t44 -> t43
   */
   const = a: _b: a;
 
@@ -113,6 +115,7 @@ rec {
 
     (flip map [ 1 2 3 ]) (x: x * 2)
     => [ 2 4 6 ]
+    # :: (t47 -> t46 -> t49) -> t46 -> t47 -> t49
     ```
   */
   flip =
@@ -147,6 +150,7 @@ rec {
     => "16"
 
     (compose head tail) [ 1 2 3 ]
+    # :: (t53 -> t54) -> (t52 -> t53) -> t52 -> t54
     => 2
     ```
   */
@@ -181,6 +185,7 @@ rec {
     pipe (x: x * x) toString 4
     => "16"
 
+    # :: (t57 -> t58) -> (t58 -> t59) -> t57 -> t59
     (pipe tail head) [ 1 2 3 ]
     => 2
     ```
@@ -211,6 +216,7 @@ rec {
     ```nix
     apply (x: x * 2) 21
     => 42
+# :: t60 -> t60
 
     apply toString 123
     => "123"
@@ -238,8 +244,10 @@ rec {
 
     ```nix
     fix (self: { a = 1; b = self.a + 1; })
+    # :: (t63 -> t63) -> t63
     => { a = 1; b = 2; }
 
+    # :: t63
     fix (fac: n: if n <= 1 then 1 else n * fac (n - 1)) 5
     => 120
     ```
@@ -275,6 +283,7 @@ rec {
     ```nix
     on builtins.lessThan stringLength "hi" "hello"
     => true
+# :: (t70 -> t70 -> t71) -> (t67 -> t70) -> t67 -> t67 -> t71
 
     on add (x: x * x) 3 4
     => 25
@@ -351,6 +360,7 @@ rec {
 
     - f: binary function taking accumulator and element
     - init: initial accumulator value
+    # :: t72
     - xs: list to fold
 
     # Examples
@@ -375,6 +385,7 @@ rec {
     # Arguments
 
     - f: binary function taking element and accumulator
+    # :: t73
     - init: initial accumulator value
     - xs: list to fold
 
@@ -490,6 +501,7 @@ rec {
 
     - n: number of elements to take (clamped to >= 0)
     - xs: input list
+# :: Int -> t75 -> t78
 
     # Examples
 
@@ -517,6 +529,7 @@ rec {
     # Arguments
 
     - n: number of elements to drop (clamped to >= 0)
+    # :: Int -> t80 -> t83
     - xs: input list
 
     # Examples
@@ -560,6 +573,7 @@ rec {
 
     ```
     reverse :: [a] -> [a]
+    # :: t84
     ```
 
     # Arguments
@@ -581,6 +595,7 @@ rec {
     # Type
 
     ```
+    # :: t85
     concat :: [[a]] -> [a]
     ```
 
@@ -625,6 +640,7 @@ rec {
     # Type
 
     ```
+    # :: t86
     concat-map :: (a -> [b]) -> [a] -> [b]
     ```
 
@@ -658,6 +674,7 @@ rec {
     ```
     zip :: [a] -> [b] -> [{fst: a, snd: b}]
     ```
+# :: t87
 
     # Arguments
 
@@ -688,6 +705,7 @@ rec {
     ```
     zip-with :: (a -> b -> c) -> [a] -> [b] -> [c]
     ```
+# :: t88
 
     # Arguments
 
@@ -745,6 +763,7 @@ rec {
     # Type
 
     ```
+    # :: (t92 -> Int) -> t95
     sort-on :: (a -> Ord) -> [a] -> [a]
     ```
 
@@ -830,6 +849,7 @@ rec {
     # Type
 
     ```
+    # :: t96
     find :: (a -> Bool) -> a -> [a] -> a
     ```
 
@@ -888,6 +908,7 @@ rec {
     key are collected into lists.
 
     # Type
+# :: t97
 
     ```
     group-by :: (a -> String) -> [a] -> {String: [a]}
@@ -973,6 +994,7 @@ rec {
   */
   inherit (lib) replicate;
 
+  # :: t104 -> [Any] -> [Any]
   /**
     Insert a separator element between each element of a list.
 
@@ -1008,6 +1030,7 @@ rec {
   /**
     Left-to-right scan, returning all intermediate accumulator states.
 
+    # :: (t115 -> t113 -> t117) -> t109 -> t110 -> t120
     Similar to foldl, but returns a list of successive reduced values from the left.
     The result list length is always one more than the input list length.
 
@@ -1035,6 +1058,9 @@ rec {
     lib.foldl' (acc: x: acc ++ [ (f (lib.last acc) x) ]) [ init ] xs;
 
   /**
+    # :: t121 -> t122 -> { fst : t125, snd : t128 }
+    # :: t125
+    # :: t128
     Split a list into the longest prefix satisfying a predicate and the remainder.
 
     Returns an attribute set with `fst` containing the longest prefix of elements
@@ -1062,6 +1088,7 @@ rec {
     fst = lib.takeWhile pred xs;
     snd = lib.dropWhile pred xs;
   };
+# :: (t131 -> Bool) -> t130 -> t134
 
   /**
     Split a list at the first element satisfying a predicate.
@@ -1087,6 +1114,9 @@ rec {
     break (x: x >= 3) [ 1 2 3 4 1 2 ]
     => { fst = [ 1 2 ]; snd = [ 3 4 1 2 ]; }
     ```
+  # :: t135 -> t136 -> { fst : t139, snd : t142 }
+  # :: t139
+  # :: t142
   */
   break = pred: xs: span (x: !(pred x)) xs;
 
@@ -1114,6 +1144,7 @@ rec {
     => { fst = [ 1 2 ]; snd = [ 3 4 5 ]; }
     ```
   */
+  # :: [Any] -> Any
   split-at = n: xs: {
     fst = lib.take n xs;
     snd = lib.drop n xs;
@@ -1145,6 +1176,7 @@ rec {
     ```
   */
   minimum =
+    # :: [Any] -> Any
     xs:
     if xs == [ ] then
       throw "minimum: empty list has no minimum"

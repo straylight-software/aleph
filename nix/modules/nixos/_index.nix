@@ -5,6 +5,10 @@
 # The directory is the kind signature.
 #
 {
+  # :: Any
+  # :: Any
+  # :: Any
+  # :: Any
   armitage-proxy = import ./armitage-proxy.nix;
   lre = import ./lre.nix;
   nix-proxy = import ./nix-proxy.nix;

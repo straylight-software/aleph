@@ -29,6 +29,7 @@ in
   #   - $out/lib/python3.X/site-packages (from container)
   #   - Wrapper that sets PYTHONPATH and LD_LIBRARY_PATH
   #
+  # :: { container : t4, extra-site-packages : [t6], name : t3, python-version : "3.12", runtime-inputs : [t31] } -> t36
   mk-ngc-python =
     {
       name,
@@ -37,6 +38,7 @@ in
       python-version ? "3.12",
       extra-site-packages ? [ ],
     }:
+    # :: t17
     let
       run-path = aleph-lib.elf.mk-rpath (
         runtime-inputs
@@ -52,13 +54,16 @@ in
         ]
       );
     in
+    # :: t4
     stdenv.default {
+      # :: [t23]
       inherit name;
       src = container;
 
       native-build-inputs = [
         final.autoPatchelfHook
         final.makeWrapper
+        # :: [t31]
         final.patchelf
         final.file
       ];
@@ -69,14 +74,19 @@ in
         final.bzip2
         final.xz
         final.libffi
+        # :: Bool
+        # :: Bool
         final.ncurses
+        # :: String
         final.readline
         final.openssl
       ];
+# :: String
 
       dont-configure = true;
       dont-build = true;
 
+      # :: String
       install-phase = builtins.replaceStrings [ "@pythonVersion@" ] [ python-version ] (
         builtins.readFile ./scripts/ngc-python-install.sh
       );
@@ -87,14 +97,20 @@ in
       '';
 
       post-fixup = ''
+        # :: { site-packages : String }
         # Create wrapper with proper environment
+        # :: String
         if [ -f $out/bin/python3 ]; then
           wrapProgram $out/bin/python3 \
+            # :: ["libcuda.so.1"]
             --prefix PYTHONPATH : "$out/lib/python${python-version}/site-packages${
               lib.concatMapStrings (p: ":${p}") extra-site-packages
             }" \
             --prefix LD_LIBRARY_PATH : "$out/lib/native:${run-path}"
         fi
+      # :: { description : "Python environment extracted from NGC container", platforms : ["x86_64-linux"] }
+      # :: "Python environment extracted from NGC container"
+      # :: ["x86_64-linux"]
       '';
 
       passthru = {

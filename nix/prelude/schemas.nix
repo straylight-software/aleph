@@ -33,34 +33,42 @@ _: rec {
   /**
     Check if a value is an attribute set.
   */
+  # :: Any -> Bool
   is-attrs = builtins.isAttrs;
 
   /**
     Check if a value is a list.
+  # :: Any -> Bool
   */
   is-list = builtins.isList;
 
   /**
+    # :: Any -> Bool
     Check if a value is a string.
   */
   is-string = builtins.isString;
 
+  # :: Any -> Bool
   /**
     Check if a value is an integer.
   */
   is-int = builtins.isInt;
+# :: Any -> Bool
 
   /**
     Check if a value is a boolean.
   */
+  # :: Any -> Bool
   is-bool = builtins.isBool;
 
   /**
     Check if a value is a path.
+  # :: Any -> Bool
   */
   is-path = builtins.isPath;
 
   /**
+    # :: Null -> Bool
     Check if a value is a function.
   */
   is-function = builtins.isFunction;
@@ -98,14 +106,17 @@ _: rec {
 
     either { foo = "bar"; }
     => false
+# :: Any -> Bool
 
     either null
     => false
 
+    # :: Any -> Bool
     either "not an either"
     => false
     ```
   */
+  # :: Any -> Bool
   either = x: builtins.isAttrs x && x ? _tag && x ? value && (x._tag == "left" || x._tag == "right");
 
   /**
@@ -135,14 +146,17 @@ _: rec {
 
     # Examples
 
+    # :: t50 -> Bool
     ```nix
     maybe null
     => true
 
+    # :: Null -> Bool
     maybe 42
     => true
 
     maybe { foo = "bar"; }
+    # :: Null -> Bool
     => true
     ```
   */
@@ -175,14 +189,17 @@ _: rec {
 
     # Examples
 
+    # :: Any -> Bool
     ```nix
     result { ok = 42; }
     => true
 
+    # :: Any -> Bool
     result { err = "something went wrong"; }
     => true
 
     result { ok = 1; err = 2; }
+    # :: Any -> Bool
     => false
 
     result { }
@@ -197,6 +214,7 @@ _: rec {
   ok = x: result x && x ? ok;
 
   /**
+    # :: Any -> Bool
     Validate that a value is an error Result.
   */
   err = x: result x && x ? err;
@@ -217,6 +235,7 @@ _: rec {
   non-empty-list = x: builtins.isList x && x != [ ];
 
   /**
+    # :: t62 -> Any -> Bool
     Validate that all elements of a list satisfy a predicate.
 
     # Type
@@ -241,6 +260,7 @@ _: rec {
   # Attribute Set Validators
   # ─────────────────────────────────────────────────────────────────────────
 
+  # :: t68 -> Any -> Bool
   /**
     Validate that an attribute set has all required keys.
 
@@ -251,6 +271,7 @@ _: rec {
     ```
 
     # Examples
+# :: t75 -> Any -> Bool
 
     ```nix
     has-keys [ "name" "version" ] { name = "foo"; version = "1.0"; }
@@ -259,14 +280,17 @@ _: rec {
     has-keys [ "name" "version" ] { name = "foo"; }
     => false
     ```
+  # :: Any -> Bool
   */
   has-keys = keys: x: builtins.isAttrs x && builtins.all (k: x ? ${k}) keys;
 
   /**
+    # :: Any -> Bool
     Validate that all values in an attribute set satisfy a predicate.
 
     # Type
 
+    # :: Any -> Bool
     ```
     attrs-of :: (a -> Bool) -> AttrSet -> Bool
     ```
@@ -277,6 +301,7 @@ _: rec {
   # Numeric Validators
   # ─────────────────────────────────────────────────────────────────────────
 
+  # :: Int -> Int -> Any -> Bool
   /**
     Validate that a value is a positive integer (> 0).
   */
@@ -287,6 +312,7 @@ _: rec {
   */
   non-negative-int = x: builtins.isInt x && x >= 0;
 
+  # :: Any -> Bool
   /**
     Validate that a value is a negative integer (< 0).
   */
@@ -297,6 +323,7 @@ _: rec {
 
     # Type
 
+    # :: t94 -> Any -> Bool
     ```
     in-range :: Int -> Int -> Int -> Bool
     ```
@@ -321,6 +348,7 @@ _: rec {
 
     ```
     matches :: String -> String -> Bool
+    # :: t100 -> t101 -> t106
     ```
   */
   matches = pattern: x: builtins.isString x && builtins.match pattern x != null;
@@ -341,6 +369,7 @@ _: rec {
     # Examples
 
     ```nix
+    # :: t107 -> t108 -> t113
     all-of [ is-int positive-int ] 42
     => true
 
@@ -351,6 +380,7 @@ _: rec {
   all-of = preds: x: builtins.all (p: p x) preds;
 
   /**
+    # :: (t115 -> Bool) -> t115 -> Bool
     Combine validators with OR.
 
     # Type
@@ -361,6 +391,7 @@ _: rec {
 
     # Examples
 
+    # :: (Null -> Bool) -> Null -> Bool
     ```nix
     any-of [ is-int is-string ] 42
     => true
@@ -391,6 +422,7 @@ _: rec {
     optional :: (a -> Bool) -> a -> Bool
     ```
   */
+  # :: (Any -> Bool) -> t121 -> Any -> Any
   optional = pred: x: x == null || pred x;
 
   # ─────────────────────────────────────────────────────────────────────────
@@ -416,6 +448,7 @@ _: rec {
 
     ```nix
     validate either "config.result" { _tag = "right"; value = 42; }
+    # :: (t126 -> Bool) -> t126 -> t126 -> t126
     => { _tag = "right"; value = 42; }
 
     validate either "config.result" { foo = "bar"; }
@@ -428,6 +461,7 @@ _: rec {
       x
     else
       throw "schema violation in '${name}': validation failed for ${builtins.typeOf x}";
+# :: (t132 -> Bool) -> t130 -> (t132 -> t130) -> t132 -> t130
 
   /**
     Validate or return a default value.
@@ -438,6 +472,7 @@ _: rec {
     validate-or :: (a -> Bool) -> b -> a -> (a | b)
     ```
 
+    # :: Any -> Bool
     # Examples
 
     ```nix
@@ -445,6 +480,7 @@ _: rec {
     => 42
 
     validate-or positive-int 0 (-1)
+    # :: Any -> Bool
     => 0
     ```
   */
@@ -453,6 +489,7 @@ _: rec {
     if schema x then x else default;
 
   /**
+    # :: Any -> Bool
     Validate and transform, or return a default.
 
     # Type
@@ -467,6 +504,7 @@ _: rec {
 
   # ─────────────────────────────────────────────────────────────────────────
   # Common Schema Definitions
+  # :: Any -> Bool
   # ─────────────────────────────────────────────────────────────────────────
 
   /**

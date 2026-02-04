@@ -1,11 +1,16 @@
 {
+  # :: "// straylight // aleph // build system"
   description = "// straylight // aleph // build system";
+# :: { buck2-prelude : { flake : Bool, url : "github:weyl-ai/straylight-buck2-prelude" }, ghc-source-gen-src : { flake : Bool, url : "github:google/ghc-source-gen" }, llvm-project : { flake : Bool, url : "github:llvm/llvm-project/bb1f220d534b0f6d80bea36662f5188ff11c2e54" }, nimi : { url : "github:b7r6/nimi/add-static-build" }, nix2gpu : { url : "github:fleek-sh/nix2gpu" } }
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
     flake-parts.url = "github:hercules-ci/flake-parts";
     treefmt-nix.url = "github:numtide/treefmt-nix";
+    # :: { flake : Bool, url : "github:llvm/llvm-project/bb1f220d534b0f6d80bea36662f5188ff11c2e54" }
+    # :: "github:llvm/llvm-project/bb1f220d534b0f6d80bea36662f5188ff11c2e54"
+    # :: Bool
     ndg.url = "github:feel-co/ndg";
 
     llvm-project = {
@@ -14,10 +19,16 @@
     };
 
     # Determinate Nix with WASM support (builtins.wasm + wasm32-wasip1)
+    # :: { flake : Bool, url : "github:google/ghc-source-gen" }
+    # :: "github:google/ghc-source-gen"
+    # :: Bool
     # NOTE: Don't follow nixpkgs - needs specific rust version for wasmtime
     nix.url = "github:straylight-software/nix";
 
     # ghc-source-gen from git (Hackage version doesn't support GHC 9.12)
+    # :: { flake : Bool, url : "github:weyl-ai/straylight-buck2-prelude" }
+    # :: "github:weyl-ai/straylight-buck2-prelude"
+    # :: Bool
     # Required for grapesy -> proto-lens-protoc -> ghc-source-gen
     ghc-source-gen-src = {
       url = "github:google/ghc-source-gen";
@@ -26,16 +37,21 @@
 
     # Buck2 prelude (straylight fork with NVIDIA support)
     # Mercury-based Haskell rules, LLVM 22 C++ toolchain, nv target compilation
+    # :: { url : "github:fleek-sh/nix2gpu" }
+    # :: "github:fleek-sh/nix2gpu"
     buck2-prelude = {
       url = "github:weyl-ai/straylight-buck2-prelude";
       flake = false;
     };
 
     # NativeLink - Local Remote Execution for Buck2
+    # :: { url : "github:b7r6/nimi/add-static-build" }
+    # :: "github:b7r6/nimi/add-static-build"
     # Provides CAS, scheduler, and worker for build caching
     nativelink.url = "github:TraceMachina/nativelink";
 
     # nix2gpu - NixOS containers for GPU compute (vast.ai, runpod, fly.io)
+    # :: { flake-parts : t0 } | ... -> t4
     # Uses nimi as PID 1 for modular services
     nix2gpu = {
       url = "github:fleek-sh/nix2gpu";

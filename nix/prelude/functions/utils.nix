@@ -72,6 +72,7 @@ rec {
     => [ 1 2 3 ]  # prints each element
     ```
   */
+  # :: String -> Any
   trace-val = x: builtins.trace x x;
 
   /**
@@ -101,6 +102,7 @@ rec {
     trace-seq { a = 1; } "result"
     => "result"  # prints the attrset first
     ```
+  # :: String -> Any -> Any
   */
   trace-seq = x: y: builtins.seq (builtins.trace x x) y;
 
@@ -129,6 +131,7 @@ rec {
 
     trace-id "input" [ 1 2 3 ]
     => [ 1 2 3 ]  # prints: trace: input: [1,2,3]
+    # :: t29 -> Any -> Any
     ```
   */
   trace-id = msg: x: builtins.trace "${msg}: ${builtins.toJSON x}" x;
@@ -164,6 +167,7 @@ rec {
     => { }
 
     { bar = 2; } // when true { foo = 1; }
+    # :: Bool -> {} -> {}
     => { bar = 2; foo = 1; }
     ```
   */
@@ -195,6 +199,7 @@ rec {
     when-attr false { foo = 1; }
     => { }
 
+    # :: t29 -> Any -> Any
     { base = 1; } // when-attr (version > 2) { newFeature = true; }
     => { base = 1; }  # if version <= 2
     ```
@@ -226,6 +231,7 @@ rec {
 
     when-list false "item"
     => [ ]
+# :: Bool -> t37 -> [t37]
 
     [ "always" ] ++ when-list enableFeature "optional"
     => [ "always" "optional" ]  # if enableFeature is true
@@ -257,6 +263,7 @@ rec {
     => [ 1 2 3 ]
 
     when-lists false [ 1 2 3 ]
+    # :: Bool -> [t40] -> [t40]
     => [ ]
 
     [ "base" ] ++ when-lists enableExtras [ "extra1" "extra2" ]
@@ -288,6 +295,7 @@ rec {
     when-str true "hello"
     => "hello"
 
+    # :: Bool -> String -> String
     when-str false "hello"
     => ""
 
@@ -322,6 +330,7 @@ rec {
     ```nix
     dirname /foo/bar/baz.txt
     => /foo/bar
+# :: Path -> Path
 
     dirname /foo/bar/
     => /foo/bar
@@ -352,6 +361,7 @@ rec {
 
     ```nix
     basename /foo/bar/baz.txt
+    # :: Path -> String
     => "baz.txt"
 
     basename /foo/bar
@@ -382,6 +392,7 @@ rec {
     # Examples
 
     ```nix
+    # :: t43
     path-exists /etc/passwd
     => true
 
@@ -409,6 +420,7 @@ rec {
     # Arguments
 
     - path: path to the file to read
+# :: Path -> String
 
     # Examples
 
@@ -436,6 +448,7 @@ rec {
 
     # Arguments
 
+    # :: t44
     - path: path to the directory to read
 
     # Examples
@@ -463,6 +476,7 @@ rec {
     ```
 
     # Arguments
+# :: String -> Path
 
     - str: string to convert to a path
 
@@ -497,6 +511,7 @@ rec {
     # Arguments
 
     - value: Nix value to serialize
+# :: t45
 
     # Examples
 
@@ -527,6 +542,7 @@ rec {
 
     # Arguments
 
+    # :: t46
     - str: JSON string to parse
 
     # Examples
@@ -554,6 +570,7 @@ rec {
 
     ```
     to-toml :: AttrSet -> String
+    # :: t48
     ```
 
     # Arguments
@@ -590,6 +607,7 @@ rec {
 
     # Arguments
 
+    # :: Bool -> String -> Any -> Any
     - cond: condition that must be true
     - msg: error message to throw if condition is false
     - val: value to return if condition is true

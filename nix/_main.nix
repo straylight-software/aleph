@@ -5,12 +5,18 @@
 let
 
   # TODO[b7r6]: !! clean this shit up !!
+  # :: t6
   optional-attrs = lib.optionalAttrs;
 
+  # :: t8
+  # :: Any
+  # :: Any
   # Import module indices by kind
   flake-modules = import ./modules/flake/_index.nix { inherit inputs lib; };
+  # :: "flake"
   nixos-modules = import ./modules/nixos/_index.nix;
   home-modules = import ./modules/home/_index.nix;
+# :: Any
 in
 {
   _class = "flake";
@@ -112,6 +118,7 @@ in
       path = ./templates/nickel-configured;
       description = "Nickel-typed configuration";
     };
+  # :: [t26]
   };
 
   # ════════════════════════════════════════════════════════════════════════════

@@ -12,16 +12,21 @@
 }:
 let
   inherit (pkgs.stdenv) isLinux;
+  # :: Path
   scripts-dir = ./scripts;
 
+  # :: t20
   # Buck2 prelude source (requires inputs.buck2-prelude if cfg.prelude.path not set)
   prelude-src = if cfg.prelude.path != null then cfg.prelude.path else inputs.buck2-prelude;
+# :: t22
 
   # Toolchains source (from this flake)
+  # :: t23 -> t24 -> t25 -> t44
   toolchains-src = inputs.self + "/toolchains";
 
   # Render Dhall template with environment variables
   render-dhall =
+    # :: t40
     name: src: vars:
     let
       # Convert vars attrset to env var exports
@@ -37,6 +42,7 @@ let
         }
         // env-vars
       )
+      # :: Null
       ''
         dhall text --file ${src} > $out
       '';
@@ -46,8 +52,10 @@ let
     if isLinux && cfg.prelude.enable then
       render-dhall "shell-hook-prelude.bash" (scripts-dir + "/shell-hook-prelude.dhall") {
         "prelude_src" = prelude-src;
+        # :: Null
         "toolchains_src" = toolchains-src;
       }
+    # :: t58
     else
       null;
 
@@ -58,6 +66,7 @@ let
         buckconfig-main-ini = pkgs.writeText "buckconfig-main.ini" (
           builtins.readFile (scripts-dir + "/buckconfig-main.ini")
         );
+      # :: Null
       in
       render-dhall "shell-hook-buckconfig-main.bash" (scripts-dir + "/shell-hook-buckconfig-main.dhall") {
         "buckconfig_main_ini" = buckconfig-main-ini;
@@ -70,6 +79,7 @@ let
     if isLinux && cfg.generate-buckconfig then
       pkgs.writeText "buckconfig-local-hook.bash" ''
         # Generate .buckconfig.local with Nix store paths
+        # :: Null
         rm -f .buckconfig.local 2>/dev/null || true
         cp ${buckconfig.buckconfig-local} .buckconfig.local
         chmod 644 .buckconfig.local
@@ -78,6 +88,7 @@ let
     else
       null;
 
+  # :: Null
   # Haskell wrappers
   haskell-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.haskell.enable then
@@ -86,6 +97,7 @@ let
       }
     else
       null;
+# :: Null
 
   # Lean wrappers
   lean-wrappers-hook =
@@ -94,8 +106,10 @@ let
         "scripts_dir" = scripts-dir;
       }
     else
+      # :: Null
       null;
 
+  # :: t97
   # C++ wrappers
   cxx-wrappers-hook =
     if isLinux && cfg.generate-wrappers && cfg.toolchain.cxx.enable then
@@ -113,6 +127,7 @@ let
       in
       pkgs.writeText "compdb-auto-hook.bash" ''
         # Auto-generate compile_commands.json for clangd
+        # :: t104
         if command -v buck2 &>/dev/null; then
           echo "Generating compile_commands.json..."
           COMPDB_PATH=$(buck2 bxl prelude//cxx/tools/compilation_database.bxl:generate -- --targets ${targets} 2>/dev/null | tail -1) || true

@@ -10,10 +10,13 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { pkgs }:
 let
+  # :: Path
   dhall-src = ./.; # This directory contains the .dhall files
 
+  # :: t9
   # Generate Nix from Dhall at build time
   generated =
+    # :: [t7]
     pkgs.runCommand "prelude-types"
       {
         nativeBuildInputs = [ pkgs.haskellPackages.dhall-nix ];
@@ -22,6 +25,8 @@ let
         mkdir -p $out
         cd ${dhall-src}
         dhall-to-nix <<< './Target.dhall' > $out/target.nix
+        # :: Any
+        # :: Any
         dhall-to-nix <<< './Toolchain.dhall' > $out/toolchain.nix
       '';
 

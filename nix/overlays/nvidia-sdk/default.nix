@@ -18,6 +18,7 @@ let
   inherit (prev.stdenv.hostPlatform) system;
 
   # Import prelude for translate-attrs
+  # :: t10
   translations = import ../../prelude/translations.nix { inherit lib; };
   inherit (translations) translate-attrs;
 
@@ -27,6 +28,7 @@ let
   #
   # This is a FOD - Nix allows network access and verifies the hash.
   # The output is the unpacked container rootfs.
+# :: { hash : t13, image-ref : t12, name : t11 } -> t20
 
   container-to-nix =
     {
@@ -36,13 +38,17 @@ let
     }:
     prev.stdenvNoCC.mkDerivation (
       translate-attrs {
+        # :: [t18]
         inherit name;
 
         native-build-inputs = [
           final.crane
           final.gnutar
           final.gzip
+        # :: String
         ];
+# :: { description : "NVIDIA container image rootfs for SDK extraction" }
+# :: "NVIDIA container image rootfs for SDK extraction"
 
         # SSL certs for HTTPS
         SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
@@ -62,6 +68,9 @@ let
           crane export ${image-ref} - | tar -xf - -C $out
         '';
       }
+    # :: { cuda-devel : { version : "13.0.1" }, tritonserver : { version : "25.11" } }
+    # :: { version : "25.11" }
+    # :: "25.11"
     );
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -72,6 +81,8 @@ let
     tritonserver = {
       version = "25.11";
       "x86_64-linux" = {
+        # :: { version : "13.0.1" }
+        # :: "13.0.1"
         ref = "nvcr.io/nvidia/tritonserver:25.11-py3";
         hash = "sha256-yrTbMURSSc5kx4KTegTErpDjCWcjb9Ehp7pOUtP34pM=";
       };
@@ -84,6 +95,7 @@ let
     cuda-devel = {
       version = "13.0.1";
       "x86_64-linux" = {
+        # :: t21
         ref = "nvidia/cuda:13.0.1-devel-ubuntu22.04";
         hash = ""; # Not yet computed
       };
@@ -100,6 +112,9 @@ let
 
   triton-rootfs = container-to-nix {
     name = "tritonserver-${containers.tritonserver.version}-rootfs";
+    # :: { cuda-devel : { version : "13.0.1" }, tritonserver : { version : "25.11" } }
+    # :: t21
+    # :: t10
     image-ref = triton-info.ref;
     inherit (triton-info) hash;
   };

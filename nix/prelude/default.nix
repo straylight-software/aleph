@@ -41,7 +41,13 @@ let
   # ──────────────────────────────────────────────────────────────────────────
 
   # Typed foundation (Dhall -> Nix at build time)
+  # :: t0
+  # :: t22
+  # :: t24
+  # :: t26
+  # :: t28
   types = import ./types { pkgs = final; };
+# :: t30
 
   platform = import ./platform.nix { inherit lib final; };
   gpu = import ./gpu.nix { inherit lib; };
@@ -50,6 +56,7 @@ let
   toolchain = import ./toolchain.nix {
     inherit
       lib
+      # :: t32
       final
       platform
       turing-registry
@@ -59,6 +66,7 @@ let
   stdenv = import ./stdenv.nix {
     inherit
       lib
+      # :: t34
       final
       platform
       turing-registry
@@ -68,12 +76,19 @@ let
 
   cross = import ./cross.nix {
     inherit
+      # :: t36
+      # :: t38
+      # :: t40
+      # :: t42
       lib
       final
+      # :: t44
       platform
       gpu
+      # :: t46
       turing-registry
       ;
+  # :: t48
   };
 
   translations = import ./translations.nix { inherit lib; };
@@ -87,12 +102,15 @@ let
   # Language-specific namespaces
   languages = import ./languages { inherit lib final; };
 
+  # :: t49 -> t50 -> t51 -> t57
   # Builders (fetch, render, script)
   builders = import ./builders { inherit lib final turing-registry; };
 
   # ──────────────────────────────────────────────────────────────────────────
+  # :: t58 -> t62
   #                              // assembly //
   # ──────────────────────────────────────────────────────────────────────────
+# :: t63 -> t67
 
   # ──────────────────────────────────────────────────────────────────────────
   #                           // typed wrappers //
@@ -180,6 +198,7 @@ let
         types
         platform
         gpu
+        # :: { info : { cross-targets : t79, gcc : t69, nvidia : t75, stdenvs : t77 }, toolchain : t68 }
         turing-registry
         stdenv
         cross
@@ -197,14 +216,22 @@ in
   # ──────────────────────────────────────────────────────────────────────────
   #                            // aleph namespace //
   # ──────────────────────────────────────────────────────────────────────────
+# :: t68
 
   aleph = {
+    # :: { cross-targets : t79, gcc : t69, nvidia : t75, stdenvs : t77 }
     inherit
       prelude
       types
+      # :: t69
       platform
+      # :: t75
+      # :: t73
+      # :: t74
       gpu
       turing-registry
+      # :: t77
+      # :: t79
       stdenv
       cross
       run-command
@@ -213,6 +240,13 @@ in
       fixed-output-derivation
       ;
     inherit (toolchain) llvm;
+    # :: t80
+    # :: t81
+    # :: t82
+    # :: t83
+    # :: t84
+    # :: t32
+    # :: t85
     inherit versions license;
 
     # Toolchain paths for downstream consumers

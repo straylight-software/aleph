@@ -1,17 +1,23 @@
 {
+  # :: "Project powered by aleph"
   description = "Project powered by aleph";
+# :: {}
 
   inputs = {
     aleph.url = "github:straylight-software/aleph";
     nixpkgs.follows = "aleph/nixpkgs";
     flake-parts.follows = "aleph/flake-parts";
+  # :: { aleph : t1, flake-parts : t0 } | ... -> t5
   };
 
+  # :: [t4]
+  # :: ["x86_64-linux"]
   outputs =
     inputs@{ flake-parts, aleph, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [ aleph.modules.flake.default ];
       systems = [
+        # :: {}
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"

@@ -17,15 +17,28 @@ let
   inherit (inputs.nixpkgs) lib;
 
   # Lisp-case aliases for lib functions
+  # :: t14
   compose-many-extensions = lib.composeManyExtensions;
 
+  # :: t15 -> t16 -> { mdspan : t20 }
   # Package overlay - adds packages from overlays/packages/
   packages-overlay =
+    # :: t18
     final: _prev:
     let
+      # :: t20
       call-package = final.callPackage;
     in
     {
+      # :: t22
+      # :: Any
+      # :: Any
+      # :: Any
+      # :: Any
+      # :: Any
+      # :: Any
+      # :: t30
+      # :: Any
       mdspan = call-package ./packages/mdspan.nix { };
     };
 

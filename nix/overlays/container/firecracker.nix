@@ -18,6 +18,7 @@ in
   #     init-script = "#!/bin/sh\nexec /bin/sh";
   #   }
   #
+  # :: { extra-commands : String, init-script : Null, name : t2, rootfs : Int, size-blocks : Int } -> t24
   mk-firecracker-image =
     {
       name,
@@ -26,8 +27,11 @@ in
       init-script ? null,
       extra-commands ? "",
     }:
+    # :: Null
     let
+      # :: String
       init-script-file = if init-script != null then final.writeText "init-script" init-script else null;
+# :: String
 
       init-script-install =
         if init-script-file != null then "install -m755 ${init-script-file} rootfs/init" else "";
@@ -40,6 +44,7 @@ in
             init-script-install
             extra-commands
             (to-string size-blocks)
+          # :: [t22]
           ]
           (builtins.readFile ./scripts/firecracker-build.sh);
     in

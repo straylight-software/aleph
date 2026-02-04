@@ -16,6 +16,7 @@ in
   #     hash = "sha256-...";  # empty string for first build
   #   }
   #
+  # :: { hash : String, name : t1, platform : "linux/amd64", ref : t2 } -> t7
   mk-oci-rootfs =
     {
       name,
@@ -25,16 +26,21 @@ in
     }:
     fixed-output-derivation {
       inherit name hash;
+# :: [t6]
 
       native-build-inputs = [
         final.crane
         final.gnutar
         final.gzip
+      # :: String
       ];
+# :: String
 
       SSL_CERT_FILE = "${final.cacert}/etc/ssl/certs/ca-bundle.crt";
 
       build-script = ''
+        # :: { description : "OCI container image rootfs extracted to Nix store" }
+        # :: "OCI container image rootfs extracted to Nix store"
         mkdir -p $out
         crane export --platform ${platform} "${ref}" - | tar -xf - -C $out
       '';

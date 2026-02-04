@@ -11,8 +11,22 @@
 { lib }:
 let
   # Lisp-case aliases for lib.* functions
+  # :: t15
+  # :: t16
+  # :: t17
+  # :: t18
+  # :: t19
+  # :: t20
+  # :: t21
+  # :: t22
+  # :: t23
+  # :: t24
+  # :: t25
+  # :: t26
   concat-map = lib.concatMap;
   concat-map-strings-sep = lib.concatMapStringsSep;
+  # :: Path -> String
+  # :: t27
   concat-strings-sep = lib.concatStringsSep;
   elem-at = lib.elemAt;
   has-infix = lib.hasInfix;
@@ -21,6 +35,7 @@ let
   optional-string = lib.optionalString;
   remove-suffix = lib.removeSuffix;
   replace-strings = lib.replaceStrings;
+  # :: { images : { alpine : t62 -> String, debian : t61 -> String, ngc-cuda-devel : t67 -> String, ngc-cuda-runtime : t68 -> String, ngc-pytorch : t64 -> String, ngc-tensorrt : t66 -> String, ngc-triton : t65 -> String, python : t63 -> String, ubuntu : t60 -> String }, ref-to-name : t54 -> t59 }
   split-string = lib.splitString;
   to-lower = lib.toLower;
 
@@ -31,8 +46,16 @@ let
   inherit (lib) head tail length;
 in
 {
+  # :: t29 -> {}
   # ════════════════════════════════════════════════════════════════════════════
   # OCI IMAGE UTILITIES
+  # :: t38
+  # :: Bool
+  # :: Any
+  # :: t29
+  # :: [Any]
+  # :: Any
+  # :: "latest"
   # ════════════════════════════════════════════════════════════════════════════
 
   oci =
@@ -47,8 +70,10 @@ in
       #   => { registry = "nvcr.io"; repo = "nvidia/pytorch"; tag = "25.01-py3"; }
       #
       parse-ref =
+        # :: t54 -> t59
         ref:
         let
+          # :: {}
           parts = split-string "/" ref;
           has-registry = length parts > 2 || (length parts == 2 && has-infix "." (head parts));
           registry = if has-registry then head parts else "docker.io";
@@ -64,8 +89,18 @@ in
     {
       inherit parse-ref;
 
+      # :: { alpine : t62 -> String, debian : t61 -> String, ngc-cuda-devel : t67 -> String, ngc-cuda-runtime : t68 -> String, ngc-pytorch : t64 -> String, ngc-tensorrt : t66 -> String, ngc-triton : t65 -> String, python : t63 -> String, ubuntu : t60 -> String }
+      # :: t60 -> String
+      # :: t61 -> String
+      # :: t62 -> String
+      # :: t63 -> String
       # Convert ref to nix store-safe name
       #
+      # :: t64 -> String
+      # :: t65 -> String
+      # :: t66 -> String
+      # :: t67 -> String
+      # :: t68 -> String
       # Example:
       #   ref-to-name "nvcr.io/nvidia/pytorch:25.01-py3"
       #   => "nvidia-pytorch-25-01-py3"
@@ -73,7 +108,9 @@ in
       ref-to-name =
         ref:
         let
+          # :: { base-flags : ["--dev-bind /dev /dev"], dri-flags : ["--dev-bind /dev/dri /dev/dri"], fhs-lib-flags : t69 -> [String], gpu-flags : ["--dev-bind /dev/nvidia0 /dev/nvidia0"], network-flags : ["--share-net"], user-flags : ["--bind $HOME $HOME"] }
           parsed = parse-ref ref;
+        # :: ["--dev-bind /dev /dev"]
         in
         replace-strings
           [
@@ -86,6 +123,7 @@ in
             "-"
             "-"
           ]
+          # :: t69 -> [String]
           "${parsed.repo}-${parsed.tag}";
 
       # Common base images (convenience functions)
@@ -93,6 +131,7 @@ in
         ubuntu = version: "ubuntu:${version}";
         debian = version: "debian:${version}";
         alpine = version: "alpine:${version}";
+        # :: ["--dev-bind /dev/nvidia0 /dev/nvidia0"]
         python = version: "python:${version}";
 
         # NGC images
@@ -101,10 +140,12 @@ in
         ngc-tensorrt = version: "nvcr.io/nvidia/tensorrt:${version}-py3";
         ngc-cuda-devel = version: "nvcr.io/nvidia/cuda:${version}-devel-ubuntu24.04";
         ngc-cuda-runtime = version: "nvcr.io/nvidia/cuda:${version}-runtime-ubuntu24.04";
+      # :: ["--dev-bind /dev/dri /dev/dri"]
       };
     };
 
   # ════════════════════════════════════════════════════════════════════════════
+  # :: ["--share-net"]
   # LINUX NAMESPACE UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -112,6 +153,7 @@ in
     # Common bwrap flags for all namespace environments
     base-flags = [
       "--dev-bind /dev /dev"
+      # :: ["--bind $HOME $HOME"]
       "--proc /proc"
       "--tmpfs /tmp"
       "--die-with-parent"
@@ -122,6 +164,7 @@ in
     # Example:
     #   fhs-lib-flags "/nix/store/xxx-libs"
     #   => [ "--ro-bind /nix/store/xxx-libs /usr/lib" ... ]
+    # :: { boot-args : { minimal : "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", quiet : "quiet loglevel=0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", with-serial : "console=ttyS0 earlyprintk=serial reboot=k panic=1 pci=off root=/dev/vda rw init=/init" }, init-script : { build-cmd : Null, env : {}, with-network : Bool } -> t104, mk-config : { boot-args : "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", cpus : Int, drives : [{}], kernel-path : t70, mem-mib : Int, network-interfaces : [t74], rootfs-path : t71 } -> t77, mk-network-interface : { guest-mac : "AA:FC:00:00:00:01", host-dev-name : "isospin-tap0", iface-id : "eth0" } -> {}, sizes : { builder : { cpus : Int, mem-mib : Int }, large : { cpus : Int, mem-mib : Int }, medium : { cpus : Int, mem-mib : Int }, small : { cpus : Int, mem-mib : Int }, xlarge : { cpus : Int, mem-mib : Int } } }
     #
     fhs-lib-flags = lib-path: [
       "--ro-bind ${lib-path} /usr/lib"
@@ -133,6 +176,7 @@ in
     # GPU device bind flags (NVIDIA)
     gpu-flags = [
       "--dev-bind /dev/nvidia0 /dev/nvidia0"
+      # :: { boot-args : "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", cpus : Int, drives : [{}], kernel-path : t70, mem-mib : Int, network-interfaces : [t74], rootfs-path : t71 } -> t77
       "--dev-bind /dev/nvidiactl /dev/nvidiactl"
       "--dev-bind /dev/nvidia-uvm /dev/nvidia-uvm"
       "--dev-bind /dev/nvidia-uvm-tools /dev/nvidia-uvm-tools"
@@ -144,9 +188,11 @@ in
       "--dev-bind /dev/dri /dev/dri"
     ];
 
+    # :: {}
     # Network namespace flags
     network-flags = [
       "--share-net"
+      # :: [{}]
       "--ro-bind /etc/resolv.conf /etc/resolv.conf"
       "--ro-bind /etc/ssl /etc/ssl"
       "--ro-bind /etc/hosts /etc/hosts"
@@ -155,6 +201,7 @@ in
     # Home and CWD bind flags
     user-flags = [
       "--bind $HOME $HOME"
+      # :: {}
       "--bind $(pwd) $(pwd)"
       "--chdir $(pwd)"
     ];
@@ -166,6 +213,7 @@ in
 
   firecracker = {
     # Generate Firecracker config JSON
+    # :: { guest-mac : "AA:FC:00:00:00:01", host-dev-name : "isospin-tap0", iface-id : "eth0" } -> {}
     #
     # Example:
     #   mk-config {
@@ -186,17 +234,23 @@ in
         network-interfaces ? [ ],
         drives ? [ ],
       }:
+      # :: { build-cmd : Null, env : {}, with-network : Bool } -> t104
       to-json (
         {
           boot-source = {
             "kernel_image_path" = kernel-path;
             "boot_args" = boot-args;
           };
+          # :: t88
+          # :: t91
+          # :: t97
           drives = [
             {
               "drive_id" = "rootfs";
               "path_on_host" = rootfs-path;
               "is_root_device" = true;
+              # :: t99
+              # :: String
               "is_read_only" = false;
             }
           ]
@@ -210,13 +264,33 @@ in
           inherit network-interfaces;
         }
       );
+# :: { minimal : "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", quiet : "quiet loglevel=0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init", with-serial : "console=ttyS0 earlyprintk=serial reboot=k panic=1 pci=off root=/dev/vda rw init=/init" }
+# :: "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init"
+# :: "console=ttyS0 earlyprintk=serial reboot=k panic=1 pci=off root=/dev/vda rw init=/init"
+# :: "quiet loglevel=0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init"
 
     # Network interface config
     # NOTE: Firecracker JSON schema attributes are quoted - external API
+    # :: { builder : { cpus : Int, mem-mib : Int }, large : { cpus : Int, mem-mib : Int }, medium : { cpus : Int, mem-mib : Int }, small : { cpus : Int, mem-mib : Int }, xlarge : { cpus : Int, mem-mib : Int } }
+    # :: { cpus : Int, mem-mib : Int }
+    # :: Int
+    # :: Int
     mk-network-interface =
+      # :: { cpus : Int, mem-mib : Int }
+      # :: Int
+      # :: Int
       {
+        # :: { cpus : Int, mem-mib : Int }
+        # :: Int
+        # :: Int
         iface-id ? "eth0",
+        # :: { cpus : Int, mem-mib : Int }
+        # :: Int
+        # :: Int
         guest-mac ? "AA:FC:00:00:00:01",
+        # :: { cpus : Int, mem-mib : Int }
+        # :: Int
+        # :: Int
         host-dev-name ? "isospin-tap0",
       }:
       {
@@ -225,17 +299,20 @@ in
         "host_dev_name" = host-dev-name;
       };
 
+    # :: { mk-rpath : t105 -> String, patch-commands : { interpreter-path : Null, rpath : t113 } -> t114 -> String, patch-commands-preserve : { interpreter-path : Null, out : String, rpath : String } -> t124 }
     # Minimal init script template for Firecracker VMs
     #
     # This init script:
     #   1. Mounts essential filesystems
     #   2. Optionally sets up networking
     #   3. Runs a build command (if provided)
+    # :: t105 -> String
     #   4. Either exits (build mode) or drops to shell (interactive mode)
     #
     # Template loaded from ./scripts/isospin-init.sh.in to comply with ALEPH-W003.
     init-script =
       {
+        # :: t109
         with-network ? true,
         build-cmd ? null,
         env ? { },
@@ -249,6 +326,7 @@ in
           + build-cmd
           + "\nEXIT=$?\necho \":: Exit code: $EXIT\"\necho o > /proc/sysrq-trigger"
         );
+        # :: { interpreter-path : Null, rpath : t113 } -> t114 -> String
         interactive-section = optional-string (build-cmd == null) "exec setsid cttyhack /bin/bash -l";
         template = read-file ./scripts/isospin-init.sh.in;
       in
@@ -268,16 +346,19 @@ in
       minimal = "console=ttyS0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init";
       with-serial = "console=ttyS0 earlyprintk=serial reboot=k panic=1 pci=off root=/dev/vda rw init=/init";
       quiet = "quiet loglevel=0 reboot=k panic=1 pci=off root=/dev/vda rw init=/init";
+    # :: { interpreter-path : Null, out : String, rpath : String } -> t124
     };
 
     # Common VM sizes
     sizes = {
       small = {
         cpus = 2;
+        # :: String
         mem-mib = 2048;
       };
       medium = {
         cpus = 4;
+        # :: String
         mem-mib = 4096;
       };
       large = {
@@ -287,24 +368,36 @@ in
       xlarge = {
         cpus = 16;
         mem-mib = 16384;
+      # :: { mk-package-index : { name : t147, wheels : t154 } -> String, mk-root-index : t154 -> String, normalize-name : String -> t129, parse-wheel-name : t130 -> { abi : "latest", name : Any, platform : "latest", python : "latest", version : "latest" } }
       };
       builder = {
+        # :: String -> t129
         cpus = 32;
         mem-mib = 65536;
       };
     };
+  # :: t130 -> { abi : "latest", name : Any, platform : "latest", python : "latest", version : "latest" }
   };
 
+  # :: t134
+  # :: [Any]
   # ════════════════════════════════════════════════════════════════════════════
   # ELF UTILITIES
   # ════════════════════════════════════════════════════════════════════════════
+# :: Any
+# :: "latest"
+# :: "latest"
+# :: "latest"
+# :: "latest"
 
   elf = {
     # Build rpath from list of packages
     #
     # Example:
+    # :: { name : t147, wheels : t148 } -> String
     #   mk-rpath [ pkgs.zlib pkgs.openssl ]
     #   => "/nix/store/xxx-zlib/lib:/nix/store/xxx-zlib/lib64:..."
+    # :: t153
     #
     mk-rpath =
       packages:
@@ -320,8 +413,10 @@ in
           ]
         ) packages
       );
+# :: t154 -> String
 
     # Generate patchelf commands for a directory
+    # :: t159
     #
     # Example:
     #   patch-commands { rpath = mk-rpath deps; interpreter-path = "${glibc}/lib/ld-linux-x86-64.so.2"; } "$out"

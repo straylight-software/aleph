@@ -15,8 +15,13 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {
+  # :: "flake"
   _class = "flake";
 
+  # :: String
+  # :: String
+  # :: String
+  # :: String
   # Legacy names for compatibility with default.nix
   isospin-run-init = builtins.readFile ./scripts/isospin-run-init.sh;
   isospin-build-init = builtins.readFile ./scripts/isospin-build-init.sh;

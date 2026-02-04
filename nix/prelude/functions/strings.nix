@@ -41,6 +41,7 @@ rec {
     => [ "a" "b" "c" ]
     ```
   */
+  # :: t21
   split = lib.splitString;
 
   /**
@@ -63,6 +64,7 @@ rec {
     join ", " [ "a" "b" "c" ]
     => "a, b, c"
     ```
+  # :: t22
   */
   join = lib.concatStringsSep;
 
@@ -108,6 +110,7 @@ rec {
     ```nix
     replace [ "foo" "bar" ] [ "FOO" "BAR" ] "foo and bar"
     => "FOO and BAR"
+    # :: t23
     ```
   */
   replace = lib.replaceStrings;
@@ -130,6 +133,7 @@ rec {
 
     ```nix
     starts-with "hello" "hello world"
+    # :: t24
     => true
     ```
   */
@@ -152,6 +156,7 @@ rec {
     # Examples
 
     ```nix
+    # :: t25
     ends-with ".nix" "default.nix"
     => true
     ```
@@ -174,6 +179,7 @@ rec {
 
     # Examples
 
+    # :: t26
     ```nix
     contains "world" "hello world"
     => true
@@ -195,6 +201,7 @@ rec {
     - str: string to convert
 
     # Examples
+# :: t27
 
     ```nix
     to-lower "Hello World"
@@ -216,6 +223,7 @@ rec {
 
     - str: string to convert
 
+    # :: t28
     # Examples
 
     ```nix
@@ -237,6 +245,7 @@ rec {
     # Arguments
 
     - x: value to convert
+# :: Int | Float | Bool | Path | String -> String
 
     # Examples
 
@@ -258,6 +267,7 @@ rec {
 
     # Arguments
 
+    # :: String -> Int
     - str: string to measure
 
     # Examples
@@ -326,6 +336,7 @@ rec {
     ```
 
     # Arguments
+# :: t29
 
     - str: string to escape
 
@@ -347,6 +358,7 @@ rec {
     lines :: String -> [String]
     ```
 
+    # :: t30 -> t33
     # Arguments
 
     - str: string to split
@@ -368,6 +380,7 @@ rec {
     ```
     unlines :: [String] -> String
     ```
+# :: t35
 
     # Arguments
 
@@ -389,6 +402,7 @@ rec {
 
     ```
     words :: String -> [String]
+    # :: t36 -> [Any]
     ```
 
     # Arguments
@@ -410,6 +424,7 @@ rec {
     # Type
 
     ```
+    # :: t44
     unwords :: [String] -> String
     ```
 
@@ -431,6 +446,7 @@ rec {
 
     # Type
 
+    # :: String -> String
     ```
     capitalize :: String -> String
     ```
@@ -453,6 +469,7 @@ rec {
     Check if a string is blank (empty or contains only whitespace).
 
     # Type
+# :: t55 -> Bool
 
     ```
     is-blank :: String -> Bool

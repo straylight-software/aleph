@@ -44,6 +44,7 @@ _: {
     => false
     ```
   */
+  # :: Any -> Bool
   is-list = builtins.isList;
 
   /**
@@ -71,6 +72,7 @@ _: {
     is-attrs null
     => false
     ```
+  # :: Any -> Bool
   */
   is-attrs = builtins.isAttrs;
 
@@ -98,6 +100,7 @@ _: {
 
     is-string [ "a" ]
     => false
+    # :: Any -> Bool
     ```
   */
   is-string = builtins.isString;
@@ -125,6 +128,7 @@ _: {
     => false
 
     is-int "42"
+    # :: Any -> Bool
     => false
     ```
   */
@@ -152,6 +156,7 @@ _: {
     is-bool false
     => true
 
+    # :: Any -> Bool
     is-bool 1
     => false
     ```
@@ -179,6 +184,7 @@ _: {
 
     is-float 42
     => false
+# :: Any -> Bool
 
     is-float "3.14"
     => false
@@ -206,6 +212,7 @@ _: {
     => true
 
     is-path "/foo"
+    # :: Any -> Bool
     => false
 
     is-path { }
@@ -233,6 +240,7 @@ _: {
     is-function (x: x + 1)
     => true
 
+    # :: Any -> Bool
     is-function map
     => true
 
@@ -269,6 +277,7 @@ _: {
 
     typeof { a = 1; }
     => "set"
+# :: t1
 
     typeof [ 1 2 ]
     => "list"

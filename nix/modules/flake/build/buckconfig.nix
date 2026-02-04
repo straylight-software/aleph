@@ -17,19 +17,29 @@ let
     ;
 
   # Lisp-case aliases for lib functions
+  # :: t23
+  # :: t24
+  # :: t25
+  # :: t26
+  # :: [String] -> [String] -> String -> String
+  # :: t27
   concat-map-strings-sep = lib.concatMapStringsSep;
+  # :: Path
   concat-strings-sep = lib.concatStringsSep;
   map-attrs' = lib.mapAttrs';
+  # :: t28 -> t29 -> t30 -> t47
   name-value-pair = lib.nameValuePair;
   replace-strings = builtins.replaceStrings;
   to-upper = lib.toUpper;
 
+  # :: t42
   scripts-dir = ./scripts;
 
   # Render Dhall template with environment variables
   render-dhall =
     name: src: vars:
     let
+      # :: [t45]
       # Convert vars attrset to env var exports
       # Dhall expects UPPER_SNAKE_CASE env vars
       env-vars = map-attrs' (
@@ -38,6 +48,7 @@ let
     in
     pkgs.runCommand name
       (
+        # :: Null
         {
           nativeBuildInputs = [ pkgs.haskellPackages.dhall ];
         }
@@ -45,49 +56,91 @@ let
       )
       ''
         dhall text --file ${src} > $out
+      # :: t54
+      # :: t56
+      # :: t58
+      # :: t60
+      # :: t62
+      # :: t64
+      # :: t66
+      # :: t68
       '';
 
   # Build config sections from Dhall templates
   cxx-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? cc then
+      # :: Null
       render-dhall "buckconfig-cxx.ini" (scripts-dir + "/buckconfig-cxx.dhall") {
         inherit (buck2-toolchain) cc;
+        # :: t78
+        # :: t82
         inherit (buck2-toolchain) cxx;
         inherit (buck2-toolchain) cpp;
         inherit (buck2-toolchain) ar;
         inherit (buck2-toolchain) ld;
+        # :: Null
         clang_resource_dir = buck2-toolchain.clang-resource-dir;
         gcc_include = buck2-toolchain.gcc-include;
         gcc_include_arch = buck2-toolchain.gcc-include-arch;
+        # :: String
+        # :: String
+        # :: String
+        # :: t88
+        # :: String
+        # :: String
         glibc_include = buck2-toolchain.glibc-include;
         gcc_lib = buck2-toolchain.gcc-lib;
         gcc_lib_base = buck2-toolchain.gcc-lib-base;
         glibc_lib = buck2-toolchain.glibc-lib;
+        # :: Null
         mdspan_include = buck2-toolchain.mdspan-include or "";
       }
+    # :: t96
+    # :: t98
+    # :: t100
+    # :: t102
+    # :: t104
+    # :: t106
     else
       null;
 
   # Turing Registry flags
+  # :: Null
   flags-config =
     if cfg.toolchain.cxx.enable && buck2-toolchain ? c-flags then
+      # :: t114
+      # :: t116
+      # :: t118
+      # :: t120
       render-dhall "buckconfig-flags.ini" (scripts-dir + "/buckconfig-flags.dhall") {
         c_flags = concat-strings-sep " " buck2-toolchain.c-flags;
         cxx_flags = concat-strings-sep " " buck2-toolchain.cxx-flags;
       }
+    # :: Null
     else
       null;
+# :: String
+# :: String
+# :: String
+# :: String
 
   haskell-config =
     if cfg.toolchain.haskell.enable then
       render-dhall "buckconfig-haskell.ini" (scripts-dir + "/buckconfig-haskell.dhall") {
+        # :: Null
         # Use actual GHC from ghcWithPackages (has all deps baked in)
         ghc = "${ghc-for-buck2}/bin/ghc";
+        # :: String
+        # :: String
+        # :: String
+        # :: String
+        # :: String
         ghc_pkg = "${ghc-for-buck2}/bin/ghc-pkg";
         haddock = "${ghc-for-buck2}/bin/haddock";
         ghc_version = ghc-version;
         ghc_lib_dir = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib";
         global_package_db = "${ghc-for-buck2}/lib/ghc-${ghc-version}/lib/package.conf.d";
+      # :: t135
       }
     else
       null;
@@ -98,6 +151,7 @@ let
         interpreter = buck2-toolchain.python-interpreter;
         python_include = buck2-toolchain.python-include;
         python_lib = buck2-toolchain.python-lib;
+        # :: Null
         nanobind_include = buck2-toolchain.nanobind-include;
         nanobind_cmake = buck2-toolchain.nanobind-cmake;
         pybind11_include = buck2-toolchain.pybind11-include;
@@ -108,6 +162,7 @@ let
   nv-config =
     if cfg.toolchain.nv.enable && buck2-toolchain ? nvidia-sdk-path then
       render-dhall "buckconfig-nv.ini" (scripts-dir + "/buckconfig-nv.dhall") {
+        # :: Null
         nvidia_sdk_path = buck2-toolchain.nvidia-sdk-path;
         nvidia_sdk_include = buck2-toolchain.nvidia-sdk-include;
         nvidia_sdk_lib = buck2-toolchain.nvidia-sdk-lib;
@@ -118,6 +173,7 @@ let
 
   rust-config =
     if cfg.toolchain.rust.enable && pkgs ? rustc then
+      # :: t143 -> t144 -> t145 -> t148
       render-dhall "buckconfig-rust.ini" (scripts-dir + "/buckconfig-rust.dhall") {
         rustc = "${pkgs.rustc}/bin/rustc";
         rustdoc = "${pkgs.rustc}/bin/rustdoc";

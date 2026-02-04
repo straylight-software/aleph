@@ -15,6 +15,15 @@
 { lib }:
 {
   inherit (lib.licenses) mit;
+  # :: t1
+  # :: t2
+  # :: t3
+  # :: t4
+  # :: t5
+  # :: t6
+  # :: t7
+  # :: t8
+  # :: t9
   asl-2-0 = lib.licenses.asl20;
   bsd-2 = lib.licenses.bsd2;
   bsd-3 = lib.licenses.bsd3;

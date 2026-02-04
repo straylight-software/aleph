@@ -13,23 +13,38 @@ let
   inherit (pkgs.aleph) stdenv;
 
   # External API alias
+  # :: t5
   fetch-from-github = pkgs.fetchFromGitHub;
 
   mdspan-shim = ./mdspan-shim.hpp;
 in
+# :: "mdspan"
+# :: "0.6.0"
 stdenv.default {
+  # :: t8
+  # :: "kokkos"
+  # :: "mdspan"
   pname = "mdspan";
+  # :: "mdspan-0.6.0"
+  # :: "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8="
   version = "0.6.0";
 
+  # :: [t2]
   src = fetch-from-github {
+    # :: ["-DMDSPAN_ENABLE_TESTS=OFF"]
     owner = "kokkos";
     repo = "mdspan";
     # Can't use final-attrs with stdenv.default functor
     rev = "mdspan-0.6.0";
     hash = "sha256-bwE+NO/n9XsWOp3GjgLHz3s0JR0CzNDernfLHVqU9Z8=";
+  # :: String
   };
 
   native-build-inputs = [ cmake ];
+# :: { description : "Reference implementation of P0009 std::mdspan", homepage : "https://github.com/kokkos/mdspan", license : [t10] }
+# :: "Reference implementation of P0009 std::mdspan"
+# :: "https://github.com/kokkos/mdspan"
+# :: [t10]
 
   cmake-flags = [
     "-DMDSPAN_ENABLE_TESTS=OFF"

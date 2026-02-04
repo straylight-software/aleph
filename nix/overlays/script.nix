@@ -33,50 +33,57 @@ let
   # Library modules (Aleph.*) are in nix/script/lib/
   # The -i flag points to nix/script/lib so GHC finds Aleph/Script.hs etc.
   # Executable scripts are in nix/script/exe/
+  # :: Path
+  # :: Path
+  # :: Path
   aleph-src = ../script/lib;
   script-src = ../script/exe;
   corpus-src = ../../src/tools/corpus;
+# :: t15
 
   # Use GHC 9.12 consistently across the codebase
   # This matches nix/prelude/versions.nix and aligns with Buck2 toolchain
+  # :: t16 -> [t38]
   hs-pkgs = final.haskell.packages.ghc912;
 
   # Haskell dependencies for Aleph.Script
   # These must match SCRIPT_PACKAGES in src/tools/scripts/BUCK
-  hs-deps =
-    p: with p; [
-      megaparsec
-      text
-      shelly
-      foldl
-      aeson
-      dhall # Dhall config parsing
-      directory
-      filepath
-      # For unshare-gpu and typed wrappers
-      # Note: dhall brings in crypton, so we use that instead of cryptonite
-      # (they have the same Crypto.Hash API)
-      crypton # SHA256 hashing (same API as cryptonite)
-      memory # crypton dependency
-      unordered-containers # HashMap for JSON
-      vector # Arrays for JSON
-      unix # executeFile
-      async # concurrency
-      bytestring
-      process
-      containers
-      transformers
-      mtl
-      time
-      # nix-compile.nix: bash parsing and type inference
-      ShellCheck # bash AST parser
-      hnix # Nix expression parser (for store path extraction)
-    ];
+  hs-deps = p: [
+    p.megaparsec
+    p.text
+    p.shelly
+    p.foldl
+    p.aeson
+    p.dhall # Dhall config parsing
+    p.directory
+    p.filepath
+    # For unshare-gpu and typed wrappers
+    # Note: dhall brings in crypton, so we use that instead of cryptonite
+    # (they have the same Crypto.Hash API)
+    p.crypton # SHA256 hashing (same API as cryptonite)
+    p.memory # crypton dependency
+    p.unordered-containers # HashMap for JSON
+    p.vector # Arrays for JSON
+    p.unix # executeFile
+    p.async # concurrency
+    p.bytestring
+    p.process
+    p.containers
+    p.transformers
+    p.mtl
+    p.time
+    # nix-compile.nix: bash parsing and type inference
+    # :: t40
+    p.ShellCheck # bash AST parser
+    p.hnix # Nix expression parser (for store path extraction)
+  # :: t41 -> [t44]
+  ];
 
   # GHC with Aleph.Script dependencies
   ghc-with-script = hs-pkgs.ghcWithPackages hs-deps;
 
   # QuickCheck deps for property tests
+  # :: t46
   test-deps =
     p:
     hs-deps p
@@ -95,16 +102,20 @@ let
   #
   # Build paths:
   #   - Nix:   mkCompiledScript uses ghc912 from nixpkgs (this builder)
+  # :: { config-expr : Null, deps : [t48], name : t47 } -> t55
   #   - Buck2: haskell_script in src/tools/scripts/BUCK (via NativeLink)
   #
   # Both use identical GHC version (9.12) and package sets (hsDeps/SCRIPT_PACKAGES).
   # For iteration, use runghc with ghcWithScript in the devshell.
   #
   # If configExpr is provided, it generates a Dhall config file that the
+  # :: Bool
   # script reads at startup via CONFIG_FILE environment variable.
+# :: t53
 
   mk-compiled-script =
     {
+      # :: Path
       name,
       deps ? [ ], # Runtime dependencies (wrapped into PATH)
       config-expr ? null, # Dhall expression (Nix string with store paths)
@@ -143,6 +154,8 @@ let
         ''}
         runHook postInstall
       '';
+# :: { description : "Compiled Haskell script for container/VM operations" }
+# :: "Compiled Haskell script for container/VM operations"
 
       "postFixup" =
         let
@@ -159,8 +172,13 @@ let
         description = "Compiled Haskell script for container/VM operations";
       };
     };
+# :: Path
+# :: Path
 
+  # :: t57
+  # :: "nix-compile"
   # ────────────────────────────────────────────────────────────────────────────
+  # :: String
   # // nix-compile //
   # ────────────────────────────────────────────────────────────────────────────
   #
@@ -188,16 +206,22 @@ let
     name = "nix-compile";
     src = ../nix-compile;
     "dontUnpack" = true;
+    # :: { nix-compile : { check : t155 -> t159, cli : Path, compiled : t57, parse : t146 -> t154, shell : t162, src : { app : Path, lib : { config-expr : Null, deps : [t48], name : t47 } -> t55 } }, script : { all-compiled : t140, check : t62, compiled : { cloud-hypervisor-gpu : t136, cloud-hypervisor-run : t136, combine-archive : t136, crane-inspect : t136, crane-pull : t136, fhs-run : t136, gpu-run : t136, isospin-build : t136, isospin-run : t136, lint-init : t136, lint-link : t136, nvidia-extract : t136, nvidia-sdk : t136, nvidia-sdk-extract : t136, nvidia-wheel-extract : t136, unshare-gpu : t136, unshare-run : t136, vfio-bind : t136, vfio-list : t136, vfio-unbind : t136 }, corpus : Path, gen-wrapper : t60, ghc : t16 -> [t38], lib : t2, nix-ci : t144, nix-dev : t142, props : t64, shell : t66, src : Path, tools : { all : t69, clap : ["rg"], gnu : ["ls"], handcrafted : ["jq"] } } }
+    # :: { all-compiled : t140, check : t62, compiled : { cloud-hypervisor-gpu : t136, cloud-hypervisor-run : t136, combine-archive : t136, crane-inspect : t136, crane-pull : t136, fhs-run : t136, gpu-run : t136, isospin-build : t136, isospin-run : t136, lint-init : t136, lint-link : t136, nvidia-extract : t136, nvidia-sdk : t136, nvidia-sdk-extract : t136, nvidia-wheel-extract : t136, unshare-gpu : t136, unshare-run : t136, vfio-bind : t136, vfio-list : t136, vfio-unbind : t136 }, corpus : Path, gen-wrapper : t60, ghc : t16 -> [t38], lib : t2, nix-ci : t144, nix-dev : t142, props : t64, shell : t66, src : Path, tools : { all : t69, clap : ["rg"], gnu : ["ls"], handcrafted : ["jq"] } }
     "nativeBuildInputs" = [ ghc-with-script ];
     "buildPhase" = ''
       runHook preBuild
       ghc -O2 -Wall -Wno-unused-imports \
+        # :: Path
+        # :: t2
+        # :: Path
         -hidir . -odir . \
         -i${nix-compile-lib} \
         -o nix-compile ${nix-compile-app}/nix-compile.hs
       runHook postBuild
     '';
     "installPhase" = ''
+      # :: t16 -> [t38]
       runHook preInstall
       mkdir -p $out/bin
       cp nix-compile $out/bin/
@@ -211,7 +235,10 @@ in
     script = {
       # ──────────────────────────────────────────────────────────────────────
       # // source //
+      # :: t60
+      # :: "aleph-gen-wrapper"
       # ──────────────────────────────────────────────────────────────────────
+# :: String
 
       src = script-src;
       lib = aleph-src;
@@ -222,7 +249,10 @@ in
       # ──────────────────────────────────────────────────────────────────────
 
       # GHC with Aleph.Script modules available
+      # :: t62
+      # :: "aleph-script-check"
       ghc = ghc-with-script;
+      # :: String
       inherit ghc-with-tests;
 
       # ──────────────────────────────────────────────────────────────────────
@@ -233,7 +263,10 @@ in
       #
       # Usage:
       #   aleph.script.gen-wrapper rg              # stdout
+      # :: t64
+      # :: "aleph-script-props"
       #   aleph.script.gen-wrapper grep --gnu     # force GNU format
+      # :: String
       #   aleph.script.gen-wrapper fd --write     # write to Tools/Fd.hs
 
       gen-wrapper = final.writeShellApplication {
@@ -244,6 +277,8 @@ in
         '';
       };
 
+      # :: t66
+      # :: "aleph-script-shell"
       # ──────────────────────────────────────────────────────────────────────
       # // check //
       # ──────────────────────────────────────────────────────────────────────
@@ -272,7 +307,9 @@ in
         '';
       };
 
+      # :: { all : t69, clap : ["rg"], gnu : ["ls"], handcrafted : ["jq"] }
       # ──────────────────────────────────────────────────────────────────────
+      # :: ["rg"]
       # // shell //
       # ──────────────────────────────────────────────────────────────────────
       #
@@ -287,6 +324,7 @@ in
           final.fd
           final.bat
           final.delta
+          # :: ["ls"]
           final.dust
           final.tokei
           final.hyperfine
@@ -298,11 +336,13 @@ in
           echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/check.hs"
           echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/Props.hs"
           echo "  runghc -i${aleph-src} -i${script-src} ${script-src}/gen-wrapper.hs <tool>"
+        # :: ["jq"]
         '';
       };
 
       # ──────────────────────────────────────────────────────────────────────
       # // tools //
+      # :: t69
       # ──────────────────────────────────────────────────────────────────────
       #
       # Pre-generated tool wrappers (for reference/import).
@@ -318,28 +358,50 @@ in
           "dust"
           "tokei"
           "hyperfine"
+          # :: { cloud-hypervisor-gpu : t136, cloud-hypervisor-run : t136, combine-archive : t136, crane-inspect : t136, crane-pull : t136, fhs-run : t136, gpu-run : t136, isospin-build : t136, isospin-run : t136, lint-init : t136, lint-link : t136, nvidia-extract : t136, nvidia-sdk : t136, nvidia-sdk-extract : t136, nvidia-wheel-extract : t136, unshare-gpu : t136, unshare-run : t136, vfio-bind : t136, vfio-list : t136, vfio-unbind : t136 }
           "deadnix"
+          # :: t71
+          # :: "vfio-bind"
+          # :: [t70]
           "statix"
           "stylua"
+          # :: t73
+          # :: "vfio-unbind"
+          # :: [t72]
           "taplo"
           "zoxide"
+        # :: t75
+        # :: "vfio-list"
+        # :: [t74]
         ];
         # GNU getopt_long tools
         gnu = [
+          # :: t78
+          # :: "crane-inspect"
+          # :: [t77]
           "ls"
           "grep"
           "sed"
           "find"
           "xargs"
+          # :: t80
+          # :: "crane-pull"
+          # :: [t79]
           "tar"
           "gzip"
           "wget"
+          # :: t84
+          # :: "unshare-run"
+          # :: [t83]
           "rsync"
         ];
         # Hand-crafted domain-specific wrappers
         handcrafted = [
           "jq" # JSON processor
           "crane" # OCI image tool
+          # :: t89
+          # :: "unshare-gpu"
+          # :: [t88]
           "bwrap" # bubblewrap sandbox
         ];
         # All tools
@@ -348,16 +410,28 @@ in
           ++ final.aleph.script.tools.gnu
           ++ final.aleph.script.tools.handcrafted;
       };
+# :: t91
+# :: "fhs-run"
+# :: [t90]
 
       # ──────────────────────────────────────────────────────────────────────
+      # :: t94
+      # :: "gpu-run"
+      # :: [t93]
       # // compiled //
       # ──────────────────────────────────────────────────────────────────────
       #
       # Compiled Haskell scripts for container/VM operations.
       # These replace the bash scripts in nix/modules/flake/container/.
       #
+      # :: t96
+      # :: "isospin-run"
+      # :: [t95]
       # Each script is compiled to a static binary and wrapped with its
       # runtime dependencies.
+# :: t100
+# :: "isospin-build"
+# :: [t99]
 
       compiled = {
         # VFIO scripts - PCI device binding for GPU passthrough
@@ -365,14 +439,23 @@ in
           name = "vfio-bind";
           deps = [ final.pciutils ]; # lspci for device info
         };
+# :: t102
+# :: "cloud-hypervisor-run"
+# :: [t101]
 
         vfio-unbind = mk-compiled-script {
+          # :: t105
+          # :: "cloud-hypervisor-gpu"
+          # :: [t104]
           name = "vfio-unbind";
           deps = [ final.pciutils ];
         };
 
         vfio-list = mk-compiled-script {
           name = "vfio-list";
+          # :: t110
+          # :: "nvidia-extract"
+          # :: [t109]
           deps = [ final.pciutils ];
         };
 
@@ -382,6 +465,9 @@ in
           deps = [
             final.crane
             final.jq
+          # :: t117
+          # :: "nvidia-sdk-extract"
+          # :: [t116]
           ];
         };
 
@@ -392,6 +478,9 @@ in
 
         # Unshare - bwrap/namespace runners for OCI images
         unshare-run = mk-compiled-script {
+          # :: t122
+          # :: "nvidia-wheel-extract"
+          # :: [t121]
           name = "unshare-run";
           deps = [
             final.bubblewrap # Container sandbox
@@ -401,6 +490,9 @@ in
         };
 
         unshare-gpu = mk-compiled-script {
+          # :: t130
+          # :: "nvidia-sdk"
+          # :: [t129]
           name = "unshare-gpu";
           deps = [
             final.bubblewrap
@@ -413,16 +505,28 @@ in
         # FHS/GPU scripts - namespace environment wrappers
         fhs-run = mk-compiled-script {
           name = "fhs-run";
+          # :: t132
+          # :: "combine-archive"
+          # :: [t131]
           deps = [ final.bubblewrap ];
         };
 
+        # :: t134
+        # :: "lint-init"
+        # :: [t133]
         gpu-run = mk-compiled-script {
           name = "gpu-run";
           deps = [
+            # :: t136
+            # :: "lint-link"
+            # :: [t135]
             final.bubblewrap
             final.pciutils
           ];
         };
+# :: t140
+# :: "aleph-scripts"
+# :: [Any]
 
         # Isospin - Firecracker fork for microVM management
         isospin-run = mk-compiled-script {
@@ -438,18 +542,24 @@ in
             final.gzip
           ];
         };
+# :: t142
+# :: "nix-dev"
 
         # Cloud Hypervisor - VM management
         cloud-hypervisor-run = mk-compiled-script {
           name = "cloud-hypervisor-run";
+          # :: String
           deps = [ final.cloud-hypervisor ];
         };
 
         cloud-hypervisor-gpu = mk-compiled-script {
+          # :: t144
+          # :: "nix-ci"
           name = "cloud-hypervisor-gpu";
           deps = [
             final.cloud-hypervisor
             final.pciutils # GPU detection
+          # :: String
           ];
         };
 
@@ -471,6 +581,7 @@ in
           deps = [
             final.crane # OCI image tool
             final.gnutar # tar extraction
+            # :: { check : t155 -> t159, cli : Path, compiled : t57, parse : t146 -> t154, shell : t162, src : { app : Path, lib : { config-expr : Null, deps : [t48], name : t47 } -> t55 } }
             final.patchelf # ELF RPATH fixing
             final.file # ELF detection
             final.curl # tarball downloads
@@ -608,24 +719,31 @@ in
         #     injectEmitConfig = true;      # Add emit-config function (default: true)
         #   }
 
+        # :: Path
         mkScript =
           arg1: arg2:
+          # :: t57
           let
             # Parse arguments: mkScript "name" "script" or mkScript { ... }
             args =
               if builtins.isString arg1 && builtins.isString arg2 then
                 {
                   name = arg1;
+                  # :: t146 -> t154
                   script = arg2;
                 }
+              # :: [Path]
+              # :: t151
               else if builtins.isAttrs arg1 then
                 arg1
               else
                 throw "nix-compile.mkScript: expected (name, script) or { name, script, ... }";
 
+            # :: t155 -> t159
             name = args.name or (throw "nix-compile.mkScript: 'name' is required");
             script = args.script or (throw "nix-compile.mkScript: 'script' is required");
             deps = args.deps or [ ];
+            # :: [Path]
             requireStorePaths = args.requireStorePaths or true;
             injectEmitConfig = args.injectEmitConfig or true;
 
@@ -636,16 +754,23 @@ in
             emitConfigDrv =
               final.runCommand "${name}-emit-config"
                 {
+                  # :: { app : Path, lib : { config-expr : Null, deps : [t48], name : t47 } -> t55 }
+                  # :: { config-expr : Null, deps : [t48], name : t47 } -> t55
+                  # :: Path
                   nativeBuildInputs = [ nix-compile-cli ];
                 }
                 ''
                   nix-compile emit ${scriptFile} > $out
                 '';
 
+            # :: t162
+            # :: "nix-compile-shell"
+            # :: [t16 -> [t38]]
             # Policy check derivation (bare commands)
             policyCheckDrv =
               final.runCommand "${name}-policy-check"
                 {
+                  # :: String
                   nativeBuildInputs = [ nix-compile-cli ];
                 }
                 ''

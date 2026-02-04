@@ -1,11 +1,14 @@
 {
+  # :: "Dhall-configured infrastructure (agenix users/machines)"
   description = "Dhall-configured infrastructure (agenix users/machines)";
+# :: {}
 
   inputs = {
     aleph.url = "github:straylight-software/aleph";
     nixpkgs.follows = "aleph/nixpkgs";
     flake-parts.follows = "aleph/flake-parts";
     agenix.url = "github:ryantm/agenix";
+  # :: { agenix : t2, aleph : t1, flake-parts : t0 } | ... -> t7
   };
 
   outputs =
@@ -13,10 +16,12 @@
       flake-parts,
       aleph,
       agenix,
+      # :: [t6]
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       imports = [
+        # :: ["x86_64-linux"]
         aleph.modules.flake.nixpkgs
         aleph.modules.flake.prelude
       ];

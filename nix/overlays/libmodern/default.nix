@@ -25,6 +25,7 @@ let
 
   # Use the consolidated GHC 9.12 from aleph.script
   # This ensures all Haskell code uses the same GHC version
+  # :: t9
   ghc-with-deps = final.aleph.script.ghc;
 
   # ══════════════════════════════════════════════════════════════════════════════
@@ -32,6 +33,7 @@ let
   # ══════════════════════════════════════════════════════════════════════════════
 
   # combine-archive: Use Buck2-built version from aleph.script.compiled
+  # :: t10
   # Falls back to local build if Buck2 output not available yet
   combine-archive =
     final.aleph.script.compiled.combine-archive or (final.stdenv.mkDerivation {
@@ -64,6 +66,7 @@ let
   # ══════════════════════════════════════════════════════════════════════════════
   # BUILDER HELPER
   # ══════════════════════════════════════════════════════════════════════════════
+# :: [t30]
 
   # Standard CMake flags for all libmodern packages
   standard-cmake-flags = [
@@ -81,6 +84,7 @@ let
   #     pname = "simdjson";
   #     version = "3.12.3";
   #     src = ...;
+  # :: { build-inputs : [t35], cmake-flags : [t37], env : [t39], meta : {}, native-build-inputs : [t34], patches : [t38], pname : t31, post-install : String, post-patch : String, propagated-build-inputs : [t36], src : t33, version : t32 } | ... -> t46
   #     cmake-flags = [ ... ];  # merged with standard flags
   #   }
   #
@@ -97,6 +101,7 @@ let
       post-patch ? "",
       patches ? [ ],
       env ? [ ],
+      # :: {} | ...
       meta ? { },
       ...
     }@args:
@@ -135,10 +140,13 @@ let
 
         "buildInputs" = build-inputs;
         "propagatedBuildInputs" = propagated-build-inputs;
+# :: {}
 
         "cmakeFlags" = standard-cmake-flags ++ cmake-flags;
 
         "postInstall" = post-install;
+# :: { platforms : t45 }
+# :: t45
 
         env = {
           "NIX_CFLAGS_COMPILE" = "-fPIC";
@@ -149,6 +157,8 @@ let
           platforms = lib.platforms.unix;
         }
         // meta;
+      # :: t48
+      # :: t50
       }
       // extra-args
     );
@@ -160,6 +170,7 @@ let
   fmt = import ./fmt.nix { inherit final lib mk-static-cpp; };
   libsodium = import ./libsodium.nix { inherit final lib; };
   abseil-cpp = import ./abseil-cpp {
+    # :: {}
     inherit
       final
       lib

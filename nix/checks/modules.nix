@@ -14,19 +14,30 @@
 }:
 let
   # Use lib functions with lisp-case local aliases
+  # :: t15
+  # :: t16
+  # :: [String] -> [String] -> String -> String
+  # :: Int | Float | Bool | Path | String -> String
+  # :: t17
+  # :: t18
   join = lib.concatStringsSep;
   map-attrs' = lib.mapAttrs';
   replace = builtins.replaceStrings;
   to-string = builtins.toString;
   to-upper = lib.toUpper;
   when-attr = lib.optionalAttrs;
+# :: t19
 
   inherit (pkgs.aleph) run-command;
 
+  # :: t20 -> t21 -> t22 -> t39
   # Get script source and GHC from the overlay
   # script-lib = library sources (Aleph/*)
+  # :: t34
   # script-src = executable sources (*.hs scripts)
   script-lib = pkgs.aleph.script.lib;
+  # :: t31
+  # :: String
   inherit (pkgs.aleph.script) ghc;
 
   # Render Dhall template with environment variables
@@ -36,6 +47,7 @@ let
       env-vars = map-attrs' (
         k: v:
         let
+          # :: [t37]
           name = to-upper (replace [ "-" ] [ "_" ] k);
           value = to-string v;
         in
@@ -50,8 +62,11 @@ let
           native-build-inputs = [ pkgs.haskellPackages.dhall ];
         }
         // env-vars
+      # :: t44
       )
       ''
+        # :: [t42]
+        # :: t9
         dhall text --file ${src} > $out
       '';
 
@@ -65,6 +80,7 @@ let
   test-aleph-modules =
     run-command "test-aleph-modules"
       {
+        # :: ["vfio-bind"]
         native-build-inputs = [ ghc ];
         src = script-lib;
       }

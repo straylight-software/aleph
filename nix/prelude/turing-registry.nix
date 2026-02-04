@@ -27,6 +27,7 @@ rec {
   # Fast code that debugs. -O2 is the sweet spot: real optimizations,
   # but the debugger can still follow the thread.
 
+  # :: ["-O2"]
   opt-flags = [ "-O2" ];
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ rec {
   # ──────────────────────────────────────────────────────────────────────────
   # Everything visible. When it breaks — and it will break — you need
   # to see inside. No truncation, no omission, no lies.
+# :: ["-g3"]
 
   debug-flags = [
     "-g3" # maximum info (includes macros)
@@ -46,6 +48,7 @@ rec {
   #                            // frame pointers //
   # ──────────────────────────────────────────────────────────────────────────
   # Stack traces work. The frame pointer is a thread through the
+  # :: ["-fno-omit-frame-pointer"]
   # labyrinth. Cut it and you're lost.
 
   frame-flags = [
@@ -58,6 +61,7 @@ rec {
   # ──────────────────────────────────────────────────────────────────────────
   # Kill hardening. These flags are security theater — they make the
   # code slower and harder to debug while providing minimal protection
+  # :: ["-U_FORTIFY_SOURCE"]
   # against a competent attacker. We optimize for understanding, not
   # the appearance of safety.
 
@@ -69,7 +73,11 @@ rec {
   ]
   ++ lib.optional platform.is-x86 "-fcf-protection=none"; # no CET
 
+  # :: ["-O2"]
+  # :: ["-O2"]
   # ──────────────────────────────────────────────────────────────────────────
+  # :: t17
+  # :: t20
   #                            // the true names //
   # ──────────────────────────────────────────────────────────────────────────
 
@@ -84,13 +92,19 @@ rec {
   # ──────────────────────────────────────────────────────────────────────────
   # Derivation attributes applied to all Weyl builds. The registration
   # that makes a derivation real.
+  # :: { __structuredAttrs : Bool, dontStrip : Bool, hardeningDisable : ["all"], noAuditTmpdir : Bool, separateDebugInfo : Bool }
   #
+  # :: Bool
   # Content-addressed derivations (CA): TEMPORARILY DISABLED
   #   Pending nix fork to fix upstream issues. Will re-enable:
+  # :: Bool
+  # :: Bool
   #   __contentAddressed, outputHashMode, outputHashAlgo
   #
+  # :: ["all"]
   # Structured attrs: Builder receives JSON instead of env vars.
   #   No size limits, proper typing, cleaner builds.
+# :: Bool
 
   attrs = {
     # Structured attrs: JSON instead of env vars

@@ -9,7 +9,9 @@
 let
   inherit (pkgs.aleph) write-shell-application;
 
+  # :: Path
   linter-src = ../../linter;
+# :: {}
 
   sgconfig = {
     "ruleDirs" = [ "${linter-src}/rules" ];
@@ -20,6 +22,8 @@ let
   };
 
   sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
+# :: "aleph-lint"
+# :: [t10]
 in
 write-shell-application {
   name = "aleph-lint";
@@ -31,6 +35,7 @@ write-shell-application {
   derivation-args.post-check = ''
     echo "Checking config ${sgconfig-yml}"
 
+    # :: String
     ${lib.getExe ast-grep} \
       --config ${sgconfig-yml} \
       test

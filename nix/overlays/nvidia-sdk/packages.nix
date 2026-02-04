@@ -37,22 +37,20 @@ let
   # Runtime dependencies for autoPatchelfHook
   # ════════════════════════════════════════════════════════════════════════════
 
-  runtime-deps = with final; [
-    stdenv.cc.cc.lib # libstdc++
-    zlib
+  runtime-deps = [
+    final.stdenv.cc.cc.lib # libstdc++
+    final.zlib
   ];
 
-  extended-runtime-deps =
-    runtime-deps
-    ++ (with final; [
-      openssl
-      curl
-      expat
-      libxml2
-      ncurses
-      gmp
-      rdma-core
-    ]);
+  extended-runtime-deps = runtime-deps ++ [
+    final.openssl
+    final.curl
+    final.expat
+    final.libxml2
+    final.ncurses
+    final.gmp
+    final.rdma-core
+  ];
 
   # libxml2 2.9.14 - needed because the container uses an older version
   libxml2-legacy =
@@ -69,79 +67,79 @@ let
 
   # Comprehensive runtime deps for tritonserver (mirrors libmodern-nvidia-sdk)
   # NOTE: Package names like libcap_ng, cyrus_sasl are nixpkgs names (external API)
-  triton-runtime-deps = with final; [
+  triton-runtime-deps = [
     # Core
-    stdenv.cc.cc.lib
-    zlib
-    python312
+    final.stdenv.cc.cc.lib
+    final.zlib
+    final.python312
     # Network/SSL
-    openssl
-    curl
+    final.openssl
+    final.curl
     # Serialization
-    expat
+    final.expat
     libxml2-legacy
     # Terminal
-    ncurses
-    readline
+    final.ncurses
+    final.readline
     # Math/Compression
-    gmp
-    bzip2
-    xz
-    lz4
+    final.gmp
+    final.bzip2
+    final.xz
+    final.lz4
     # RDMA
-    rdma-core
+    final.rdma-core
     # Triton framework deps
-    abseil-cpp
-    boost
-    grpc
-    protobuf
-    re2
-    libevent
-    numactl
-    openmpi
-    rapidjson
-    gperftools
+    final.abseil-cpp
+    final.boost
+    final.grpc
+    final.protobuf
+    final.re2
+    final.libevent
+    final.numactl
+    final.openmpi
+    final.rapidjson
+    final.gperftools
     # Archive
-    libarchive
+    final.libarchive
     # Unicode
-    icu
+    final.icu
     # FFI
-    libffi
+    final.libffi
     # GLib ecosystem
-    glib
-    pcre2
+    final.glib
+    final.pcre2
     # System libs (from working libmodern-nvidia-sdk)
-    systemd
-    libgcrypt
-    libgpg-error
-    libcap
-    final."libcap_ng"
-    audit
-    libselinux
-    libsemanage
-    libsepol
-    pcre
-    libkrb5
-    keyutils
-    dbus
-    pam
-    e2fsprogs.dev
-    util-linux
-    libmd
-    libbsd
-    gdbm
-    db
-    tzdata
-    libxcrypt
+    final.systemd
+    final.libgcrypt
+    final.libgpg-error
+    final.libcap
+    final.libcap_ng
+    final.audit
+    final.libselinux
+    final.libsemanage
+    final.libsepol
+    final.pcre
+    final.libkrb5
+    final.keyutils
+    final.dbus
+    final.pam
+    final.e2fsprogs.dev
+    final.util-linux
+    final.libmd
+    final.libbsd
+    final.gdbm
+    final.db
+    final.tzdata
+    final.libxcrypt
     # Additional deps
-    nettle
-    acl
-    final."cyrus_sasl"
-    gnutls
-    libssh
-    openldap
-    rtmpdump
-    libuuid
+    final.nettle
+    final.acl
+    final.cyrus_sasl
+    final.gnutls
+    final.libssh
+    final.openldap
+    final.rtmpdump
+    final.libuuid
   ];
 
   # Common ignored dependencies (driver libs provided at runtime)
@@ -170,36 +168,36 @@ let
       version = "2.28.9";
       url = "https://pypi.nvidia.com/nvidia-nccl-cu13/nvidia_nccl_cu13-2.28.9-py3-none-manylinux_2_18_x86_64.whl";
       hash = "sha256-5FU6MPNBlfP6HaAqbaPWM30o8gA5Q6oKPSR7vCX+/EI=";
-      "libPath" = "nvidia/nccl/lib";
-      "includePath" = "nvidia/nccl/include";
+      libPath = "nvidia/nccl/lib";
+      includePath = "nvidia/nccl/include";
     };
     cudnn = {
       version = "9.17.0.29";
       url = "https://pypi.nvidia.com/nvidia-cudnn-cu13/nvidia_cudnn_cu13-9.17.0.29-py3-none-manylinux_2_27_x86_64.whl";
       hash = "sha256-Q0Uu8Jj0Q890hyvHj8zZon4af4NWelF5m/rsVgvP4Vo=";
-      "libPath" = "nvidia/cudnn/lib";
-      "includePath" = "nvidia/cudnn/include";
+      libPath = "nvidia/cudnn/lib";
+      includePath = "nvidia/cudnn/include";
     };
     tensorrt = {
       version = "10.14.1.48";
       url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.14.1.48-py2.py3-none-manylinux_2_28_x86_64.whl";
       hash = "sha256-k8SI67WjD/g+pTYD54GAFN5bkyj7JJZZY9I2gUB2UHY=";
-      "libPath" = "tensorrt_libs";
-      "includePath" = null;
+      libPath = "tensorrt_libs";
+      includePath = null;
     };
     cutensor = {
       version = "2.4.1";
       url = "https://pypi.nvidia.com/cutensor-cu13/cutensor_cu13-2.4.1-py3-none-manylinux2014_x86_64.whl";
       hash = "sha256-Hz1oTgSVOuRJI7ZzotQVbdmaghQAxC/ocqqF+PFmtyg=";
-      "libPath" = "cutensor/lib";
-      "includePath" = "cutensor/include";
+      libPath = "cutensor/lib";
+      includePath = "cutensor/include";
     };
     cusparselt = {
       version = "0.8.1";
       url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_x86_64.whl";
       hash = "sha256-eGzodWjDA/rbWvzHEC1FTNMEDXX2+GJvXbRg0YcfTdA=";
-      "libPath" = "nvidia/cusparselt/lib";
-      "includePath" = "nvidia/cusparselt/include";
+      libPath = "nvidia/cusparselt/lib";
+      includePath = "nvidia/cusparselt/include";
     };
   };
 
@@ -248,8 +246,8 @@ let
 
         install-phase =
           let
-            lib-path = wheel-info."libPath" or "NONE";
-            include-path = wheel-info."includePath" or "NONE";
+            lib-path = wheel-info.libPath or "NONE";
+            include-path = wheel-info.includePath or "NONE";
           in
           builtins.replaceStrings [ "@libPath@" "@includePath@" ] [ lib-path include-path ] (
             builtins.readFile ./scripts/wheel-install.sh
@@ -263,7 +261,7 @@ let
       }
       // {
         # NOTE: autoPatchelfIgnoreMissingDeps is nixpkgs API, quoted
-        "autoPatchelfIgnoreMissingDeps" = common-ignored-deps ++ ignore-missing-deps;
+        autoPatchelfIgnoreMissingDeps = common-ignored-deps ++ ignore-missing-deps;
       }
     );
 
@@ -325,7 +323,7 @@ let
       }
       // {
         # NOTE: autoPatchelfIgnoreMissingDeps is nixpkgs API, quoted
-        "autoPatchelfIgnoreMissingDeps" =
+        autoPatchelfIgnoreMissingDeps =
           common-ignored-deps
           ++ [
             "libpython3.8.so.1.0"

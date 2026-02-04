@@ -25,8 +25,15 @@ let
   # ────────────────────────────────────────────────────────────────────────────
   # // lisp-case aliases //
   # ────────────────────────────────────────────────────────────────────────────
+  # :: Path -> String
+  # :: [String] -> [String] -> String -> String
   read-file = builtins.readFile;
+  # :: t23
+  # :: t24
+  # :: t25
   replace-strings = builtins.replaceStrings;
+# :: t26
+# :: t27
 
   get-exe = lib.getExe;
   map-attrs' = lib.mapAttrs';
@@ -39,16 +46,21 @@ let
   # // vm init script builder //
   # ────────────────────────────────────────────────────────────────────────────
   #
+  # :: String
+  # :: String
   # Creates a single init script that:
   #   1. Mounts virtual filesystems
+  # :: t30 -> t31 -> t32 -> t49
   #   2. Configures network
   #   3. Optionally waits for GPU
+  # :: t44
   #   4. Execs into final process (shell or build runner)
 
   # Script fragments loaded from external files to comply with ALEPH-W003
   network-setup-script = read-file ../scripts/vm-init-network.bash;
   gpu-setup-script = read-file ../scripts/vm-init-gpu.bash;
 
+  # :: [t47]
   # Render Dhall template with env vars (converts attr names to UPPER_SNAKE_CASE)
   render-dhall =
     name: src: vars:
@@ -56,6 +68,7 @@ let
       env-vars = map-attrs' (
         k: v: name-value-pair (to-upper (replace-strings [ "-" ] [ "_" ] k)) (toString v)
       ) vars;
+    # :: { enable-network : Bool, exec-into : t51, hostname : t50, wait-for-gpu : Bool } -> t70
     in
     pkgs.runCommand name
       (
@@ -65,12 +78,18 @@ let
         // env-vars
       )
       ''
+        # :: t59
         dhall text --file ${src} > $out
       '';
+# :: t56
+# :: t58
 
   mk-vm-init =
     {
+      # :: String
       hostname,
+      # :: ["SC1091"]
+      # :: [t65]
       enable-network ? true,
       wait-for-gpu ? false,
       exec-into, # Final command to exec into
@@ -78,6 +97,7 @@ let
     let
       # Keys use lisp-case so they convert to UPPER_SNAKE_CASE via render-dhall
       # e.g., "network-setup" -> "NETWORK_SETUP"
+      # :: String
       script = render-dhall "vm-init-${hostname}" ../scripts/vm-init.dhall {
         inherit hostname;
         inherit exec-into;
@@ -86,19 +106,19 @@ let
       };
     in
     pkgs.writeShellApplication {
+      # :: t72
       name = "vm-init-${hostname}";
       # Exclude SC1091: Not following sourced file (Dhall-generated script)
       excludeShellChecks = [ "SC1091" ];
-      runtimeInputs =
-        with pkgs;
-        [
-          coreutils
-          util-linux
-          iproute2
-          ncurses
-          busybox # for cttyhack
-        ]
-        ++ optional wait-for-gpu kmod;
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.util-linux
+        pkgs.iproute2
+        # :: t74
+        pkgs.ncurses
+        pkgs.busybox # for cttyhack
+      ]
+      ++ optional wait-for-gpu pkgs.kmod;
       text = ''
         source ${script}
       '';
@@ -112,6 +132,7 @@ let
     settings.binName = "isospin-run-init";
     settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "isospin";
+      # :: t76
       exec-into = "exec setsid cttyhack /bin/sh";
     });
   };
@@ -119,6 +140,7 @@ let
   isospin-build-nimi = nimi.mkNimiBin {
     settings.binName = "isospin-build-init";
     settings.startup.runOnStartup = get-exe (mk-vm-init {
+      # :: t78
       hostname = "builder";
       exec-into = ''
         if [ -f /build-cmd ]; then
@@ -143,7 +165,9 @@ let
   };
 
   cloud-hypervisor-gpu-nimi = nimi.mkNimiBin {
+    # :: String
     settings.binName = "cloud-hypervisor-gpu-init";
+    # :: t80
     settings.startup.runOnStartup = get-exe (mk-vm-init {
       hostname = "ch-gpu";
       wait-for-gpu = true;
@@ -158,13 +182,19 @@ let
   # Firecracker VM with Armitage proxy for witnessed builds.
   # All fetches go through Armitage (TLS MITM), attestations logged.
   #
+  # :: String
   # Usage:
   #   1. Boot VM with armitage-builder-nimi as init
   #   2. Armitage starts as Nimi service on port 8888
   #   3. Build runs with HTTP_PROXY=localhost:8888
   #   4. Attestations written to /var/log/armitage/fetches.jsonl
+  # :: t87
   #
   # The attestation chain provides cryptographic proof of what was fetched.
+# :: "armitage-builder"
+# :: t80
+# :: String
+# :: String
 
   # Armitage proxy binary path - needed for startup script
   armitage-proxy-bin = "${pkgs.armitage-proxy}/bin/armitage-proxy";

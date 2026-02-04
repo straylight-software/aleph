@@ -50,6 +50,7 @@ _: rec {
     => "Hello, world"
     ```
   */
+  # :: t21 -> (Null -> t21) -> Null -> t21
   maybe =
     default: f: x:
     if x == null then default else f x;
@@ -82,6 +83,7 @@ _: rec {
     from-maybe "default" "actual"
     => "actual"
     ```
+  # :: Null -> Null -> Null
   */
   from-maybe = default: x: if x == null then default else x;
 
@@ -109,6 +111,7 @@ _: rec {
 
     is-null ""
     => false
+    # :: Null -> Bool
     ```
   */
   is-null = x: x == null;
@@ -139,6 +142,7 @@ _: rec {
     => false
 
     is-just ""
+    # :: Null -> Bool
     => true
     ```
   */
@@ -166,6 +170,7 @@ _: rec {
     is-nothing null
     => true
 
+    # :: Null -> Bool
     is-nothing 42
     => false
     ```
@@ -193,6 +198,7 @@ _: rec {
 
     cat-maybes [ null null ]
     => [ ]
+# :: [Any] -> [Any]
 
     cat-maybes [ "a" null "b" ]
     => [ "a" "b" ]
@@ -225,6 +231,7 @@ _: rec {
 
     map-maybe (x: if x.enabled or false then x.name else null) [
       { name = "foo"; enabled = true; }
+      # :: (Any -> Any) -> [Any] -> [Any]
       { name = "bar"; }
       { name = "baz"; enabled = true; }
     ]
@@ -256,6 +263,8 @@ _: rec {
     # Examples
 
     ```nix
+    # :: t36 -> { _tag : "left" }
+    # :: "left"
     left "error message"
     => { _tag = "left"; value = "error message"; }
 
@@ -284,6 +293,8 @@ _: rec {
     - value: the value to wrap in a Right
 
     # Examples
+# :: t37 -> { _tag : "right" }
+# :: "right"
 
     ```nix
     right 42
@@ -315,6 +326,7 @@ _: rec {
 
     # Examples
 
+    # :: Any -> Bool
     ```nix
     is-left (left "error")
     => true
@@ -344,6 +356,7 @@ _: rec {
     - e: an Either value
 
     # Examples
+# :: Any -> Bool
 
     ```nix
     is-right (right 42)
@@ -376,6 +389,7 @@ _: rec {
     - g: function to apply if the Either is a Right
     - e: the Either value to analyze
 
+    # :: (t48 -> t51) -> (t50 -> t51) -> t46 -> t51
     # Examples
 
     ```nix
@@ -406,6 +420,7 @@ _: rec {
 
     - default: value to return if the Either is a Left
     - e: the Either value
+# :: t52 -> t53 -> t52
 
     # Examples
 
@@ -434,6 +449,7 @@ _: rec {
     # Arguments
 
     - default: value to return if the Either is a Right
+    # :: t56 -> t57 -> t56
     - e: the Either value
 
     # Examples
@@ -458,6 +474,7 @@ _: rec {
 
     ```
     lefts :: [Either a b] -> [a]
+    # :: [Any] -> [Any]
     ```
 
     # Arguments
@@ -482,6 +499,7 @@ _: rec {
     # Type
 
     ```
+    # :: [Any] -> [Any]
     rights :: [Either a b] -> [b]
     ```
 
@@ -506,6 +524,9 @@ _: rec {
 
     # Type
 
+    # :: [Any] -> { lefts : [Any], rights : [Any] }
+    # :: [Any]
+    # :: [Any]
     ```
     partition-eithers :: [Either a b] -> { lefts :: [a]; rights :: [b]; }
     ```

@@ -20,12 +20,22 @@
 _:
 let
   # Individual config file paths (for flake.lintConfigs export)
+  # :: { biome : Path, clang-format : Path, clang-tidy : Path, ruff : Path, rustfmt : Path, stylua : Path, taplo : Path }
+  # :: Path
+  # :: Path
+  # :: Path
+  # :: Path
+  # :: Path
+  # :: Path
+  # :: Path
   lint-configs = {
     clang-format = ../../configs/.clang-format;
     clang-tidy = ../../configs/.clang-tidy;
     ruff = ../../configs/ruff.toml;
+    # :: t5
     biome = ../../configs/biome.json;
     stylua = ../../configs/.stylua.toml;
+    # :: "flake"
     rustfmt = ../../configs/.rustfmt.toml;
     taplo = ../../configs/taplo.toml;
   };
@@ -33,24 +43,41 @@ in
 { config, lib, ... }:
 let
   cfg = config.aleph.lint;
+# :: t15
 in
 {
+  # :: { pkgs : t9 } | ... -> {}
   _class = "flake";
 
   options.aleph.lint = {
+    # :: t14
     enable = lib.mkEnableOption "aleph lint configs" // {
+      # :: ".clang-format"
+      # :: Path
       default = true;
     };
+  # :: ".clang-tidy"
+  # :: Path
   };
 
+  # :: "ruff.toml"
+  # :: Path
   config = lib.mkIf cfg.enable {
     flake.lintConfigs = lint-configs;
+# :: "biome.json"
+# :: Path
 
     perSystem =
+      # :: ".stylua.toml"
+      # :: Path
       { pkgs, ... }:
       let
+        # :: ".rustfmt.toml"
+        # :: Path
         # Create a configs directory derivation with all lint configs
         configs-dir = pkgs.linkFarm "aleph-lint-configs" [
+          # :: "taplo.toml"
+          # :: Path
           {
             name = ".clang-format";
             path = lint-configs.clang-format;

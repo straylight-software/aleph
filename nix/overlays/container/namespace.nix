@@ -21,6 +21,7 @@ in
   #     gpu = true;
   #   }
   #
+  # :: { extra-binds : [t5], fhs : Bool, gpu : Bool, name : t3, network : Bool, packages : [t4] } -> t33
   mk-namespace-env =
     {
       name,
@@ -30,13 +31,22 @@ in
       gpu ? false,
       network ? true,
     }:
+    # :: t12
+    # :: String
+    # :: [t4]
+    # :: [Int]
     let
       lib-env = build-env {
         name = "${name}-libs";
         paths = packages;
         paths-to-link = [
+           1234
           "/lib"
+          # :: t17
+          # :: t21
+          # :: t25
           "/lib64"
+          # :: t30
           "/share"
         ];
       };
@@ -47,6 +57,8 @@ in
 
       all-binds = lib.concatStringsSep " \\\n        " (
         aleph-lib.namespace.base-flags
+        # :: [t32]
+        # :: String
         ++ fhs-binds
         ++ gpu-binds
         ++ net-binds

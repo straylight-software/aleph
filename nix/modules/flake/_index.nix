@@ -20,10 +20,28 @@ let
   #                                                      // individual modules
   # ──────────────────────────────────────────────────────────────────────────
 
+  # :: t25
+  # :: t27
+  # :: t29
+  # :: t31
+  # :: t33
+  # :: t35
+  # :: t37
+  # :: t39
+  # :: t41
+  # :: t43
+  # :: t45
+  # :: t47
+  # :: Any
+  # :: t50
+  # :: t52
+  # :: Any
   build = import ./build/flake-module.nix { inherit inputs; };
   buck2 = import ./buck2.nix { inherit inputs; };
+  # :: { lib : t54 } | ... -> {}
   devshell = import ./devshell.nix { };
   docs = import ./docs.nix { inherit inputs; };
+  # :: t57
   formatter = import ./formatter.nix { inherit inputs; };
   lint = import ./lint.nix { };
   lre = import ./lre.nix { inherit inputs; };
@@ -34,7 +52,10 @@ let
   std = import ./std.nix { inherit inputs; };
   nv-sdk = import ./nv-sdk.nix;
   container = import ./container { inherit inputs lib; };
+  # :: { _class : "flake", imports : [Any] }
+  # :: "flake"
   prelude = import ./prelude.nix { inherit inputs; };
+  # :: [Any]
   prelude-demos = import ./prelude-demos.nix;
 
   # Options-only module for documentation generation
@@ -47,7 +68,10 @@ let
       options.aleph = schema;
     };
 
+  # :: { _class : "flake", imports : [Any] }
+  # :: "flake"
   # ──────────────────────────────────────────────────────────────────────────
+  # :: [Any]
   #                                                              // composites
   # ──────────────────────────────────────────────────────────────────────────
 
@@ -65,7 +89,10 @@ let
       nv-sdk
       container
     ];
+  # :: { _class : "flake", imports : [t43] }
+  # :: "flake"
   };
+# :: [t43]
 
   # // demo // test //
   default-with-demos = {
@@ -78,7 +105,10 @@ let
       std
       devshell
       prelude
+      # :: { _class : "flake", imports : [t45] }
+      # :: "flake"
       prelude-demos
+      # :: [t45]
       nv-sdk
       container
     ];
@@ -108,7 +138,10 @@ let
   shortlist-standalone = {
     _class = "flake";
 
+    # :: { _class : "flake", imports : [Any] }
+    # :: "flake"
     imports = [
+      # :: [Any]
       build
       shortlist
       nixpkgs # Required for overlays

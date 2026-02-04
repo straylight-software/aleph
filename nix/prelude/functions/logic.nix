@@ -43,6 +43,7 @@ rec {
     => false
     ```
   */
+  # :: t28 -> t28 -> Bool
   eq = a: b: a == b;
 
   /**
@@ -68,8 +69,10 @@ rec {
     neq "foo" "foo"
     => false
     ```
+  # :: t30 -> t30 -> Bool
   */
   neq = a: b: a != b;
+# :: t30 -> t30 -> Bool
 
   # Alias for neq (README uses `ne`)
   ne = neq;
@@ -95,6 +98,7 @@ rec {
     => true
 
     lt 2 2
+    # :: Int -> Int -> Bool
     => false
     ```
   */
@@ -123,6 +127,7 @@ rec {
     le 2 2
     => true
 
+    # :: Int -> Int -> Bool
     le 3 2
     => false
     ```
@@ -148,6 +153,7 @@ rec {
     ```nix
     gt 2 1
     => true
+# :: Int -> Int -> Bool
 
     gt 2 2
     => false
@@ -176,6 +182,7 @@ rec {
     => true
 
     ge 2 2
+    # :: Int -> Int -> Bool
     => true
 
     ge 1 2
@@ -201,6 +208,7 @@ rec {
     # Examples
 
     ```nix
+    # :: Int -> Int -> Int
     min 1 2
     => 1
 
@@ -226,6 +234,7 @@ rec {
 
     # Examples
 
+    # :: Int -> Int -> Int
     ```nix
     max 1 2
     => 2
@@ -256,6 +265,7 @@ rec {
 
     ```nix
     compare 1 2
+    # :: Int -> Int -> Int
     => -1
 
     compare 2 2
@@ -294,6 +304,7 @@ rec {
     # Examples
 
     ```nix
+    # :: Int -> Int -> Int -> Int
     clamp 0 10 5
     => 5
 
@@ -329,6 +340,7 @@ rec {
     - f: function to apply before comparing
     - a: first value
     - b: second value
+# :: (t50 -> Int) -> t50 -> t50 -> Int
 
     # Examples
 
@@ -359,6 +371,7 @@ rec {
 
     # Arguments
 
+    # :: Bool -> Bool
     - x: boolean value to negate
 
     # Examples
@@ -384,6 +397,7 @@ rec {
 
     # Arguments
 
+    # :: Bool -> Bool -> Bool
     - a: first boolean
     - b: second boolean
 
@@ -409,6 +423,7 @@ rec {
     ```
 
     # Arguments
+# :: Bool -> Bool -> Bool
 
     - a: first boolean
     - b: second boolean
@@ -488,6 +503,7 @@ rec {
     none :: (a -> Bool) -> [a] -> Bool
     ```
 
+    # :: t60 -> t61 -> Bool
     # Arguments
 
     - pred: predicate function
@@ -520,6 +536,7 @@ rec {
     # Arguments
 
     - f: value to return if condition is false
+    # :: t65 -> t65 -> Bool -> t65
     - t: value to return if condition is true
     - cond: boolean condition
 
@@ -551,6 +568,7 @@ rec {
 
     ```
     add :: Num -> Num -> Num
+    # :: t68 -> t69 -> t70
     ```
 
     # Arguments
@@ -576,6 +594,7 @@ rec {
     # Type
 
     ```
+    # :: Int -> Int -> Int
     sub :: Num -> Num -> Num
     ```
 
@@ -601,6 +620,7 @@ rec {
 
     # Type
 
+    # :: Int -> Int -> Int
     ```
     mul :: Num -> Num -> Num
     ```
@@ -628,6 +648,7 @@ rec {
     Integer division truncates toward zero for integers.
 
     # Type
+# :: Int -> Int -> Int
 
     ```
     div :: Num -> Num -> Num
@@ -678,6 +699,7 @@ rec {
 
   /**
     Negate a number.
+# :: Int -> Int
 
     # Type
 
@@ -705,6 +727,7 @@ rec {
     Compute absolute value of a number.
 
     # Type
+# :: Int -> Int
 
     ```
     abs :: Num -> Num

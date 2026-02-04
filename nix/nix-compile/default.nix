@@ -29,8 +29,11 @@ let
   inherit (builtins) isString isAttrs;
 
   # Source directories
+  # :: Path
+  # :: Path
   nix-compile-lib = ./lib;
   nix-compile-app = ./app;
+# :: t11
 
   # Use the script GHC (already has ShellCheck, hnix)
   ghc = pkgs.aleph.script.ghc;
@@ -40,6 +43,10 @@ let
   # ────────────────────────────────────────────────────────────────────────────
   #
   # nix-compile parse <script>   Parse and show extracted facts
+  # :: t13
+  # :: "nix-compile"
+  # :: [Path]
+  # :: String
   # nix-compile infer <script>   Infer types and show schema (JSON)
   # nix-compile check <script>   Check for policy violations
 
@@ -50,6 +57,12 @@ let
       exec runghc -i${nix-compile-lib} ${nix-compile-app}/nix-compile.hs "$@"
     '';
   };
+# :: t15
+# :: "nix-compile"
+# :: Path
+# :: Bool
+# :: [Path]
+# :: String
 
   # ────────────────────────────────────────────────────────────────────────────
   # // compiled CLI //
@@ -57,6 +70,7 @@ let
   #
   # Compiled version for faster execution in CI
 
+  # :: String
   compiled = pkgs.stdenv.mkDerivation {
     name = "nix-compile";
     src = ./.;
@@ -78,8 +92,11 @@ let
     '';
   };
 
+  # :: t16 -> t24
   # ────────────────────────────────────────────────────────────────────────────
   # // Nix integration //
+  # :: [Path]
+  # :: t21
   # ────────────────────────────────────────────────────────────────────────────
   #
   # Parse a script and return its schema as a Nix attrset.
@@ -94,7 +111,9 @@ let
 
   parse =
     scriptPath:
+    # :: t25 -> t29
     let
+      # :: [Path]
       result = pkgs.runCommand "nix-compile-schema" { nativeBuildInputs = [ cli ]; } ''
         nix-compile infer ${scriptPath} > $out
       '';
@@ -235,6 +254,9 @@ let
       pkgs.jq # JSON pretty-printing
     ];
     shellHook = ''
+      # :: { app : t3, lib : t2 }
+      # :: t2
+      # :: t3
       echo "nix-compile.nix development shell"
       echo "  nix-compile parse <script>   Show facts"
       echo "  nix-compile infer <script>   Show schema (JSON)"

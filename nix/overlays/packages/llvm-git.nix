@@ -23,20 +23,27 @@
   llvm-project-src,
 }:
 aleph.stdenv.default {
+  # :: "llvm-git"
+  # :: "22.0.0-git"
   pname = "llvm-git";
+  # :: t9
   version = "22.0.0-git";
+# :: "source/llvm"
 
+  # :: [t4]
   src = llvm-project-src;
 
   source-root = "source/llvm";
 
   native-build-inputs = [
+    # :: [t8]
     cmake
     ninja
     python3
   ];
 
   build-inputs = [
+    # :: ["-DLLVM_ENABLE_PROJECTS=clang;clang-tools-extra"]
     libxml2
     zlib
     ncurses
@@ -50,7 +57,13 @@ aleph.stdenv.default {
     "-DLLVM_ENABLE_ASSERTIONS=OFF"
     "-DLLVM_INSTALL_UTILS=ON"
     "-DLLVM_BUILD_TOOLS=ON"
+    # :: Bool
     "-DLLVM_INCLUDE_TESTS=OFF"
+    # :: { description : "LLVM/Clang from git with CUDA 13 and SM120 Blackwell support", homepage : "https://llvm.org", license : t11, platforms : t12 }
+    # :: "LLVM/Clang from git with CUDA 13 and SM120 Blackwell support"
+    # :: "https://llvm.org"
+    # :: t11
+    # :: t12
     "-DLLVM_INCLUDE_EXAMPLES=OFF"
     "-DLLVM_INCLUDE_DOCS=OFF"
     # Skip compiler-rt - CUDA doesn't require it and avoids i386 issues

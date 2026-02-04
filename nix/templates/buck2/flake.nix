@@ -1,22 +1,30 @@
 {
+  # :: "Buck2 project with hermetic Nix toolchains"
   description = "Buck2 project with hermetic Nix toolchains";
+# :: { buck2-prelude : { flake : Bool, url : "github:weyl-ai/straylight-buck2-prelude" } }
 
   inputs = {
     aleph.url = "github:straylight-software/aleph";
     nixpkgs.follows = "aleph/nixpkgs";
     flake-parts.follows = "aleph/flake-parts";
     systems.url = "github:nix-systems/default-linux";
+# :: { flake : Bool, url : "github:weyl-ai/straylight-buck2-prelude" }
+# :: "github:weyl-ai/straylight-buck2-prelude"
+# :: Bool
 
     # Buck2 prelude (straylight fork with NVIDIA support)
     buck2-prelude = {
+      # :: { aleph : t1, flake-parts : t0 } | ... -> t9
       url = "github:weyl-ai/straylight-buck2-prelude";
       flake = false;
     };
+  # :: [t6]
   };
 
   outputs =
     inputs@{ flake-parts, aleph, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
+      # :: Any
       # Import the build module for Buck2 integration
       imports = [
         aleph.modules.flake.build

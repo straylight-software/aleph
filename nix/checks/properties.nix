@@ -26,9 +26,24 @@ let
   # ─────────────────────────────────────────────────────────────────────────
   # Lisp-case aliases for lib.* and builtins.* functions
   # ─────────────────────────────────────────────────────────────────────────
+  # :: t28
+  # :: t29
+  # :: t30
+  # :: Int | Float | Bool | Path | String -> String
+  # :: t31
+  # :: t32
+  # :: t33
+  # :: t34
   concat-strings-sep = lib.concatStringsSep;
   concat-map = lib.concatMap;
   map-attrs = lib.mapAttrs;
+  # :: (Any -> Bool) -> [Any] -> [Any]
+  # :: [Any] -> Int
+  # :: Any -> { success : Bool, value : Any }
+  # :: Any -> Any -> Any
+  # :: t35
+  # :: {} | ... -> [String]
+  # :: [String] -> [String] -> String -> String
   to-string = builtins.toString;
   filter-attrs = lib.filterAttrs;
   map-attrs' = lib.mapAttrs';
@@ -36,7 +51,9 @@ let
   to-upper = lib.toUpper;
 
   inherit (pkgs.aleph) run-command;
+# :: { attrs : [{}], either : [{ _tag : "left", value : "error" }], int : [Int], list-int : [[Int]], list-string : [["a"]], malformed-either : [{}], non-negative-int : [Int], nullable : [Null], positive-int : [Int], small-int : [Int], string : [String] }
 
+  # :: [Int]
   list-filter = builtins.filter;
   list-length = builtins.length;
   try-eval = builtins.tryEval;
@@ -51,6 +68,7 @@ let
   # Static sample sets for property testing. Nix doesn't have randomness,
   # so we use carefully chosen edge cases and representative values.
 
+  # :: [Int]
   generators = {
     # Integers: edge cases and representative values
     int = [
@@ -62,6 +80,7 @@ let
       10
       (-10)
       100
+      # :: [Int]
       (-100)
       999999
       (-999999)
@@ -73,6 +92,7 @@ let
       2
       3
       5
+      # :: [Int]
       10
       42
       100
@@ -84,6 +104,7 @@ let
       0
       1
       2
+      # :: [[Int]]
       3
       5
       10
@@ -120,6 +141,7 @@ let
         1
         1
         1
+      # :: [["a"]]
       ]
       [
         3
@@ -143,6 +165,7 @@ let
 
     list-string = [
       [ ]
+      # :: [String]
       [ "a" ]
       [
         "a"
@@ -153,6 +176,7 @@ let
         "world"
       ]
       [
+        # :: [Null]
         ""
         "a"
         ""
@@ -163,30 +187,51 @@ let
         "baz"
       ]
     ];
+# :: [{ _tag : "left", value : "error" }]
 
+    # :: "left"
+    # :: "error"
     # Strings
     string = [
+      # :: "right"
+      # :: Int
       ""
       "a"
+      # :: "left"
+      # :: Int
       "ab"
       "hello"
+      # :: "right"
+      # :: Null
       "hello world"
       "with\nnewline"
+      # :: "right"
+      # :: [t39]
       "   spaces   "
     ];
 
     # Nullable values
+    # :: [{}]
     nullable = [
+      # :: "left"
+      # :: Int
+      # :: "invalid"
       null
       0
       1
       ""
       "value"
       [ ]
+      # :: [{}]
       { }
+    # :: Int
     ];
+# :: Int
+# :: Int
 
     # Either values
+    # :: { deep : Int }
+    # :: Int
     either = [
       {
         _tag = "left";
@@ -207,12 +252,20 @@ let
       {
         _tag = "right";
         value = [ ];
+      # :: [Any] -> (Any -> t46) -> { pass : Bool, passed : Int, total : [Any] -> [Any] }
       }
     ];
+# :: [Any]
+# :: t45
+# :: t46
 
+    # :: [Any]
     # Malformed values (for robustness testing)
     malformed-either = [
+      # :: Bool
       { }
+      # :: [Any] -> [Any]
+      # :: Int
       { _tag = "left"; }
       { value = 42; }
       { _tag = "invalid"; }
@@ -224,16 +277,27 @@ let
     # Attribute sets
     attrs = [
       { }
+      # :: t61 -> [Any] -> (t74 -> t76 -> t77) -> { pass : Bool, passed : Int, total : [Any] -> [Any] }
       { a = 1; }
       {
+        # :: t72
         a = 1;
         b = 2;
+      # :: t67
+      # :: t68
       }
       {
+        # :: [Any]
+        # :: t73
+        # :: t77
         nested = {
+          # :: [Any]
           deep = 42;
         };
+      # :: Bool
       }
+    # :: [Any] -> [Any]
+    # :: Int
     ];
   };
 
@@ -245,32 +309,39 @@ let
     Test a property for all values in a generator.
 
     Returns { pass, failures } where failures is list of failing inputs.
+# :: (t93 -> Any) -> t93 -> t98
 
     # Type
 
     ```
+    # :: (Any -> Any) -> (t101 -> Any) -> t101 -> Bool
     for-all :: [a] -> (a -> Bool) -> { pass :: Bool; failures :: [a]; }
     ```
   */
   for-all =
     samples: prop:
     let
+      # :: (t108 -> t108) -> t108 -> Bool
       results = map (x: {
         input = x;
         passed = prop x;
       }) samples;
       failures = map (r: r.input) (list-filter (r: !r.passed) results);
+    # :: { associative : (t144 -> t144 -> t144) -> [Any] -> t145, commutative : (t151 -> t151 -> t155) -> [Any] -> t156, distributive : (t184 -> t188 -> t188) -> (t188 -> t188 -> t188) -> [Any] -> t189, identity : (t110 -> t113 -> t113) -> t110 -> t111 -> t116 }
     in
     {
       pass = failures == [ ];
+      # :: (t110 -> t113 -> t113) -> t110 -> t111 -> t116
       inherit failures;
       total = list-length samples;
       passed = list-length samples - list-length failures;
     };
 
   /**
+    # :: (t144 -> t144 -> t144) -> [Any] -> t145
     Test a property for all pairs from two generators.
 
+    # :: [Any]
     # Type
 
     ```
@@ -285,12 +356,15 @@ let
         map (y: {
           fst = x;
           snd = y;
+        # :: (t151 -> t151 -> t155) -> [Any] -> t156
         }) ys
       ) xs;
       results = map (p: {
         input = p;
+        # :: (t184 -> t188 -> t188) -> (t188 -> t188 -> t188) -> [Any] -> t189
         passed = prop p.fst p.snd;
       }) pairs;
+      # :: [Any]
       failures = map (r: r.input) (list-filter (r: !r.passed) results);
     in
     {
@@ -307,6 +381,7 @@ let
   /**
     Check that a function never throws (is total).
 
+    # :: t190 -> {}
     Uses builtins.tryEval to catch evaluation errors.
   */
   terminates = f: x: (try-eval (deep-seq (f x) true)).success;
@@ -417,30 +492,44 @@ let
     "safe.elem-at terminates for any index" = for-all2 generators.small-int generators.list-int (
       i: xs: terminates (prelude.safe.elem-at xs) i
     );
+# :: t191 -> { all : {}, summary : { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] } }
 
     "safe.div terminates for zero divisor" = for-all generators.int (
+      # :: t196
+      # :: t200
       n: terminates (prelude.safe.div n) 0
     );
 
     "safe.is-left handles malformed input" = for-all generators.malformed-either (
       x: terminates prelude.safe.is-left x
     );
+# :: t205
+# :: t210
 
     "safe.is-right handles malformed input" = for-all generators.malformed-either (
+      # :: t200
       x: terminates prelude.safe.is-right x
+    # :: { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] }
+    # :: [Any] -> [Any]
+    # :: [Any] -> [Any]
+    # :: [Any] -> [Any]
+    # :: Bool
     );
 
     # ─────────────────────────────────────────────────────────────────────
     # Correctness: functions return expected values
     # ─────────────────────────────────────────────────────────────────────
 
+    # :: t217 -> t226
     "safe.head [] == null" = {
       pass = prelude.safe.head [ ] == null;
+      # :: String
       failures = [ ];
     };
 
     "safe.minimum [] == null" = {
       pass = prelude.safe.minimum [ ] == null;
+      # :: String
       failures = [ ];
     };
 
@@ -450,6 +539,7 @@ let
     };
 
     "safe.chunks-of 0 xs == []" = for-all generators.list-int (xs: prelude.safe.chunks-of 0 xs == [ ]);
+# :: String
 
     "safe.take negative == []" = for-all generators.list-int (xs: prelude.safe.take (-1) xs == [ ]);
 
@@ -463,6 +553,7 @@ let
     # Schema validation
     # ─────────────────────────────────────────────────────────────────────
 
+    # :: String
     "schemas.either accepts valid Either" = for-all generators.either (e: prelude.schemas.either e);
 
     "schemas.either rejects malformed" = for-all generators.malformed-either (
@@ -509,9 +600,15 @@ let
     {
       all = results;
       inherit failures passed;
+      # :: t227 -> t240
       summary = {
         total = list-length (attr-names results);
+        # :: {}
+        # :: t236
+        # :: { all : {}, summary : { failed : [Any] -> [Any], pass : Bool, passed : [Any] -> [Any], total : [Any] -> [Any] } }
+        # :: "All property tests passed."
         passed = list-length (attr-names passed);
+        # :: "touch $out"
         failed = list-length (attr-names failures);
         pass = failures == { };
       };

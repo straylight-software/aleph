@@ -51,6 +51,7 @@
 
     :::
   */
+  # :: t1 -> t1
   id = x: x;
 
   /**
@@ -90,6 +91,7 @@
     ```
 
     :::
+  # :: t2 -> t3 -> t2
   */
   const = a: _b: a;
 
@@ -132,6 +134,7 @@
     => [ 2 4 6 ]
     ```
 
+    # :: (t6 -> t5 -> t8) -> t5 -> t6 -> t8
     :::
   */
   flip =
@@ -176,6 +179,7 @@
     (compose head tail) [ 1 2 3 ]
     => 2
     ```
+# :: (t12 -> t13) -> (t11 -> t12) -> t11 -> t13
 
     :::
   */
@@ -220,6 +224,7 @@
 
     (pipe tail head) [ 1 2 3 ]
     => 2
+    # :: (t16 -> t17) -> (t17 -> t18) -> t16 -> t18
     ```
 
     :::
@@ -252,8 +257,10 @@
 
     ```nix
     fix (self: { a = 1; b = self.a + 1; })
+    # :: (t21 -> t21) -> t21
     => { a = 1; b = 2; }
     ```
+# :: t21
 
     :::
   */
@@ -298,6 +305,7 @@
     ```nix
     on builtins.lessThan builtins.stringLength "cat" "mouse"
     => true
+# :: (t28 -> t28 -> t29) -> (t25 -> t28) -> t25 -> t25 -> t29
 
     on add (x: x * x) 2 3
     => 13
@@ -411,6 +419,7 @@
 
     ```nix
     fold (acc: x: acc + x) 0 [ 1 2 3 4 ]
+    # :: (Any -> Any -> Any) -> Any -> [Any] -> Any
     => 10
 
     fold (acc: x: acc ++ [x * 2]) [] [ 1 2 3 ]
@@ -450,6 +459,7 @@
     ## `prelude.fold-right` usage example
 
     ```nix
+    # :: t30
     fold-right (x: acc: [ x ] ++ acc) [] [ 1 2 3 ]
     => [ 1 2 3 ]
 
@@ -709,6 +719,7 @@
     :::{.example}
     ## `prelude.reverse` usage example
 
+    # :: t31
     ```nix
     reverse [ 1 2 3 ]
     => [ 3 2 1 ]
@@ -739,6 +750,7 @@
 
     :::{.example}
     ## `prelude.concat` usage example
+# :: t32
 
     ```nix
     concat [ [ 1 2 ] [ 3 4 ] [ 5 ] ]
@@ -805,6 +817,7 @@
     # Examples
 
     :::{.example}
+    # :: t33
     ## `prelude.concat-map` usage example
 
     ```nix
@@ -838,8 +851,11 @@
 
     # Examples
 
+    # :: t34 -> t35 -> t41
     :::{.example}
     ## `prelude.zip` usage example
+# :: t37
+# :: t38
 
     ```nix
     zip [ 1 2 3 ] [ "a" "b" "c" ]
@@ -877,6 +893,7 @@
 
     ys
     : second list
+# :: t42
 
     # Examples
 
@@ -1011,6 +1028,7 @@
     : predicate function
 
     xs
+    # :: t43
     : list to search
 
     # Examples
@@ -1072,6 +1090,7 @@
 
     # Arguments
 
+    # :: t44
     f
     : function to compute group key
 
@@ -1174,6 +1193,7 @@
     ```
 
     # Arguments
+# :: t45
 
     f
     : function taking key and value
@@ -1202,6 +1222,7 @@
     allowing both the key and value to be transformed.
 
     # Type
+# :: t46
 
     ```
     map-attrs' :: (string -> a -> { name :: string; value :: b; }) -> attrs -> attrs
@@ -1232,6 +1253,7 @@
     ```
     filter-attrs :: (string -> a -> bool) -> attrs -> attrs
     ```
+# :: t47
 
     # Arguments
 
@@ -1265,6 +1287,7 @@
     ```
 
     # Arguments
+# :: t48
 
     f
     : function (accumulator -> name -> value -> accumulator)
@@ -1292,6 +1315,7 @@
   /**
     Get the keys of an attribute set.
 
+    # :: {} | ... -> [String]
     # Type
 
     ```
@@ -1319,6 +1343,7 @@
 
   /**
     Get the values of an attribute set.
+# :: { _ : Any } | ... -> [Any]
 
     # Type
 
@@ -1352,6 +1377,7 @@
 
     ```
     has :: string -> attrs -> bool
+    # :: String -> {} | ... -> Bool
     ```
 
     # Arguments
@@ -1388,6 +1414,7 @@
     get :: [string] -> attrs -> a -> a
     ```
 
+    # :: t49
     # Arguments
 
     path
@@ -1418,6 +1445,7 @@
 
   /**
     Get an attribute, throwing if it doesn't exist.
+# :: String -> {} | ... -> Any
 
     # Type
 
@@ -1454,6 +1482,7 @@
 
     ```
     set :: [string] -> a -> attrs -> attrs
+    # :: t50
     ```
 
     # Arguments
@@ -1484,6 +1513,7 @@
   */
   set = lib.setAttrByPath;
 
+  # :: {} | ... -> [String] -> {} | ...
   /**
     Remove attributes from an attribute set.
 
@@ -1514,6 +1544,7 @@
     :::
   */
   remove = builtins.removeAttrs;
+# :: t52 -> t52 -> t52
 
   /**
     Merge two attribute sets (right wins).
@@ -1541,6 +1572,7 @@
     merge { a = 1; b = 2; } { b = 3; c = 4; }
     => { a = 1; b = 3; c = 4; }
     ```
+# :: t57
 
     :::
   */
@@ -1568,6 +1600,7 @@
     ```nix
     merge-all [ { a = 1; } { b = 2; } { c = 3; } ]
     => { a = 1; b = 2; c = 3; }
+    # :: t58
     ```
 
     :::
@@ -1595,6 +1628,7 @@
 
     ```nix
     to-list { a = 1; b = 2; }
+    # :: [{ name : String, value : Any }] -> {} | ...
     => [ { name = "a"; value = 1; } { name = "b"; value = 2; } ]
     ```
 
@@ -1625,6 +1659,7 @@
     from-list [ { name = "a"; value = 1; } { name = "b"; value = 2; } ]
     => { a = 1; b = 2; }
     ```
+# :: t59
 
     :::
   */
@@ -1655,6 +1690,7 @@
     ```nix
     map-to-list (n: v: "${n}=${toString v}") { a = 1; b = 2; }
     => [ "a=1" "b=2" ]
+    # :: t60
     ```
 
     :::
@@ -1685,6 +1721,7 @@
 
     ```nix
     intersect { a = 1; b = 2; c = 3; } { b = 20; c = 30; d = 40; }
+    # :: t61
     => { b = 2; c = 3; }
     ```
 
@@ -1722,6 +1759,7 @@
     :::
   */
   gen-attrs = lib.genAttrs;
+# :: t62
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Strings
@@ -1755,6 +1793,7 @@
 
     split "/" "/foo/bar"
     => [ "" "foo" "bar" ]
+    # :: t63
     ```
 
     :::
@@ -1819,6 +1858,7 @@
     => "hello"
 
     trim "\n\tfoo\n"
+    # :: [String] -> [String] -> String -> String
     => "foo"
     ```
 
@@ -1852,6 +1892,7 @@
     ## `prelude.replace` usage example
 
     ```nix
+    # :: t64
     replace [ "foo" ] [ "bar" ] "foo baz foo"
     => "bar baz bar"
     ```
@@ -1885,6 +1926,7 @@
     ```nix
     starts-with "hello" "hello world"
     => true
+# :: t65
 
     starts-with "world" "hello world"
     => false
@@ -1918,6 +1960,7 @@
 
     ```nix
     ends-with "world" "hello world"
+    # :: t66
     => true
 
     ends-with "hello" "hello world"
@@ -1945,6 +1988,7 @@
     str
     : string to search
 
+    # :: t67
     # Examples
 
     :::{.example}
@@ -1972,6 +2016,7 @@
     ```
 
     # Arguments
+# :: t68
 
     str
     : input string
@@ -2002,6 +2047,7 @@
     # Arguments
 
     str
+    # :: Int | Float | Bool | Path | String -> String
     : input string
 
     # Examples
@@ -2029,6 +2075,7 @@
 
     # Arguments
 
+    # :: String -> Int
     x
     : value to convert
 
@@ -2106,6 +2153,7 @@
     substring 0 5 "hello world"
     => "hello"
 
+    # :: t72 -> (Null -> t72) -> Null -> t72
     substring 6 5 "hello world"
     => "world"
     ```
@@ -2141,6 +2189,7 @@
     # Examples
 
     :::{.example}
+    # :: Null -> Null -> Null
     ## `prelude.maybe` usage example
 
     ```nix
@@ -2171,6 +2220,7 @@
     default
     : value to return if null
 
+    # :: Null -> Bool
     x
     : nullable value
 
@@ -2198,6 +2248,7 @@
 
     ```
     is-null :: a | null -> bool
+    # :: [Any] -> [Any]
     ```
 
     # Arguments
@@ -2228,6 +2279,7 @@
     # Type
 
     ```
+    # :: (Any -> Any) -> [Any] -> [Any]
     cat-maybes :: [a | null] -> [a]
     ```
 
@@ -2259,6 +2311,9 @@
     map-maybe :: (a -> b | null) -> [a] -> [b]
     ```
 
+    # :: t85 -> { _tag : "left", value : t85 }
+    # :: "left"
+    # :: t85
     # Arguments
 
     f
@@ -2287,6 +2342,9 @@
 
   /**
     Create a Left value (typically representing failure).
+# :: t86 -> { _tag : "right", value : t86 }
+# :: "right"
+# :: t86
 
     # Type
 
@@ -2318,6 +2376,7 @@
 
   /**
     Create a Right value (typically representing success).
+# :: t87 -> Bool
 
     # Type
 
@@ -2348,6 +2407,7 @@
   };
 
   /**
+    # :: t89 -> Bool
     Check if an Either is a Left.
 
     # Type
@@ -2384,6 +2444,7 @@
     # Type
 
     ```
+    # :: (t95 -> t98) -> (t97 -> t98) -> t93 -> t98
     is-right :: Either a b -> bool
     ```
 
@@ -2419,6 +2480,7 @@
     ```
 
     # Arguments
+# :: t99 -> t100 -> t99
 
     on-left
     : function for Left values
@@ -2452,6 +2514,7 @@
     Extract value from Right with a default.
 
     # Type
+# :: t103 -> t104 -> t103
 
     ```
     from-right :: b -> Either a b -> b
@@ -2489,6 +2552,7 @@
 
     ```
     from-left :: a -> Either a b -> a
+    # :: t108 -> t108 -> Bool
     ```
 
     # Arguments
@@ -2522,6 +2586,7 @@
 
   /**
     Check equality.
+# :: t110 -> t110 -> Bool
 
     # Type
 
@@ -2555,6 +2620,7 @@
   eq = a: b: a == b;
 
   /**
+    # :: Int -> Int -> Bool
     Check inequality.
 
     # Type
@@ -2588,6 +2654,7 @@
   */
   neq = a: b: a != b;
 
+  # :: Int -> Int -> Bool
   /**
     Less than comparison.
 
@@ -2621,6 +2688,7 @@
     :::
   */
   lt = a: b: a < b;
+# :: Int -> Int -> Bool
 
   /**
     Less than or equal comparison.
@@ -2654,6 +2722,7 @@
 
     :::
   */
+  # :: Int -> Int -> Bool
   le = a: b: a <= b;
 
   /**
@@ -2758,6 +2827,7 @@
   */
   inherit (lib) min;
 
+  # :: Int -> Int -> Int
   /**
     Return the larger of two values.
 
@@ -2804,6 +2874,7 @@
     # Arguments
 
     a
+    # :: Int -> Int -> Int -> Int
     : first value
 
     b
@@ -2845,6 +2916,7 @@
     clamp :: a -> a -> a -> a
     ```
 
+    # :: Bool -> Bool
     # Arguments
 
     lo
@@ -2878,6 +2950,7 @@
     lo: hi: x:
     if x < lo then
       lo
+    # :: Bool -> Bool -> Bool
     else if x > hi then
       hi
     else
@@ -2911,6 +2984,7 @@
     => false
 
     not false
+    # :: Bool -> Bool -> Bool
     => true
     ```
 
@@ -3015,6 +3089,7 @@
     all (x: x > 2) [ 1 2 3 ]
     => false
     ```
+# :: t129 -> t129 -> Bool -> t129
 
     :::
   */
@@ -3051,6 +3126,7 @@
     ```
 
     :::
+  # :: t132 -> t133 -> t134
   */
   inherit (lib) any;
 
@@ -3081,6 +3157,7 @@
 
     ```nix
     bool "no" "yes" true
+    # :: Int -> Int -> Int
     => "yes"
 
     bool 0 1 false
@@ -3111,6 +3188,7 @@
     a
     : first number
 
+    # :: Int -> Int -> Int
     b
     : second number
 
@@ -3144,6 +3222,7 @@
 
     b
     : second number
+# :: Int -> Int -> Int
 
     # Examples
 
@@ -3208,6 +3287,7 @@
     : divisor
 
     # Examples
+# :: Int -> Int
 
     :::{.example}
     ## `prelude.div` usage example
@@ -3238,6 +3318,7 @@
     a
     : dividend
 
+    # :: Int -> Int
     b
     : divisor
 
@@ -3268,6 +3349,7 @@
     ```
 
     # Arguments
+# :: [Any] -> Any
 
     x
     : number to negate
@@ -3298,6 +3380,7 @@
     abs :: number -> number
     ```
 
+    # :: [Any] -> Any
     # Arguments
 
     x
@@ -3332,6 +3415,7 @@
     # Arguments
 
     xs
+    # :: Any -> Bool
     : list of numbers
 
     # Examples
@@ -3362,6 +3446,7 @@
 
     # Arguments
 
+    # :: Any -> Bool
     xs
     : list of numbers
 
@@ -3392,6 +3477,7 @@
     # Type
 
     ```
+    # :: Any -> Bool
     is-list :: a -> bool
     ```
 
@@ -3422,6 +3508,7 @@
 
     # Type
 
+    # :: Any -> Bool
     ```
     is-attrs :: a -> bool
     ```
@@ -3452,6 +3539,7 @@
     Check if a value is a string.
 
     # Type
+# :: Any -> Bool
 
     ```
     is-string :: a -> bool
@@ -3482,6 +3570,7 @@
   /**
     Check if a value is an integer.
 
+    # :: Any -> Bool
     # Type
 
     ```
@@ -3512,6 +3601,7 @@
 
   /**
     Check if a value is a boolean.
+# :: Any -> Bool
 
     # Type
 
@@ -3542,6 +3632,7 @@
   is-bool = builtins.isBool;
 
   /**
+    # :: Any -> Bool
     Check if a value is a float.
 
     # Type
@@ -3575,6 +3666,7 @@
   /**
     Check if a value is a path.
 
+    # :: t152
     # Type
 
     ```

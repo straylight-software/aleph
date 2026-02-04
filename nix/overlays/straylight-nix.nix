@@ -11,16 +11,26 @@
 { inputs }:
 let
   # Check if straylight-nix input is available
+  # :: Bool
   has-straylight-nix = inputs ? nix;
+# :: t3 -> t4 -> { nix : t14, nix-unwrapped : t10 }
 
   mk-straylight-nix-packages =
+    # :: t9
+    # :: t10
     pkgs: system:
     let
       straylight-nix-pkgs = inputs.nix.packages.${system};
+      # :: t12
+      # :: "nix"
       unwrapped-nix = straylight-nix-pkgs.nix;
+# :: String
 
       # Wrap nix to add --no-eval-cache by default
       # This avoids stale derivation path issues during development
+      # :: t14
+      # :: "straylight-nix"
+      # :: [t10]
       wrapped-nix = pkgs.writeShellApplication {
         name = "nix";
         "runtimeInputs" = [ ];
@@ -34,8 +44,10 @@ let
           wrapped-nix
           unwrapped-nix
         ];
+        # :: t14
         # wrapped-nix comes first, so its bin/nix takes precedence
         "postBuild" = ''
+          # :: t10
           # Remove the unwrapped nix binary, keep the wrapper
           rm $out/bin/nix
           cp ${wrapped-nix}/bin/nix $out/bin/nix
@@ -45,21 +57,26 @@ let
     {
       # The main nix binary with builtins.wasm support + --no-eval-cache
       nix = nix-wrapper;
+# :: { nix : { nix : t14, nix-unwrapped : t10 } }
+# :: { nix : t14, nix-unwrapped : t10 }
 
       # Unwrapped version if someone needs it
       nix-unwrapped = unwrapped-nix;
 
+      # :: t21
       # Man pages
       inherit (straylight-nix-pkgs) nix-man;
     };
 in
 # Return an overlay function directly (final: prev: { ... })
-final: _prev:
+final: prev:
 if has-straylight-nix then
   {
-    aleph = (_prev.aleph or { }) // {
+    aleph = (prev.aleph or { }) // {
       nix = mk-straylight-nix-packages final final.stdenv.hostPlatform.system;
     };
   }
 else
-  { }
+  {
+    aleph = prev.aleph or { };
+  }

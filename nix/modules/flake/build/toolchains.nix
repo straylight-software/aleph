@@ -11,6 +11,7 @@ let
   inherit (pkgs.stdenv) isLinux;
 
   # Turing Registry - authoritative build flags
+  # :: t18
   turing-registry =
     pkgs.aleph.turing-registry or {
       cflags = [ ];
@@ -20,6 +21,10 @@ let
   # LLVM 22 from llvm-git overlay (added by flake-module.nix)
   inherit (pkgs) llvm-git;
 
+  # :: t19
+  # :: t20
+  # :: t21
+  # :: t22
   # GCC for libstdc++ headers and runtime
   gcc = pkgs.gcc15 or pkgs.gcc14 or pkgs.gcc;
   gcc-unwrapped = gcc.cc;
@@ -28,14 +33,26 @@ let
 
   # NVIDIA SDK (added by flake-module.nix)
   inherit (pkgs) nvidia-sdk;
+# :: t23
+# :: t24
 
   # mdspan (Kokkos reference implementation, added by flake-module.nix)
+  # :: t26
   inherit (pkgs) mdspan;
 
+  # :: t29
   # Haskell
   hs-pkgs = pkgs.haskell.packages.ghc912 or pkgs.haskellPackages;
+  # :: t30 -> { db : String, path : String }
   ghc-version = hs-pkgs.ghc.version;
 
+  # :: t38
+  # :: t39
+  # :: String
+  # :: String
+  # :: [String]
+  # :: t51
+  # :: t54
   # The Haskell package universe
   hs-package-list = cfg.toolchain.haskell.packages hs-pkgs;
 
@@ -44,11 +61,15 @@ let
 
   # Extract package info for buckconfig.local
   hs-package-info =
+    # :: String
+    # :: String
     pkg:
     let
       name = pkg.pname or (builtins.parseDrvName pkg.name).name;
+      # :: t61
       version = pkg.version or "0";
       lib-dir = "${pkg}/lib/ghc-${ghc-version}/lib";
+      # :: t59
       conf-dir = "${lib-dir}/package.conf.d";
       conf-files = builtins.attrNames (builtins.readDir conf-dir);
       conf-file = lib.head (lib.filter (f: lib.hasSuffix ".conf" f) conf-files);

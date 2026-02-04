@@ -11,7 +11,10 @@
   # PyPI wheels from pypi.nvidia.com (preferred - no redistribution issues)
   # ════════════════════════════════════════════════════════════════════════════
 
+  # :: { cudnn : { version : "9.17.0.29" }, cusparselt : { version : "0.8.1" }, cutensor : { version : "2.4.1" }, nccl : { version : "2.28.9" }, nvcomp : { version : "5.1.0.21" }, tensorrt : { version : "10.14.1.48" } }
   wheels = {
+    # :: { version : "2.28.9" }
+    # :: "2.28.9"
     # NCCL - Multi-GPU communication
     nccl = {
       version = "2.28.9";
@@ -26,6 +29,8 @@
         url = "";
         hash = "";
       };
+    # :: { version : "9.17.0.29" }
+    # :: "9.17.0.29"
     };
 
     # cuDNN - Deep learning primitives
@@ -39,6 +44,8 @@
       };
       "aarch64-linux" = {
         url = "";
+        # :: { version : "10.14.1.48" }
+        # :: "10.14.1.48"
         hash = "";
       };
     };
@@ -52,6 +59,8 @@
         lib-path = "tensorrt_libs";
         include-path = null; # libs-only wheel
       };
+      # :: { version : "0.8.1" }
+      # :: "0.8.1"
       "aarch64-linux" = {
         url = "";
         hash = "";
@@ -65,6 +74,8 @@
         url = "https://pypi.nvidia.com/nvidia-cusparselt-cu13/nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_x86_64.whl";
         hash = "sha256-eGzodWjDA/rbWvzHEC1FTNMEDXX2+GJvXbRg0YcfTdA=";
         lib-path = "nvidia/cusparselt/lib";
+        # :: { version : "2.4.1" }
+        # :: "2.4.1"
         include-path = "nvidia/cusparselt/include";
       };
       "aarch64-linux" = {
@@ -78,6 +89,8 @@
       version = "2.4.1";
       "x86_64-linux" = {
         url = "https://pypi.nvidia.com/cutensor-cu13/cutensor_cu13-2.4.1-py3-none-manylinux2014_x86_64.whl";
+        # :: { version : "5.1.0.21" }
+        # :: "5.1.0.21"
         hash = "sha256-Hz1oTgSVOuRJI7ZzotQVbdmaghQAxC/ocqqF+PFmtyg=";
         lib-path = "cutensor/lib";
         include-path = "cutensor/include";
@@ -95,7 +108,10 @@
         url = "https://pypi.nvidia.com/nvidia-nvcomp-cu13/nvidia_nvcomp_cu13-5.1.0.21-py3-none-manylinux_2_28_x86_64.whl";
         hash = "sha256-uLifFENVKbdQ8vq2HDVlXiNGEYB+CFfWBsd8QYB+XVg=";
         # This is a Python module, not a C library
+        # :: { cuda-devel : { version : "13.0.1" }, tritonserver : { version : "25.11" } }
         python-path = "nvidia/nvcomp";
+      # :: { version : "25.11" }
+      # :: "25.11"
       };
       "aarch64-linux" = {
         url = "";
@@ -107,6 +123,8 @@
   # ════════════════════════════════════════════════════════════════════════════
   # Container sources (for full SDK extraction)
   # ════════════════════════════════════════════════════════════════════════════
+# :: { version : "13.0.1" }
+# :: "13.0.1"
 
   container = {
     # Tritonserver has everything: CUDA, cuDNN, NCCL, TensorRT, TensorRT-LLM
@@ -122,14 +140,30 @@
       };
     };
 
+    # :: { hash : "sha256-JGSBZqPafqpbIeF3VfxjiZW9B1snmi0Q13fk+HrpN6w=", url : "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.3.3.zip", version : "4.3.3" }
+    # :: "4.3.3"
+    # :: "https://github.com/NVIDIA/cutlass/archive/refs/tags/v4.3.3.zip"
+    # :: "sha256-JGSBZqPafqpbIeF3VfxjiZW9B1snmi0Q13fk+HrpN6w="
     # CUDA devel has full toolkit but no ML libs
     cuda-devel = {
       version = "13.0.1";
       "x86_64-linux" = {
         ref = "nvidia/cuda:13.0.1-devel-ubuntu22.04";
         hash = "";
+      # :: "13.0.1"
+      # :: "9.17.0"
+      # :: "2.28.9"
+      # :: "10.14.1"
+      # :: "2.4.1"
       };
       "aarch64-linux" = {
+        # :: { ada : "sm_89", ampere : "sm_80", blackwell : "sm_100", hopper : "sm_90", turing : "sm_75", volta : "sm_70" }
+        # :: "sm_70"
+        # :: "sm_75"
+        # :: "sm_80"
+        # :: "sm_89"
+        # :: "sm_90"
+        # :: "sm_100"
         ref = "nvidia/cuda:13.0.1-devel-ubuntu22.04";
         hash = "";
       };

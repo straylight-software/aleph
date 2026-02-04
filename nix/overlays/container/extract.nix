@@ -21,6 +21,7 @@ in
   #     runtime-inputs = [ cudaPackages.cudatoolkit ];
   #   }
   #
+  # :: { install : "cp -a . $out/", meta : {}, pname : t3, post-install : String, runtime-inputs : [t6], src : t5, version : t4 } -> t19
   extract =
     {
       pname,
@@ -31,6 +32,8 @@ in
       post-install ? "",
       meta ? { },
     }:
+    # :: t10
+    # :: String
     let
       run-path = aleph-lib.elf.mk-rpath runtime-inputs;
       interpreter-path = "$(cat ${final.stdenv.cc}/nix-support/dynamic-linker)";
@@ -41,6 +44,7 @@ in
           pname
           version
           src
+          # :: [t18]
           meta
           ;
 
@@ -49,7 +53,11 @@ in
           final.file
           final.gnutar
           final.gzip
+          # :: Bool
+          # :: Bool
+          # :: Bool
           final.xz
+          # :: String
           final.unzip
         ];
 
@@ -70,18 +78,27 @@ in
         "fixupPhase" =
           builtins.replaceStrings [ "@interpreterPath@" "@runPath@" ] [ interpreter-path run-path ]
             (builtins.readFile ./scripts/extract-fixup.sh);
+      # :: t20 -> t21 -> t33
       }
     );
+# :: t30
 
   # Create a stub library that provides symbol definitions
+  # :: String
+  # :: "1.0"
+  # :: Bool
   #
+  # :: String
   # Example:
   #   mk-stub "libcuda.so.1" [ "cuInit" "cuDeviceGet" "cuCtxCreate" ]
   #
+  # :: String
   mk-stub =
     name: symbols:
     let
       stub-src = builtins.toFile "stub.c" (lib.concatMapStringsSep "\n" (s: "void ${s}() {}") symbols);
+    # :: { description : "Stub library providing symbol definitions for linking" }
+    # :: "Stub library providing symbol definitions for linking"
     in
     stdenv.default {
       pname = "${name}-stub";

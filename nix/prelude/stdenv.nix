@@ -31,15 +31,20 @@
 }:
 let
   inherit (final.stdenv.hostPlatform) config;
+  # :: t15
   triple = config;
+# :: t17
 
   translations = import ./translations.nix { inherit lib; };
   inherit (translations) translate-attrs;
+# :: Bool -> {} -> {}
+# :: t20
 
   # Prelude functions (avoid non-lisp-case lib.* calls)
   when = cond: val: if cond then val else { };
   join = builtins.concatStringsSep;
 
+  # :: { base : t22, cflags : t23, extra : {}, ldflags : t24, name : t21 } -> { __functor : t30 -> t31 -> t37, passthru : { aleph : { target : t5 } }, raw : t38, with-flags : { cflags : [t40], ldflags : [t40] } -> {} -> {} }
   # ──────────────────────────────────────────────────────────────────────────
   #                          // stdenv factory //
   # ──────────────────────────────────────────────────────────────────────────
@@ -48,36 +53,52 @@ let
     {
       name,
       base,
+      # :: t29
       cflags,
       ldflags,
+      # :: t23
+      # :: "-std=c++23"
+      # :: t24
       extra ? { },
     }:
     let
       enhanced = final.stdenvAdapters.addAttrsToDerivation (
         turing-registry.attrs
         // {
+          # :: t30 -> t31 -> t37
           NIX_CFLAGS_COMPILE = cflags;
           CXXFLAGS = "-std=c++23";
+          # :: t34
           NIX_LDFLAGS = ldflags;
         }
         // extra
       ) base;
+    # :: { aleph : { target : t5 } }
+    # :: { target : t5 }
     in
+    # :: t5
     enhanced
     // {
       __functor =
         _self: args:
         let
+          # :: t38
           args' = translate-attrs args;
+        # :: { cflags : [t40], ldflags : [t40] } -> {} -> {}
         in
         enhanced.mkDerivation (
           args'
           // {
             passthru = (args'.passthru or { }) // {
               aleph = {
+                # :: t44
+                # :: t48
                 inherit name cflags ldflags;
                 target = triple;
+              # :: { aleph : { target : t5 } }
+              # :: { target : t5 }
               };
+            # :: t5
             };
           }
         );
@@ -87,6 +108,8 @@ let
       with-flags =
         {
           cflags ? [ ],
+          # :: t50
+          # :: Null
           ldflags ? [ ],
         }@extra-flags:
         mk-stdenv {
@@ -98,25 +121,77 @@ let
       passthru = {
         aleph = {
           inherit name cflags ldflags;
+          # :: t115
+          # :: {} -> {}
+          # :: "clang-glibc-dynamic"
+          # :: t59
+          # :: t60
+          # :: t61
           target = triple;
           inherit (turing-registry) attrs;
+        # :: {} -> {}
+        # :: "clang-glibc-static"
+        # :: t67
+        # :: t68
+        # :: t69
         };
       };
+    # :: {} -> {}
+    # :: "clang-musl-dynamic"
+    # :: t75
+    # :: t76
+    # :: t77
     };
 
+  # :: {} -> {}
+  # :: "clang-musl-static"
+  # :: t83
+  # :: t84
+  # :: t85
   # ──────────────────────────────────────────────────────────────────────────
   #                          // stdenv matrix //
+  # :: {} -> {}
+  # :: "gcc-glibc-dynamic"
+  # :: t20
+  # :: t87
+  # :: t88
   # ──────────────────────────────────────────────────────────────────────────
 
+  # :: {} -> {}
+  # :: "gcc-glibc-static"
+  # :: t20
+  # :: t90
+  # :: t91
   gcc-stdenv = final.gcc15Stdenv or final.gcc14Stdenv or final.gcc13Stdenv or final.gccStdenv;
   musl-gcc-stdenv =
+    # :: {} -> {}
+    # :: "gcc-musl-dynamic"
+    # :: { base : t22, cflags : t23, extra : {}, ldflags : t24, name : t21 } -> { __functor : t30 -> t31 -> t37, passthru : { aleph : { target : t5 } }, raw : t38, with-flags : { cflags : [t40], ldflags : [t40] } -> {} -> {} }
+    # :: t93
+    # :: t94
     if platform.is-linux then
       (final.pkgsMusl.gcc15Stdenv or final.pkgsMusl.gcc14Stdenv or final.pkgsMusl.gcc13Stdenv
+        # :: {} -> {}
+        # :: "gcc-musl-static"
+        # :: { base : t22, cflags : t23, extra : {}, ldflags : t24, name : t21 } -> { __functor : t30 -> t31 -> t37, passthru : { aleph : { target : t5 } }, raw : t38, with-flags : { cflags : [t40], ldflags : [t40] } -> {} -> {} }
+        # :: t96
+        # :: t97
         or final.pkgsMusl.gccStdenv
       )
+    # :: t112
+    # :: "nvidia"
+    # :: t105
+    # :: t106
+    # :: t107
+    # :: { CUDA_HOME : t108, CUDA_PATH : t109, NVIDIA_SDK : t110 }
+    # :: t108
+    # :: t109
+    # :: t110
     else
       null;
 
+  # :: t113
+  # :: t114
   # ──────────────────────────────────────────────────────────────────────────
   #                         // linux stdenvs //
   # ──────────────────────────────────────────────────────────────────────────
@@ -149,8 +224,11 @@ let
       cflags = toolchain.musl-static-cflags;
       ldflags = toolchain.musl-static-ldflags;
     };
+# :: Null
+# :: t115
 
     gcc-glibc-dynamic = mk-stdenv {
+      # :: Null
       name = "gcc-glibc-dynamic";
       base = gcc-stdenv;
       cflags = toolchain.glibc-cflags;
