@@ -56,6 +56,7 @@ import Nix.Parser (parseNixFileLoc, parseNixTextLoc)
 import qualified Nix.Utils as Nix
 import NixCompile.Nix.Types
 import NixCompile.Types (Loc (..), Span (..))
+import Text.Megaparsec.Pos (unPos)
 
 -- ============================================================================
 -- Environment
@@ -149,12 +150,20 @@ builtinEnv = TypeEnv $ Map.fromList
 data InferState = InferState
   { inferSupply :: !Int  -- Fresh type variable supply
   , inferSubst :: !Subst -- Current substitution
+  , inferBinds :: ![Binding] -- Collected bindings
   }
 
 type Infer a = State InferState a
 
-runInfer :: Infer a -> a
-runInfer m = evalState m (InferState 0 emptySubst)
+runInfer :: Infer a -> (a, [Binding])
+runInfer m = 
+  let (res, state) = runState m (InferState 0 emptySubst [])
+  in (res, inferBinds state)
+
+-- | Emit a binding
+emitBinding :: Text -> NixType -> Span -> Infer ()
+emitBinding name t span = modify $ \s ->
+  s { inferBinds = Binding name t span : inferBinds s }
 
 -- | Generate a fresh type variable
 freshVar :: Infer NixType
@@ -449,16 +458,26 @@ inferBindings recursive env bindings
       -- Infer bodies and unify
       forM (zip bindings freshVars) $ \(binding, typeVar) -> do
         case binding of
-          Nix.NamedVar (StaticKey name :| []) expr _ -> do
+          Nix.NamedVar (StaticKey name :| []) expr pos -> do
             t <- infer env' expr
             unify typeVar t
+            
+            -- Emit binding
+            t' <- applyCurrentSubst t
+            emitBinding (varNameText name) t' (toSpan pos)
+            
             pure (varNameText name, t)
           _ -> pure ("", typeVar) -- Skip complex bindings for now
   | otherwise = foldM go [] bindings
   where
     go acc binding = case binding of
-      Nix.NamedVar (StaticKey name :| []) expr _ -> do
+      Nix.NamedVar (StaticKey name :| []) expr pos -> do
         t <- infer env expr
+        
+        -- Emit binding
+        t' <- applyCurrentSubst t
+        emitBinding (varNameText name) t' (toSpan pos)
+        
         pure $ acc ++ [(varNameText name, t)]
       _ -> pure acc
 
@@ -466,6 +485,7 @@ inferBindings recursive env bindings
     bindingName _ = Nothing
 
 -- | Infer type for a single binding (used in non-recursive Let)
+-- Note: This is deprecated by inferLet (recursive), but kept for structure
 inferBinding :: TypeEnv -> Nix.Binding NExprLoc -> Infer TypeEnv
 inferBinding env binding = case binding of
   Nix.NamedVar (StaticKey name :| []) expr _ -> do
@@ -484,9 +504,14 @@ inferLet env bindings body = do
   -- Infer bodies and unify
   mapM_ (\(binding, typeVar) -> do
     case binding of
-      Nix.NamedVar (StaticKey _ :| []) expr _ -> do
+      Nix.NamedVar (StaticKey name :| []) expr pos -> do
         t <- infer env' expr
         unify typeVar t
+        
+        -- Emit binding
+        t' <- applyCurrentSubst t
+        emitBinding (varNameText name) t' (toSpan pos)
+        
       _ -> pure ()
     ) (zip bindings freshVars)
     
@@ -529,11 +554,20 @@ data InferResult = InferResult
 
 -- | Infer types for a Nix expression
 inferExpr :: NExprLoc -> Either Text (NixType, [Binding])
-inferExpr expr = Right $ runInfer $ do
-  t <- infer builtinEnv expr
-  t' <- applyCurrentSubst t
-  -- TODO: collect bindings during inference
-  pure (t', [])
+inferExpr expr = 
+  let (t, bindings) = runInfer $ do
+        t <- infer builtinEnv expr
+        applyCurrentSubst t
+  in Right (t, bindings)
+
+-- | Helper to convert SrcSpan to Span
+toSpan :: NSourcePos -> Span
+toSpan (NSourcePos _ (NPos l1) (NPos c1)) =
+  -- NExprLoc gives start pos. We don't have end pos easily from here without traversing expr.
+  -- But we only need start for insertion.
+  Span (Loc (fromIntegral $ unPos l1) (fromIntegral $ unPos c1))
+       (Loc (fromIntegral $ unPos l1) (fromIntegral $ unPos c1)) 
+       Nothing
 
 -- | Infer types for a Nix file
 inferFile :: FilePath -> IO (Either Text InferResult)
