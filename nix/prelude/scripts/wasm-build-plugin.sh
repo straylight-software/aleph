@@ -4,8 +4,8 @@ cd build
 
 # Copy all source files preserving directory structure
 for mod in @moduleFiles@; do
-	mkdir -p "$(dirname "$mod")"
-	cp "$src/$mod" "$mod"
+  mkdir -p "$(dirname "$mod")"
+  cp "$src/$mod" "$mod"
 done
 
 # Compile to WASM reactor module
@@ -19,14 +19,14 @@ done
 # 2. The _initialize export will call hs_init() when properly linked
 # 3. We export hs_init for explicit initialization by the host
 @ghcWasm@/bin/wasm32-wasi-ghc \
-	-optl-mexec-model=reactor \
-	'-optl-Wl,--allow-undefined' \
-	'-optl-Wl,--export=hs_init' \
-	@exportFlags@ \
-	-O2 \
-	@ghcFlags@ \
-	@mainModulePath@ \
-	-o plugin.wasm
+  -optl-mexec-model=reactor \
+  '-optl-Wl,--allow-undefined' \
+  '-optl-Wl,--export=hs_init' \
+  @exportFlags@ \
+  -O2 \
+  @ghcFlags@ \
+  @mainModulePath@ \
+  -o plugin.wasm
 
 # Optionally optimize with wasm-opt
 @ghcWasm@/bin/wasm-opt -O3 plugin.wasm -o "$out"

@@ -85,7 +85,8 @@ message BatchReadBlobsRequest {
 
 // A response message for ContentAddressableStorage.BatchReadBlobs.
 message BatchReadBlobsResponse {
-  // A response corresponding to a single blob that the client tried to download.
+  // A response corresponding to a single blob that the client tried to
+  // download.
   message Response {
     // The digest to which this response corresponds.
     Digest digest = 1;
@@ -105,10 +106,12 @@ message BatchReadBlobsResponse {
 // outputs from the execution service.
 service ContentAddressableStorage {
   // Determine if blobs are present in the CAS.
-  rpc FindMissingBlobs(FindMissingBlobsRequest) returns (FindMissingBlobsResponse);
+  rpc FindMissingBlobs(FindMissingBlobsRequest)
+      returns (FindMissingBlobsResponse);
 
   // Upload many blobs at once.
-  rpc BatchUpdateBlobs(BatchUpdateBlobsRequest) returns (BatchUpdateBlobsResponse);
+  rpc BatchUpdateBlobs(BatchUpdateBlobsRequest)
+      returns (BatchUpdateBlobsResponse);
 
   // Download many blobs at once.
   rpc BatchReadBlobs(BatchReadBlobsRequest) returns (BatchReadBlobsResponse);

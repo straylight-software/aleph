@@ -20,31 +20,31 @@ GUEST_IP="172.16.0.2"
 GATEWAY="172.16.0.1"
 NETMASK="/30"
 if [ -f /etc/network-config ]; then
-	# shellcheck source=/dev/null
-	. /etc/network-config
+  # shellcheck source=/dev/null
+  . /etc/network-config
 fi
 
 ip link set lo up 2>/dev/null || true
 if [ -e /sys/class/net/eth0 ]; then
-	ip link set eth0 up 2>/dev/null || true
-	ip addr add "${GUEST_IP}${NETMASK}" dev eth0 2>/dev/null || true
-	ip route add default via "${GATEWAY}" 2>/dev/null || true
-	echo "nameserver 8.8.8.8" >/etc/resolv.conf
-	echo "nameserver 1.1.1.1" >>/etc/resolv.conf
+  ip link set eth0 up 2>/dev/null || true
+  ip addr add "${GUEST_IP}${NETMASK}" dev eth0 2>/dev/null || true
+  ip route add default via "${GATEWAY}" 2>/dev/null || true
+  echo "nameserver 8.8.8.8" >/etc/resolv.conf
+  echo "nameserver 1.1.1.1" >>/etc/resolv.conf
 fi
 
 # Run build command if it exists
 if [ -f /build-cmd ]; then
-	chmod +x /build-cmd
-	/build-cmd
-	EXIT=$?
-	echo ":: Build exit code: $EXIT"
-	echo o >/proc/sysrq-trigger
+  chmod +x /build-cmd
+  /build-cmd
+  EXIT=$?
+  echo ":: Build exit code: $EXIT"
+  echo o >/proc/sysrq-trigger
 fi
 
 # Fallback to shell if no build command
 if [ -x /bin/bash ]; then
-	exec /bin/bash
+  exec /bin/bash
 else
-	exec /bin/sh
+  exec /bin/sh
 fi

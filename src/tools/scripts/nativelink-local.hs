@@ -8,7 +8,7 @@ Usage: nativelink-local [OPTIONS] [COMPONENT]
 
 Components:
   scheduler   Run scheduler only
-  cas         Run CAS only  
+  cas         Run CAS only
   worker      Run worker only
   all         Run all components (default)
   shell       Shell into a running container
@@ -30,8 +30,8 @@ module Main where
 import Aleph.Script
 import qualified Aleph.Script.Oci as Oci
 import qualified Aleph.Script.Tools.Bwrap as Bwrap
-import qualified Data.Text as T
 import Data.Function ((&))
+import qualified Data.Text as T
 import System.Environment (getArgs)
 
 data Runtime = Firecracker | OciNamespace
@@ -49,28 +49,29 @@ data Component = All | Scheduler | Cas | Worker | Shell Text
     deriving (Eq, Show)
 
 defaultConfig :: Config
-defaultConfig = Config
-    { cfgRuntime = Firecracker
-    , cfgCpus = 2
-    , cfgMemMib = 1024
-    , cfgComponent = All
-    , cfgImageOverride = Nothing
-    }
+defaultConfig =
+    Config
+        { cfgRuntime = Firecracker
+        , cfgCpus = 2
+        , cfgMemMib = 1024
+        , cfgComponent = All
+        , cfgImageOverride = Nothing
+        }
 
 parseArgs :: [String] -> Config
 parseArgs = go defaultConfig
   where
     go cfg [] = cfg
-    go cfg ("--fc" : rest) = go cfg { cfgRuntime = Firecracker } rest
-    go cfg ("--oci" : rest) = go cfg { cfgRuntime = OciNamespace } rest
-    go cfg ("--cpus" : n : rest) = go cfg { cfgCpus = read n } rest
-    go cfg ("--mem" : n : rest) = go cfg { cfgMemMib = read n } rest
-    go cfg ("--image" : i : rest) = go cfg { cfgImageOverride = Just (pack i) } rest
-    go cfg ("scheduler" : rest) = go cfg { cfgComponent = Scheduler } rest
-    go cfg ("cas" : rest) = go cfg { cfgComponent = Cas } rest
-    go cfg ("worker" : rest) = go cfg { cfgComponent = Worker } rest
-    go cfg ("all" : rest) = go cfg { cfgComponent = All } rest
-    go cfg ("shell" : name : rest) = go cfg { cfgComponent = Shell (pack name) } rest
+    go cfg ("--fc" : rest) = go cfg{cfgRuntime = Firecracker} rest
+    go cfg ("--oci" : rest) = go cfg{cfgRuntime = OciNamespace} rest
+    go cfg ("--cpus" : n : rest) = go cfg{cfgCpus = read n} rest
+    go cfg ("--mem" : n : rest) = go cfg{cfgMemMib = read n} rest
+    go cfg ("--image" : i : rest) = go cfg{cfgImageOverride = Just (pack i)} rest
+    go cfg ("scheduler" : rest) = go cfg{cfgComponent = Scheduler} rest
+    go cfg ("cas" : rest) = go cfg{cfgComponent = Cas} rest
+    go cfg ("worker" : rest) = go cfg{cfgComponent = Worker} rest
+    go cfg ("all" : rest) = go cfg{cfgComponent = All} rest
+    go cfg ("shell" : name : rest) = go cfg{cfgComponent = Shell (pack name)} rest
     go cfg (_ : rest) = go cfg rest
 
 -- | Get the nix package output path for a container
@@ -85,33 +86,38 @@ runFirecracker :: Config -> Text -> [Text] -> Sh ()
 runFirecracker cfg name cmd = do
     echo $ ":: Starting " <> name <> " in Firecracker microVM"
     imagePath <- getContainerImage ("nativelink-" <> name)
-    
+
     -- isospin-run expects OCI image reference, but we have nix2container output
     -- For local dev, use unshare-run instead or convert
-    run_ "isospin-run" $ 
-        [ "--cpus", pack (show $ cfgCpus cfg)
-        , "--mem", pack (show $ cfgMemMib cfg)
-        ] ++ [imagePath] ++ cmd
+    run_ "isospin-run" $
+        [ "--cpus"
+        , pack (show $ cfgCpus cfg)
+        , "--mem"
+        , pack (show $ cfgMemMib cfg)
+        ]
+            ++ [imagePath]
+            ++ cmd
 
 -- | Run container with OCI namespace (bubblewrap)
 runOci :: Config -> Text -> [Text] -> Sh ()
 runOci cfg name cmd = do
     echo $ ":: Starting " <> name <> " in OCI namespace"
-    
+
     -- Get the container image path (unused for now, using image name)
     _ <- getContainerImage ("nativelink-" <> name)
-    
+
     -- nix2container outputs are JSON manifests, extract rootfs
     let image = fromMaybe ("nativelink-" <> name) (cfgImageOverride cfg)
-    
+
     -- Pull or use cached
     rootfs <- Oci.pullOrCache Oci.defaultConfig image
-    
+
     -- Build sandbox with extra mounts for nativelink
-    let sandbox = Oci.baseSandbox rootfs
-            & Bwrap.bind "/tmp/nativelink" "/tmp/nativelink"
-            & Bwrap.bind "/data" "/data"
-    
+    let sandbox =
+            Oci.baseSandbox rootfs
+                & Bwrap.bind "/tmp/nativelink" "/tmp/nativelink"
+                & Bwrap.bind "/data" "/data"
+
     Bwrap.exec sandbox (if Prelude.null cmd then ["/bin/bash"] else cmd)
 
 -- | Run a component
@@ -122,9 +128,10 @@ runComponent cfg name = do
             OciNamespace -> runOci
     runner cfg name []
 
--- | Run all components
--- For local development, run each in foreground sequentially.
--- Use tmux or separate terminals for parallel operation.
+{- | Run all components
+For local development, run each in foreground sequentially.
+Use tmux or separate terminals for parallel operation.
+-}
 runAll :: Config -> Sh ()
 runAll cfg = do
     echo ":: NativeLink stack components:"
@@ -152,7 +159,7 @@ main :: IO ()
 main = do
     args <- getArgs
     let cfg = parseArgs args
-    
+
     script $ do
         echo "╔══════════════════════════════════════════════════════════════════╗"
         echo "║           NativeLink Local Development                           ║"
@@ -160,17 +167,16 @@ main = do
         echo ""
         echo $ "Runtime: " <> pack (show $ cfgRuntime cfg)
         echo ""
-        
+
         -- Ensure temp directories exist
         mkdirP "/tmp/nativelink"
-        mkdirP "/data" `catch` (\(_ :: SomeException) -> pure ())  -- /data may need root
-        
+        mkdirP "/data" `catch` (\(_ :: SomeException) -> pure ()) -- /data may need root
         case cfgComponent cfg of
             Scheduler -> runComponent cfg "scheduler"
             Cas -> runComponent cfg "cas"
             Worker -> runComponent cfg "worker"
             All -> runAll cfg
             Shell name -> shellInto cfg name
-        
+
         echo ""
         echo ":: Done!"

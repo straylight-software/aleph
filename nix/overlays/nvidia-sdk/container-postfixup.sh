@@ -5,9 +5,9 @@ libPaths="$out/lib"
 libPaths="$libPaths:@runtimeLibPath@"
 
 for exe in $out/bin/*; do
-	if [ -f "$exe" ] && [ -x "$exe" ]; then
-		wrapProgram "$exe" \
-			--prefix LD_LIBRARY_PATH : "$libPaths" \
-			--prefix PYTHONPATH : "$out/python" 2>/dev/null || true
-	fi
+  if [ -f "$exe" ] && [ -x "$exe" ]; then
+    wrapProgram "$exe" \
+      --prefix LD_LIBRARY_PATH : "$libPaths" \
+      --prefix PYTHONPATH : "$out/python" 2>/dev/null || true
+  fi
 done

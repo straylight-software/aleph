@@ -107,8 +107,7 @@ in
             interpreter = pkg;
             build = attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs);
             app = attrs: pkgs'.buildPythonApplication (aleph.translate-attrs attrs);
-            lib =
-              attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs // { format = "setuptools"; });
+            lib = attrs: pkgs'.buildPythonPackage (aleph.translate-attrs attrs // { format = "setuptools"; });
           };
 
         ghc =
@@ -245,20 +244,11 @@ in
           header-only = aleph.stdenv.default;
           nvidia = {
             build =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
             kernel =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
             host =
-              attrs:
-              (aleph.stdenv.nvidia or aleph.stdenv.default) (
-                builtins.removeAttrs attrs [ "target-gpu" ]
-              );
+              attrs: (aleph.stdenv.nvidia or aleph.stdenv.default) (builtins.removeAttrs attrs [ "target-gpu" ]);
           };
         };
 

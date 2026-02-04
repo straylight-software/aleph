@@ -244,7 +244,7 @@ in
   alephenv-static = stdenv.static or stdenv.default;
   alephenv-musl = stdenv.clang-musl-dynamic or stdenv.default;
   alephenv-musl-static = stdenv.portable or stdenv.default;
-  alephenv-nvidia = if stdenv ? nvidia then stdenv.nvidia else null;
+  alephenv-nvidia = stdenv.nvidia or null;
   aleph-cross = cross;
   alephenv-info = final.aleph.info;
 }

@@ -40,8 +40,8 @@ let
   };
 
   hs-pkgs = haskellPackages;
-  ghc = hs-pkgs.ghc;
-  proto-lens-protoc = hs-pkgs.proto-lens-protoc;
+  inherit (hs-pkgs) ghc;
+  inherit (hs-pkgs) proto-lens-protoc;
 in
 stdenv.mkDerivation {
   pname = "armitage-proto";

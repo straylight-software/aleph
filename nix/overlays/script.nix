@@ -182,7 +182,7 @@ in
 
       # GHC with Aleph.Script modules available
       ghc = ghc-with-script;
-      ghc-with-tests = ghc-with-tests;
+      inherit ghc-with-tests;
 
       # ──────────────────────────────────────────────────────────────────────
       # // gen-wrapper //

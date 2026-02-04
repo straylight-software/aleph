@@ -47,7 +47,7 @@ let
   to-upper = lib.toUpper;
   replace-strings = builtins.replaceStrings;
   optional-string = lib.optionalString;
-  optional = lib.optional;
+  inherit (lib) optional;
 
   cfg = config.aleph.lre;
   # Remote execution config (from build module, with defaults if not present)
@@ -126,7 +126,6 @@ in
       {
         pkgs,
         system,
-        lib,
         ...
       }:
       let
@@ -164,9 +163,9 @@ in
         buckconfig-re-file =
           if remote-cfg.enable then
             render-dhall "lre-buckconfig-remote.ini" ./scripts/lre-buckconfig-remote.dhall {
-              scheduler = remote-cfg.scheduler;
+              inherit (remote-cfg) scheduler;
               scheduler_port = toString remote-cfg.scheduler-port;
-              cas = remote-cfg.cas;
+              inherit (remote-cfg) cas;
               cas_port = toString remote-cfg.cas-port;
               tls = if remote-cfg.tls then "true" else "false";
               protocol = if remote-cfg.tls then "grpcs" else "grpc";

@@ -14,7 +14,7 @@
 #
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { inputs }:
-final: prev:
+_final: prev:
 let
   inherit (prev.haskell.lib) doJailbreak dontCheck appendPatch;
 

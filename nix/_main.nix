@@ -159,7 +159,6 @@ in
     {
       pkgs,
       system,
-      config,
       ...
     }:
     let
@@ -381,7 +380,7 @@ in
         # Built via GHC from overlay, not Buck2 (faster for Nix builds)
         # For Buck2: buck2 build //src/armitage:armitage
         armitage = pkgs.armitage-cli;
-        armitage-proxy = pkgs.armitage-proxy;
+        inherit (pkgs) armitage-proxy;
       }
       // optional-attrs (pkgs ? mdspan) { inherit (pkgs) mdspan; }
       // optional-attrs (system == "x86_64-linux" || system == "aarch64-linux") (

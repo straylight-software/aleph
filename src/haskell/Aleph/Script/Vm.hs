@@ -269,10 +269,11 @@ firecrackerConfigJson FirecrackerConfig{..} = do
         filterWithNet
         []
 
--- | Setup TAP device on host for VM networking
---
--- Creates TAP device, assigns IP, enables forwarding and NAT.
--- Requires root/sudo. Returns the TAP device name.
+{- | Setup TAP device on host for VM networking
+
+Creates TAP device, assigns IP, enables forwarding and NAT.
+Requires root/sudo. Returns the TAP device name.
+-}
 setupTap :: FirecrackerNetwork -> Sh ()
 setupTap FirecrackerNetwork{..} = do
     -- Delete existing TAP if present (ignore errors)

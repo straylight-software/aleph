@@ -136,11 +136,12 @@ runWithConfig FirecrackerConfig{..} = do
 
             -- Write network config for init script to read
             when enableNet $ do
-                let netConfigContent = T.unlines
-                        [ "GUEST_IP=" <> Vm.fnGuestIp netCfg
-                        , "GATEWAY=" <> Vm.fnTapIp netCfg
-                        , "NETMASK=" <> Vm.fnMask netCfg
-                        ]
+                let netConfigContent =
+                        T.unlines
+                            [ "GUEST_IP=" <> Vm.fnGuestIp netCfg
+                            , "GATEWAY=" <> Vm.fnTapIp netCfg
+                            , "NETMASK=" <> Vm.fnMask netCfg
+                            ]
                 -- Ensure /etc exists in rootfs (should already from OCI image)
                 mkdirP (rootfsDir </> "etc")
                 liftIO $ Prelude.writeFile (rootfsDir </> "etc/network-config") (unpack netConfigContent)

@@ -3,23 +3,27 @@
   tree-sitter-grammars,
   tree-sitter,
   ast-grep,
-  writers,
   lib,
+  dhall,
 }:
 let
-  inherit (pkgs.aleph) write-shell-application;
-
+  inherit (pkgs.aleph) write-shell-application run-command;
   linter-src = ../../linter;
 
-  sgconfig = {
-    "ruleDirs" = [ "${linter-src}/rules" ];
-    "testConfigs" = [
-      { "testDir" = "${linter-src}/rule-tests"; }
-    ];
-    "utilDirs" = [ "${linter-src}/utils" ];
-  };
+  ast-grep-config =
+    run-command "ast-grep-config"
+      {
+        native-build-inputs = [ dhall ];
+      }
+      ''
+        mkdir -p $out
+        export XDG_CACHE_HOME=$TMPDIR/.cache
+        mkdir -p $XDG_CACHE_HOME/dhall
 
-  sgconfig-yml = writers.writeYAML "sgconfig.yaml" sgconfig;
+        ln -sf ${pkgs.dhallPackages.Prelude}/.cache/dhall/* $XDG_CACHE_HOME/dhall/
+
+        dhall to-directory-tree --file ${linter-src}/generate.dhall --output $out
+      '';
 in
 write-shell-application {
   name = "aleph-lint";
@@ -28,22 +32,18 @@ write-shell-application {
     tree-sitter
     tree-sitter-grammars.tree-sitter-nix
   ];
-  derivation-args.post-check = ''
-    echo "Checking config ${sgconfig-yml}"
 
-    ${lib.getExe ast-grep} \
-      --config ${sgconfig-yml} \
-      test
+  derivation-args.postCheck = ''
+    cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
+    trap 'rm -rf ./__aleph-lint-config' EXIT
+
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yml test --update-all
   '';
-  text = ''
-    cp --no-preserve=mode --force ${sgconfig-yml} ./__sgconfig.yml
-    trap 'rm -f ./__sgconfig.yml' EXIT
 
-    ${lib.getExe ast-grep} \
-      --config ./__sgconfig.yml \
-      scan \
-      --context 2 \
-      --color always \
-      "$@"
+  text = ''
+    cp -r --no-preserve=mode,ownership ${ast-grep-config} ./__aleph-lint-config
+    trap 'rm -rf ./__aleph-lint-config' EXIT
+
+    ${lib.getExe ast-grep} --config ./__aleph-lint-config/sgconfig.yml scan --context 2 --color always "$@"
   '';
 }

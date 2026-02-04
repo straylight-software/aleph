@@ -50,7 +50,6 @@ let
   cfg = config.services.armitage-proxy;
 
   # Proxy URL used throughout
-  proxy-url = "http://${cfg.listen-address}:${to-string cfg.port}";
 
 in
 {

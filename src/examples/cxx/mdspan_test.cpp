@@ -229,4 +229,6 @@ auto implementation() -> int {
 
 } // namespace straylight::examples
 
-auto main(int argc, char* argv[]) -> int { return straylight::examples::implementation(); }
+auto main(int argc, char *argv[]) -> int {
+  return straylight::examples::implementation();
+}
