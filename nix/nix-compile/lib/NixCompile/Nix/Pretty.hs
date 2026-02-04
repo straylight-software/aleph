@@ -11,7 +11,7 @@ module NixCompile.Nix.Pretty
   )
 where
 
-import Data.List (sortBy)
+import Data.List (foldl', sortBy)
 import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -26,7 +26,9 @@ annotateSource src InferResult {..} =
       bindingAnns = map mkBindingAnn irBindings
       -- Sort by position (reverse order to keep indices valid)
       anns = sortBy (flip (comparing annLoc)) bindingAnns
-   in foldr applyAnn src anns
+      -- Use foldl' with flipped applyAnn to process top-down (descending line numbers)
+      -- This ensures that inserting at line 100 doesn't affect the index for line 10.
+   in foldl' (flip applyAnn) src anns
 
 -- | Annotation to insert
 data Ann = Ann
