@@ -55,6 +55,12 @@ let lints
       , ./lints/haskell/no-deep-nesting.dhall
       , ./lints/haskell/no-error-undefined.dhall
       , ./lints/haskell/no-partial-functions.dhall
+      , ./lints/python/prefer-f-strings.dhall
+      , ./lints/python/prefer-union-pipe.dhall
+      , ./lints/python/no-single-quotes.dhall
+      , ./lints/python/prefer-lowercase-types.dhall
+      , ./lints/python/no-short-abbreviations.dhall
+      , ./lints/python/missing-type-hints.dhall
       ]
 
 let renderToEntry
