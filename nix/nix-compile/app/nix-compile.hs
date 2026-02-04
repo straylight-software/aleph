@@ -277,10 +277,10 @@ cmdTypeCheck path = do
   
   TIO.putStrLn $ T.unlines
     [ ""
-    , "╔════════════════════════════════════════════════════════════╗"
-    , "║  nix-compile typecheck                                      ║"
-    , "║  " <> T.pack (padRight 54 (show (length files) <> " files")) <> "║"
-    , "╚════════════════════════════════════════════════════════════╝"
+    , "================================================================"
+    , "  nix-compile typecheck"
+    , "  " <> T.pack (show (length files) <> " files")
+    , "================================================================"
     , ""
     ]
   
@@ -294,12 +294,11 @@ cmdTypeCheck path = do
   
   TIO.putStrLn $ T.unlines
     [ ""
-    , "╔════════════════════════════════════════════════════════════╗"
-    , "║  Summary                                                    ║"
-    , "╠════════════════════════════════════════════════════════════╣"
-    , "║  " <> T.pack (padRight 54 (show successCount <> " ✓ passed")) <> "║"
-    , "║  " <> T.pack (padRight 54 (show (length failures) <> " ✗ failed")) <> "║"
-    , "╚════════════════════════════════════════════════════════════╝"
+    , "================================================================"
+    , "  Summary"
+    , "  " <> T.pack (show successCount <> " passed")
+    , "  " <> T.pack (show (length failures) <> " failed")
+    , "================================================================"
     , ""
     ]
   
@@ -336,9 +335,9 @@ cmdTypeCheck path = do
         Left (e :: SomeException) -> do
           log $ T.unlines
             [ ""
-            , "━━━ ✗ " <> T.pack file <> " ━━━"
+            , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
             , ""
-            , "  💥 Internal error (this is a bug in nix-compile):"
+            , "  INTERNAL ERROR (this is a bug in nix-compile):"
             , ""
             , T.unlines $ map ("     " <>) $ T.lines $ T.pack $ show e
             ]
@@ -346,22 +345,25 @@ cmdTypeCheck path = do
         Right (Left err) -> do
           log $ T.unlines
             [ ""
-            , "━━━ ✗ " <> T.pack file <> " ━━━"
+            , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
             , ""
             , formatError err
             , ""
             ]
           return False
         Right (Right t) -> do
-          log $ "✓ " <> T.pack file
+          log $ check <> " " <> T.pack file
           return True
       where
+        check = "[OK]"
+        cross = "[XX]"
+        
         formatError :: T.Text -> T.Text
         formatError err = 
           let lines' = T.lines err
           in case lines' of
-               (first:rest) -> T.unlines $ ("  ❌ " <> first) : map ("     " <>) rest
-               [] -> "  ❌ unknown error"
+               (first:rest) -> T.unlines $ ("  ERROR: " <> first) : map ("         " <>) rest
+               [] -> "  ERROR: unknown error"
 
     try :: IO a -> IO (Either SomeException a)
     try act = catch (Right <$> act) (\e -> return (Left e))
