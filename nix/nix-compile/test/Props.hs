@@ -46,6 +46,8 @@ import NixCompile.Emit.Config (buildConfigTree, ConfigTree(..))
 import NixCompile.Infer.Constraint (factsToConstraints, factToConstraints)
 import NixCompile.Infer.Unify (unify, unifyAll, solve)
 import NixCompile.Schema.Build (buildSchema, resolveType)
+import NixCompile.Nix.Effect
+import qualified NixCompile.Nix.Types as NT
 import NixCompile.Types
 import System.Exit (exitFailure, exitSuccess)
 import Test.QuickCheck
@@ -790,6 +792,48 @@ genConfigScript = do
     return $ T.unlines [assign, cfg]
   return $ T.concat assignments
 
+-- | Monoid Identity: empty `merge` s = s
+prop_overlay_identity_left :: OverlaySignature -> Bool
+prop_overlay_identity_left s =
+  let empty = OverlaySignature Set.empty Set.empty
+   in mergeSignatures empty s == s
+
+-- | Monoid Identity: s `merge` empty = s
+prop_overlay_identity_right :: OverlaySignature -> Bool
+prop_overlay_identity_right s =
+  let empty = OverlaySignature Set.empty Set.empty
+   in mergeSignatures s empty == s
+
+-- | Associativity: (a <> b) <> c == a <> (b <> c)
+prop_overlay_assoc :: OverlaySignature -> OverlaySignature -> OverlaySignature -> Bool
+prop_overlay_assoc a b c =
+  mergeSignatures (mergeSignatures a b) c == mergeSignatures a (mergeSignatures b c)
+
+-- | Satisfaction: Defining 'x' satisfies upstream requirement for 'x'
+prop_overlay_satisfaction :: Text -> Bool
+prop_overlay_satisfaction name =
+  let t = NT.TInt
+      -- Producer: defines 'name'
+      p = OverlaySignature Set.empty (Set.singleton (Define name t))
+      -- Consumer: requires 'name'
+      c = OverlaySignature (Set.singleton (RequireUpstream name t)) Set.empty
+      -- Merge
+      m = mergeSignatures p c
+   in Set.null (osCoeffects m) -- Requirement should be gone
+
+-- | Propagation: Unrelated requirements propagate
+prop_overlay_propagation :: Text -> Text -> Property
+prop_overlay_propagation n1 n2 =
+  n1 /= n2 ==>
+    let t = NT.TInt
+        -- Producer: defines 'n1'
+        p = OverlaySignature Set.empty (Set.singleton (Define n1 t))
+        -- Consumer: requires 'n2'
+        c = OverlaySignature (Set.singleton (RequireUpstream n2 t)) Set.empty
+        -- Merge
+        m = mergeSignatures p c
+     in Set.member (RequireUpstream n2 t) (osCoeffects m)
+
 -- ============================================================================
 -- Main
 -- ============================================================================
@@ -872,6 +916,13 @@ main = do
     , run "stress_chain" prop_stress_chain
     , run "unify_transitivity" prop_unify_transitivity
     , run "schema_config_paths" prop_schema_config_paths
+    
+    -- Overlay Algebra
+    , run "overlay_identity_left" prop_overlay_identity_left
+    , run "overlay_identity_right" prop_overlay_identity_right
+    , run "overlay_assoc" prop_overlay_assoc
+    , run "overlay_satisfaction" prop_overlay_satisfaction
+    , run "overlay_propagation" prop_overlay_propagation
     ]
 
   putStrLn ""
