@@ -68,7 +68,7 @@ let
       transformers
       mtl
       time
-      # render.nix: bash parsing and type inference
+      # nix-compile.nix: bash parsing and type inference
       ShellCheck # bash AST parser
       hnix # Nix expression parser (for store path extraction)
     ];
@@ -161,7 +161,7 @@ let
     };
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // render.nix //
+  # // nix-compile //
   # ────────────────────────────────────────────────────────────────────────────
   #
   # Type inference for bash scripts at Nix eval time.
@@ -171,36 +171,36 @@ let
   #   - Store path references
   #   - config.* structured assignments
   #
-  # Source: nix/render/
+  # Source: nix/nix-compile/
 
-  render-lib = ../render/lib;
-  render-app = ../render/app;
+  nix-compile-lib = ../nix-compile/lib;
+  nix-compile-app = ../nix-compile/app;
 
-  render-cli = final.writeShellApplication {
-    name = "render";
+  nix-compile-cli = final.writeShellApplication {
+    name = "nix-compile";
     "runtimeInputs" = [ ghc-with-script ];
     text = ''
-      exec runghc -i${render-lib} ${render-app}/render.hs "$@"
+      exec runghc -i${nix-compile-lib} ${nix-compile-app}/nix-compile.hs "$@"
     '';
   };
 
-  render-compiled = final.stdenv.mkDerivation {
-    name = "render";
-    src = ../render;
+  nix-compile-compiled = final.stdenv.mkDerivation {
+    name = "nix-compile";
+    src = ../nix-compile;
     "dontUnpack" = true;
     "nativeBuildInputs" = [ ghc-with-script ];
     "buildPhase" = ''
       runHook preBuild
       ghc -O2 -Wall -Wno-unused-imports \
         -hidir . -odir . \
-        -i${render-lib} \
-        -o render ${render-app}/render.hs
+        -i${nix-compile-lib} \
+        -o nix-compile ${nix-compile-app}/nix-compile.hs
       runHook postBuild
     '';
     "installPhase" = ''
       runHook preInstall
       mkdir -p $out/bin
-      cp render $out/bin/
+      cp nix-compile $out/bin/
       runHook postInstall
     '';
   };
@@ -567,22 +567,22 @@ in
     };
 
     # ──────────────────────────────────────────────────────────────────────────
-    # // render //
+    # // nix-compile //
     # ──────────────────────────────────────────────────────────────────────────
     #
     # Type inference for bash scripts.
     #
-    #   aleph.render.cli         CLI: render parse|infer|check
-    #   aleph.render.compiled    Compiled binary (faster)
-    #   aleph.render.parse       IFD: script -> Nix attrset schema
-    #   aleph.render.check       Derivation that fails on policy violations
+    #   aleph.nix-compile.cli         CLI: nix-compile parse|infer|check
+    #   aleph.nix-compile.compiled    Compiled binary (faster)
+    #   aleph.nix-compile.parse       IFD: script -> Nix attrset schema
+    #   aleph.nix-compile.check       Derivation that fails on policy violations
     #
     # Usage:
-    #   render infer ./deploy.sh | jq '.env'
-    #   schema = aleph.render.parse ./deploy.sh;
-    #   checks.deploy = aleph.render.check ./deploy.sh;
+    #   nix-compile infer ./deploy.sh | jq '.env'
+    #   schema = aleph.nix-compile.parse ./deploy.sh;
+    #   checks.deploy = aleph.nix-compile.check ./deploy.sh;
 
-    render =
+    nix-compile =
       let
         inherit (prev) lib;
 
@@ -590,17 +590,17 @@ in
         # // mkScript //
         # ────────────────────────────────────────────────────────────────────
         #
-        # Build a shell script with render.nix analysis and emit-config.
+        # Build a shell script with nix-compile.nix analysis and emit-config.
         #
         # Simple form:
-        #   aleph.render.mkScript "my-script" ''
+        #   aleph.nix-compile.mkScript "my-script" ''
         #     PORT="''${PORT:-8080}"
         #     config.server.port=$PORT
         #     exec ${pkgs.myapp}/bin/myapp --config <(emit-config)
         #   ''
         #
         # Full form:
-        #   aleph.render.mkScript {
+        #   aleph.nix-compile.mkScript {
         #     name = "my-script";
         #     script = ''...'';
         #     deps = [ pkgs.jq ];           # Added to PATH
@@ -621,10 +621,10 @@ in
               else if builtins.isAttrs arg1 then
                 arg1
               else
-                throw "render.mkScript: expected (name, script) or { name, script, ... }";
+                throw "nix-compile.mkScript: expected (name, script) or { name, script, ... }";
 
-            name = args.name or (throw "render.mkScript: 'name' is required");
-            script = args.script or (throw "render.mkScript: 'script' is required");
+            name = args.name or (throw "nix-compile.mkScript: 'name' is required");
+            script = args.script or (throw "nix-compile.mkScript: 'script' is required");
             deps = args.deps or [ ];
             requireStorePaths = args.requireStorePaths or true;
             injectEmitConfig = args.injectEmitConfig or true;
@@ -636,20 +636,20 @@ in
             emitConfigDrv =
               final.runCommand "${name}-emit-config"
                 {
-                  nativeBuildInputs = [ render-cli ];
+                  nativeBuildInputs = [ nix-compile-cli ];
                 }
                 ''
-                  render emit ${scriptFile} > $out
+                  nix-compile emit ${scriptFile} > $out
                 '';
 
             # Policy check derivation (bare commands)
             policyCheckDrv =
               final.runCommand "${name}-policy-check"
                 {
-                  nativeBuildInputs = [ render-cli ];
+                  nativeBuildInputs = [ nix-compile-cli ];
                 }
                 ''
-                  render check ${scriptFile}
+                  nix-compile check ${scriptFile}
                   touch $out
                 '';
 
@@ -659,10 +659,10 @@ in
                 result =
                   final.runCommand "${name}-schema"
                     {
-                      nativeBuildInputs = [ render-cli ];
+                      nativeBuildInputs = [ nix-compile-cli ];
                     }
                     ''
-                      render infer ${scriptFile} > $out
+                      nix-compile infer ${scriptFile} > $out
                     '';
               in
               builtins.fromJSON (builtins.readFile result);
@@ -720,10 +720,10 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         # CLI tool (interpreted, fast iteration)
-        cli = render-cli;
+        cli = nix-compile-cli;
 
         # Compiled binary (for CI)
-        compiled = render-compiled;
+        compiled = nix-compile-compiled;
 
         # ──────────────────────────────────────────────────────────────────────
         # // Nix integration //
@@ -733,8 +733,8 @@ in
         parse =
           scriptPath:
           let
-            result = final.runCommand "render-schema" { nativeBuildInputs = [ render-cli ]; } ''
-              render infer ${scriptPath} > $out
+            result = final.runCommand "nix-compile-schema" { nativeBuildInputs = [ nix-compile-cli ]; } ''
+              nix-compile infer ${scriptPath} > $out
             '';
           in
           builtins.fromJSON (builtins.readFile result);
@@ -742,12 +742,12 @@ in
         # Check derivation - fails if script has policy violations
         check =
           scriptPath:
-          final.runCommand "render-check-${builtins.baseNameOf scriptPath}"
+          final.runCommand "nix-compile-check-${builtins.baseNameOf scriptPath}"
             {
-              nativeBuildInputs = [ render-cli ];
+              nativeBuildInputs = [ nix-compile-cli ];
             }
             ''
-              render check ${scriptPath}
+              nix-compile check ${scriptPath}
               touch $out
             '';
 
@@ -756,8 +756,8 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         src = {
-          lib = render-lib;
-          app = render-app;
+          lib = nix-compile-lib;
+          app = nix-compile-app;
         };
 
         # ──────────────────────────────────────────────────────────────────────
@@ -765,17 +765,17 @@ in
         # ──────────────────────────────────────────────────────────────────────
 
         shell = final.mkShell {
-          name = "render-shell";
+          name = "nix-compile-shell";
           buildInputs = [
             ghc-with-script
-            render-cli
+            nix-compile-cli
             final.jq
           ];
           shellHook = ''
-            echo "render.nix development shell"
-            echo "  render parse <script>   Show facts"
-            echo "  render infer <script>   Show schema (JSON)"
-            echo "  render check <script>   Check policies"
+            echo "nix-compile.nix development shell"
+            echo "  nix-compile parse <script>   Show facts"
+            echo "  nix-compile infer <script>   Show schema (JSON)"
+            echo "  nix-compile check <script>   Check policies"
           '';
         };
       };
