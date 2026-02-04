@@ -314,10 +314,14 @@ cmdTypeCheck path = do
       entries <- listDirectory dir
       paths <- forM entries $ \entry -> do
         let fullPath = dir </> entry
-        isD <- doesDirectoryExist fullPath
-        if isD
-          then findAllNixFiles fullPath
-          else return [fullPath | takeExtension fullPath == ".nix"]
+        -- Skip excluded directories
+        if entry `elem` [".git", ".direnv", "node_modules", ".cache", ".lake", "result", "result-lib", "target"]
+          then return []
+          else do
+            isD <- doesDirectoryExist fullPath
+            if isD
+              then findAllNixFiles fullPath
+              else return [fullPath | takeExtension fullPath == ".nix"]
       return (concat paths)
 
     checkFile :: (T.Text -> IO ()) -> FilePath -> IO Bool
