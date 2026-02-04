@@ -108,9 +108,16 @@ This reports:
 *   **No `rec`**: Use `let` bindings for mutual recursion.
 *   **Static Keys**: Avoid `${dynamic}` attribute names.
 
+## // detailed documentation //
+
+*   **[Internals](nix-compile-internals.md)**: Deep dive into the architecture, theory, and type system implementation.
+*   **[Reference](nix-compile-reference.md)**: Full list of supported types, bash builtins, and error codes.
+
 ## // examples //
 
 See `examples/nix-compile/` for illustrative examples.
 
 *   `deploy.sh`: A compliant bash script with typed environment variables.
+*   `pipeline.sh`: Advanced bash script using config arrays and safe temp files.
 *   `typed.nix`: A clean Nix file ready for type annotation.
+*   `complex.nix`: Higher-order functions and polymorphism examples.
