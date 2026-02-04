@@ -81,9 +81,9 @@ builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builti
   where
     mono t = Forall [] t
     
-    builtinsMap = Map.fromList $
+    builtinsMap = Map.fromList
       [ -- String functions
-    ("toString", mono $ TFun (TUnion [TInt, TFloat, TBool, TPath, TString]) TString)
+        ("toString", mono $ TFun (TUnion [TInt, TFloat, TBool, TPath, TString]) TString)
   , ("baseNameOf", mono $ TFun TPath TString)
   , ("dirOf", mono $ TFun TPath TPath)
   , ("stringLength", mono $ TFun TString TInt)
