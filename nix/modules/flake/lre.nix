@@ -163,7 +163,7 @@ in
               inherit (remote-cfg) cas;
               cas_port = toString remote-cfg.cas-port;
               tls = if remote-cfg.tls then "true" else "false";
-              protocol = "grpc"; # Always grpc://, TLS is controlled by tls = true/false
+              protocol = "grpc";
               instance_name = remote-cfg.instance-name;
             }
           else

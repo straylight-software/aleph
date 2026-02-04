@@ -6,7 +6,7 @@ chmod 644 .buckconfig.local
 
 # Link prelude if not present
 if [ ! -d "prelude" ] && [ ! -L "prelude" ]; then
-  ln -sf "$prelude" prelude
+	ln -sf "$buck2Prelude" prelude
 fi
 
 runHook postConfigure

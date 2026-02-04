@@ -21,17 +21,14 @@
   ...
 }:
 let
-  # Lisp-case aliases for lib.* functions (string access avoids linter)
+
+  # TODO[b7r6]: !! clean this shit up !!
   mk-option = lib."mkOption";
   mk-enable-option = lib."mkEnableOption";
   mk-if = lib."mkIf";
   optional-attrs = lib."optionalAttrs";
   concat-map-strings-sep = lib."concatMapStringsSep";
-
-  # Type aliases
   types = lib."types";
-
-  # Builtins aliases
   to-json = builtins."toJSON";
   to-string = builtins."toString";
   read-file = builtins."readFile";
@@ -248,6 +245,7 @@ in
     # Routes cargo, npm, pip, etc. through mitmproxy with content-addressed cache.
     # Workers set HTTP_PROXY to point at this on Fly internal network.
     # ──────────────────────────────────────────────────────────────────────────
+
     nix-proxy = {
       enable = mk-option {
         type = types.bool;
@@ -303,6 +301,7 @@ in
       };
     };
   };
+
   config = mk-if cfg.enable {
     "perSystem" =
       {
@@ -526,6 +525,8 @@ in
             }
             # FastSlow store: inline filesystem for fast, ref_store for slow
             # NativeLink 0.7.10 requires inline store defs in fast, ref_store in slow
+            # IMPORTANT: content_path must be on same filesystem as work_directory
+            # to allow hardlinks (avoids EXDEV "Cross-device link" errors)
             {
               name = "CAS_FAST_SLOW";
               "fast_slow" = {
@@ -553,7 +554,9 @@ in
                 "worker_api_endpoint" = {
                   uri = "grpc://${cfg.fly.app-prefix}-scheduler.internal:50061";
                 };
-                "work_directory" = "/tmp/nativelink-worker";
+                # Work directory MUST be on same filesystem as CAS fast tier
+                # to allow hardlinks. /tmp is tmpfs, /data is the Fly volume.
+                "work_directory" = "/data/work";
                 "cas_fast_slow_store" = "CAS_FAST_SLOW";
                 "upload_action_result" = {
                   "ac_store" = "REMOTE_AC";
@@ -597,7 +600,9 @@ in
           name = "nativelink-worker";
           "runtimeInputs" = [ nativelink ];
           text = ''
-            mkdir -p /tmp/nativelink-worker
+            # Work directory must be on same filesystem as CAS fast tier (/data)
+            # to allow hardlinks between CAS content and work directory
+            mkdir -p /data/work /data/cas-content /data/cas-temp
             exec nativelink ${worker-config}
           '';
         };

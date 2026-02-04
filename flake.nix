@@ -1,5 +1,5 @@
 {
-  description = "// straylight // aleph // continuity project";
+  description = "// straylight // aleph // build system";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

@@ -1,17 +1,10 @@
-# nix/_main.nix
-#
-# FREESIDEフリーサイド — WHY WAIT?
 #
 # The directory is the kind signature.
 #
 { inputs, lib, ... }:
 let
-  # ════════════════════════════════════════════════════════════════════════════
-  # LISP-CASE ALIASES
-  #
-  # Local aliases for lib.* and builtins.* functions to satisfy ALEPH-E003.
-  # External API names (nixpkgs attributes, flake outputs) remain unchanged.
-  # ════════════════════════════════════════════════════════════════════════════
+
+  # TODO[b7r6]: !! clean this shit up !!
   optional-attrs = lib.optionalAttrs;
 
   # Import module indices by kind
@@ -32,6 +25,7 @@ in
   # ════════════════════════════════════════════════════════════════════════════
 
   flake.modules = {
+
     flake = {
       inherit (flake-modules)
         build
@@ -59,7 +53,7 @@ in
         ;
     };
 
-    nixos = nixos-modules;
+    nixosModules = nixos-modules;
 
     home = home-modules;
   };
@@ -121,22 +115,23 @@ in
   };
 
   # ════════════════════════════════════════════════════════════════════════════
-  # INTERNAL: aleph's own development
+  #                                                                  // internal
   # ════════════════════════════════════════════════════════════════════════════
 
   imports = [
+    flake-modules.buck2
+    flake-modules.build
+    flake-modules.container
+    flake-modules.devshell
+    flake-modules.docs
     flake-modules.formatter
     flake-modules.lint
-    flake-modules.docs
-    flake-modules.std
-    flake-modules.devshell
+    flake-modules.lre
     flake-modules.prelude
     flake-modules.prelude-demos
-    flake-modules.container
-    flake-modules.build
-    flake-modules.buck2
     flake-modules.shortlist
-    flake-modules.lre
+    flake-modules.std
+
     # nix2gpu.flakeModule must be imported before nativelink module
     # (provides perSystem.nix2gpu options)
     inputs.nix2gpu.flakeModule
@@ -184,6 +179,7 @@ in
           src = inputs.self;
           target = "//src/armitage:armitage";
         };
+
         armitage-proxy = inputs.self.lib.buck2.build pkgs {
           src = inputs.self;
           target = "//src/armitage:armitage-proxy";
@@ -215,13 +211,16 @@ in
   # Buck2 build system integration
   aleph.build = {
     enable = true;
+
     prelude.enable = true;
-    remote.enable = true; # Fly.io remote execution
+    remote.enable = true; # n.b. remote execution is currently with `fly.io`...
+
     toolchain = {
+      # n.b. package list is in `nix/modules/flake/build/options.nix` default...
+
       cxx.enable = true;
       nv.enable = true;
       haskell.enable = true;
-      # Package list is in nix/modules/flake/build/options.nix default
       rust.enable = true;
       lean.enable = true;
       python.enable = true;
@@ -230,11 +229,9 @@ in
 
   aleph.docs = {
     enable = true;
-    title = "Weyl Standard Nix";
+    title = "// aleph // prelude";
     description = "A specification for reproducible, composable infrastructure on Nix";
     theme = "ono-sendai";
-
-    # Document all aleph modules
     modules = [ flake-modules.options-only ];
   };
 }

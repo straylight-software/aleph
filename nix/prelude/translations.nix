@@ -103,6 +103,12 @@ let
 
     # Patching
     "post-patch" = "postPatch";
+
+    # Buck2 build system
+    "buckconfig-file" = "buckconfigFile";
+    "buck2-prelude" = "buck2Prelude";
+    "buck2-target" = "buck2Target";
+    "output-name" = "outputName";
   };
 
   # ──────────────────────────────────────────────────────────────────────────

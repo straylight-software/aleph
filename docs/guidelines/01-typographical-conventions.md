@@ -3,8 +3,8 @@
                                                  // typographical // conventions
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-    "He'd waited in the loft with the Browning and the thin sound of the 
-     Flatline's construct laughing."
+   "Wintermute could build a kind of personality into a shell. How subtle
+    a form could manipulation take?"
 
                                                            — Neuromancer
 ```

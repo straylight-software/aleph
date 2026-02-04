@@ -1,7 +1,5 @@
-# nix/modules/flake/nv-sdk.nix
-#
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                              // nvidia sdk //
+#                                                                  // nvidia sdk
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     "The matrix has its roots in primitive arcade games, in early graphics
@@ -9,7 +7,8 @@
 #
 #                                                         — Neuromancer
 #
-# Comprehensive NVIDIA SDK based on nixpkgs nv-packages.
+# Comprehensive NVIDIA SDK based on nixpkgs `nv-packages`.
+# 
 # Alternative to aleph-nvidia-sdk for standard nixpkgs support.
 #
 # We say "nv" not "cuda". See: docs/languages/nix/philosophy/nvidia-not-cuda.md
@@ -27,9 +26,8 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 { lib, flake-parts-lib, ... }:
 let
-  # ──────────────────────────────────────────────────────────────────────────────
-  # // lisp-case aliases for lib.* functions //
-  # ──────────────────────────────────────────────────────────────────────────────
+
+  # TODO[b7r6]: !! clean this shit up !!
   mk-enable-option = lib.mkEnableOption;
   mk-option = lib.mkOption;
   mk-if = lib.mkIf;
@@ -37,14 +35,13 @@ let
   null-or = lib.types.nullOr;
 in
 {
-  _class = "flake";
-
   # ────────────────────────────────────────────────────────────────────────────
   # // options //
   # ────────────────────────────────────────────────────────────────────────────
 
   options.perSystem = mk-per-system-option {
     options.nv.sdk = {
+
       enable = mk-enable-option "nixpkgs-based NVIDIA SDK" // {
         default = false;
       };
@@ -54,6 +51,7 @@ in
           "12_9"
           "13"
         ];
+
         default = "13";
         description = "SDK version to use from nixpkgs nv-packages";
       };
@@ -61,6 +59,7 @@ in
       nvidia-driver = mk-option {
         type = null-or lib.types.package;
         default = null;
+
         description = ''
           User-space NVIDIA driver package (libcuda, libnvidia-ml, stubs).
           If null, will try to auto-detect from pkgs.linuxPackages.nvidia_x11.
@@ -70,6 +69,7 @@ in
       with-driver = mk-option {
         type = lib.types.bool;
         default = true;
+
         description = "Include NVIDIA driver in the SDK bundle";
       };
 
@@ -92,7 +92,7 @@ in
   };
 
   # ────────────────────────────────────────────────────────────────────────────
-  # // config //
+  #                                                                    // config
   # ────────────────────────────────────────────────────────────────────────────
 
   config.perSystem =
@@ -103,9 +103,7 @@ in
       ...
     }:
     let
-      # ────────────────────────────────────────────────────────────────────────────
-      # // lisp-case aliases for pkgs.* and lib.* functions //
-      # ────────────────────────────────────────────────────────────────────────────
+      # TODO[b7r6]: !! clean this shit up !!
       mk-derivation = pkgs.stdenv.mkDerivation;
       fetch-from-github = pkgs.fetchFromGitHub;
       symlink-join = pkgs.symlinkJoin;
@@ -124,15 +122,11 @@ in
         if cfg.sdk-version == "13" then
           pkgs.cudaPackages_13
         else if cfg.sdk-version == "12" then
-          pkgs.cudaPackages_12
-        else if cfg.sdk-version == "12_4" then
-          pkgs.cudaPackages_12_4
-        else if cfg.sdk-version == "12_8" then
-          pkgs.cudaPackages_12_8
+          pkgs.cudaPackages_12_9
         else
-          pkgs.cudaPackages;
+          pkgs.cudaPackages_13;
 
-      # User-space NVIDIA driver bundle (required when with-driver = true)
+      # userspace NVIDIA driver bundle (required when with-driver = true)
       driver-pkg =
         if cfg.nvidia-driver != null then
           cfg.nvidia-driver
@@ -149,6 +143,7 @@ in
 
       # symlinkJoin postBuild script (loaded from external file)
       post-build-script = builtins.readFile ./nv-sdk/scripts/sdk-post-build.sh;
+
       post-build =
         builtins.replaceStrings
           [
@@ -373,4 +368,6 @@ in
         cutlass = cutlass-package;
       };
     };
+
+  _class = "flake";
 }

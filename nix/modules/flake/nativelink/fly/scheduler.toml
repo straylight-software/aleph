@@ -1,4 +1,5 @@
-# fly.toml for aleph-scheduler
+# fly.toml for `aleph-scheduler`
+#
 # NativeLink scheduler - coordinates work distribution
 #
 # The scheduler is stateless - just routes work to workers.

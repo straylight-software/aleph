@@ -1,4 +1,4 @@
-# fly.toml for aleph-cas  
+# fly.toml for `aleph-cas  `
 # NativeLink CAS - content-addressed storage with LZ4 compression
 #
 # This is the hot path for all blob transfers. Size it accordingly.

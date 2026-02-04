@@ -1,3 +1,4 @@
+
 # Witness Proxy Demo
 
 This demonstrates the Armitage witness proxy - a pure Haskell replacement for
@@ -10,34 +11,7 @@ the Python mitmproxy-based implementation.
 3. Logs all fetches as attestations (JSONL format)
 4. Optional domain allowlist for policy enforcement
 
-## The Old Way (Python mitmproxy)
-
-The NixOS module at `nix/modules/nixos/nix-proxy.nix` used mitmproxy with a
-Python addon script (`nix/modules/nixos/scripts/nix-proxy-addon.py`).
-
-### Problems with the old approach
-
-1. **Python dependency** - mitmproxy pulls in ~100+ Python packages
-2. **Startup time** - Python interpreter initialization adds latency
-3. **No type safety** - Runtime errors from typos, missing attrs
-4. **Complex deployment** - Need Python environment in containers
-5. **No gRPC** - Can't integrate with NativeLink CAS
-6. **External dependency** - mitmproxy is a large, moving target
-
-### Old proxy usage (for reference)
-
-```bash
-# Requires mitmproxy in environment
-mitmdump \
-  --listen-host 127.0.0.1 \
-  --listen-port 8080 \
-  --set confdir=/tmp/nix-proxy/certs \
-  --scripts nix/modules/nixos/scripts/nix-proxy-addon.py
-```
-
----
-
-## The New Way (Armitage Haskell)
+## Armitage Haskell Proxy
 
 The new implementation is pure Haskell using the crypton ecosystem.
 
@@ -62,7 +36,7 @@ PROXY_PORT=8080 \
 PROXY_CACHE_DIR=/tmp/armitage/cache \
 PROXY_LOG_DIR=/tmp/armitage/logs \
 PROXY_CERT_DIR=/tmp/armitage/certs \
-  buck2 run //armitage/proxy:armitage-proxy
+  buck2 run //src/armitage:armitage-proxy
 ```
 
 Output:

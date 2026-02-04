@@ -400,10 +400,9 @@ instance Exception BuildError
 
 {- | Coeffect (what a build requires)
 
-This type mirrors:
-- Dhall: src/armitage/dhall/Resource.dhall
-- Lean: src/examples/lean-continuity/Continuity.lean (Coeffect)
--}
+ This type mirrors:
+ - Dhall: src/armitage/dhall/Resource.dhall
+ -}
 data Coeffect
     = -- | Needs nothing external
       Pure

@@ -1,7 +1,5 @@
-# nix/modules/nixos/armitage-proxy.nix
-#
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                          // armitage-proxy //
+#                                                            // armitage-proxy
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 #     The matrix has its roots in primitive arcade games...
@@ -159,17 +157,19 @@ in
   };
 
   config = mk-if cfg.enable {
-    # Create system user/group
+
+    # system user/group
     users.users.${cfg.user} = mk-if (cfg.user == "armitage") {
       "isSystemUser" = true;
       inherit (cfg) group;
-      description = "Armitage Witness Proxy service user";
+
+      description = "Armitage Witness Proxy";
       home = cfg.cache-dir;
     };
 
     users.groups.${cfg.group} = mk-if (cfg.group == "armitage") { };
 
-    # Create directories
+    # directories
     systemd.tmpfiles.rules = [
       "d ${cfg.cache-dir} 0750 ${cfg.user} ${cfg.group} -"
       "d ${cfg.log-dir} 0750 ${cfg.user} ${cfg.group} -"
@@ -180,7 +180,7 @@ in
     systemd.services.armitage-proxy = {
       description = "Armitage Witness Proxy";
       "wantedBy" = [ "multi-user.target" ];
-      after = [ "network.target" ];
+      "after" = [ "network.target" ];
 
       environment = {
         "PROXY_PORT" = to-string cfg.port;
@@ -219,6 +219,7 @@ in
     # R2 sync service (attestations)
     systemd.services.armitage-proxy-sync = mk-if cfg.r2.enable {
       description = "Sync Armitage attestations to R2";
+
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
 
@@ -247,7 +248,6 @@ in
       };
     };
 
-    # Periodic sync timer
     systemd.timers.armitage-proxy-sync = mk-if cfg.r2.enable {
       description = "Periodic sync of Armitage attestations to R2";
       "wantedBy" = [ "timers.target" ];
@@ -257,7 +257,6 @@ in
       };
     };
 
-    # Export CA cert path for other services to use
     environment.variables = {
       "ARMITAGE_CA_CERT" = "${cfg.cert-dir}/ca.pem";
     };

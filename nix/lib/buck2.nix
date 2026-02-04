@@ -53,27 +53,28 @@ let
   mk-buckconfig-file =
     pkgs:
     let
-      llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
+      # llvm-git from our overlay - SM120 Blackwell support, cached in weyl-ai.cachix.org
+      llvm-git = pkgs.llvm-git or (throw "llvm-git not available - ensure aleph overlay is applied");
     in
     render-dhall pkgs "buckconfig-local" (scripts-dir + "/buckconfig.dhall") {
-      cc = "${llvm.clang}/bin/clang";
-      cxx = "${llvm.clang}/bin/clang++";
-      cpp = "${llvm.clang}/bin/clang-cpp";
-      ar = "${llvm.clang}/bin/llvm-ar";
-      ld = "${llvm.clang}/bin/ld.lld";
-      nm = "${llvm.clang}/bin/llvm-nm";
-      objcopy = "${llvm.clang}/bin/llvm-objcopy";
-      objdump = "${llvm.clang}/bin/llvm-objdump";
-      ranlib = "${llvm.clang}/bin/llvm-ranlib";
-      strip = "${llvm.clang}/bin/llvm-strip";
-      clang-resource-dir = "${llvm.clang}/lib/clang/${versions-major llvm.clang.version}";
+      cc = "${llvm-git}/bin/clang";
+      cxx = "${llvm-git}/bin/clang++";
+      cpp = "${llvm-git}/bin/clang-cpp";
+      ar = "${llvm-git}/bin/llvm-ar";
+      ld = "${llvm-git}/bin/ld.lld";
+      nm = "${llvm-git}/bin/llvm-nm";
+      objcopy = "${llvm-git}/bin/llvm-objcopy";
+      objdump = "${llvm-git}/bin/llvm-objdump";
+      ranlib = "${llvm-git}/bin/llvm-ranlib";
+      strip = "${llvm-git}/bin/llvm-strip";
+      clang-resource-dir = "${llvm-git}/lib/clang/22";
       gcc-include = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}";
       gcc-include-arch = "${pkgs.gcc.cc}/include/c++/${versions-major pkgs.gcc.cc.version}/x86_64-unknown-linux-gnu";
       glibc-include = "${pkgs.glibc.dev}/include";
       glibc-lib = "${pkgs.glibc}/lib";
       gcc-lib = "${pkgs.gcc.cc.lib}/lib/gcc/x86_64-unknown-linux-gnu/${versions-major pkgs.gcc.cc.version}";
-      libcxx-include = "${llvm.libcxx.dev}/include/c++/v1";
-      compiler-rt = "${llvm.compiler-rt}/lib";
+      libcxx-include = "${llvm-git}/include/c++/v1";
+      compiler-rt = "${llvm-git}/lib";
       fmt = "${pkgs.fmt}";
       fmt-dev = "${pkgs.fmt.dev}";
       zlib-ng = "${pkgs.zlib-ng}";
@@ -95,14 +96,11 @@ let
   mk-packages =
     pkgs:
     let
-      llvm = pkgs.llvmPackages_git or pkgs.llvmPackages_19;
+      llvm-git = pkgs.llvm-git or (throw "llvm-git not available - ensure aleph overlay is applied");
     in
     [
       pkgs.buck2
-      llvm.clang
-      llvm.lld
-      llvm.libcxx
-      llvm.compiler-rt
+      llvm-git
       pkgs.gcc
       pkgs.glibc
       pkgs.coreutils
