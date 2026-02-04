@@ -2,15 +2,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- |
--- render - CLI for nix-compile type inference
+-- nix-compile - CLI for compile-time Nix type inference
 --
 -- Usage:
---   render parse <script>       Parse and show facts
---   render infer <script>       Infer types and show schema
---   render check <script>       Check for policy violations
---   render lint <script>        Check for forbidden constructs
---   render emit <script> [fmt]  Generate emit-config function
---   render nix <file.nix>       Check embedded bash in Nix files
+--   nix-compile parse <script>       Parse and show facts
+--   nix-compile infer <script>       Infer types and show schema
+--   nix-compile check <script>       Check for policy violations
+--   nix-compile lint <script>        Check for forbidden constructs
+--   nix-compile emit <script> [fmt]  Generate emit-config function
+--   nix-compile nix <file.nix>       Check embedded bash in Nix files
 module Main where
 
 import Data.Aeson (encode)
@@ -74,22 +74,22 @@ main = do
 
 usage :: IO ()
 usage = do
-  putStrLn "render - typed shell scripts for Nix"
+  putStrLn "nix-compile - compile-time type checker for Nix expressions"
   putStrLn ""
   putStrLn "Usage:"
-  putStrLn "  render lint <script.sh>    Check for forbidden constructs (heredocs, eval, etc)"
-  putStrLn "  render check <script.sh>   Full check (lint + bare commands + types)"
-  putStrLn "  render infer <script.sh>   Infer types and show schema (JSON)"
-  putStrLn "  render parse <script.sh>   Parse and show extracted facts"
-  putStrLn "  render emit <script.sh>    Generate emit-config Dhall function"
-  putStrLn "  render nix <file.nix>      Check embedded bash in Nix files"
-  putStrLn "  render fmt <file.nix>      Add type annotations to Nix file"
-  putStrLn "  render typecheck <path>    Recursively infer and check types for all Nix files"
-  putStrLn "  render flake [dir]         Analyze a flake"
-  putStrLn "  render graph [--dot] [dir] Show module dependency graph (exits 1 on violations)"
-  putStrLn "  render scope <file.nix>    Show scope graph (declarations, references, edges)"
-  putStrLn "  render scope --json <file> Emit scope graph as JSON (for zeitschrift)"
-  putStrLn "  render scope --dhall <file> Emit scope graph as Dhall (for zeitschrift)"
+  putStrLn "  nix-compile lint <script.sh>    Check for forbidden constructs (heredocs, eval, etc)"
+  putStrLn "  nix-compile check <script.sh>   Full check (lint + bare commands + types)"
+  putStrLn "  nix-compile infer <script.sh>   Infer types and show schema (JSON)"
+  putStrLn "  nix-compile parse <script.sh>   Parse and show extracted facts"
+  putStrLn "  nix-compile emit <script.sh>    Generate emit-config Dhall function"
+  putStrLn "  nix-compile nix <file.nix>      Check embedded bash in Nix files"
+  putStrLn "  nix-compile fmt <file.nix>      Add type annotations to Nix file"
+  putStrLn "  nix-compile typecheck <path>    Recursively infer and check types for all Nix files"
+  putStrLn "  nix-compile flake [dir]         Analyze a flake"
+  putStrLn "  nix-compile graph [--dot] [dir] Show module dependency graph (exits 1 on violations)"
+  putStrLn "  nix-compile scope <file.nix>    Show scope graph (declarations, references, edges)"
+  putStrLn "  nix-compile scope --json <file> Emit scope graph as JSON (for zeitschrift)"
+  putStrLn "  nix-compile scope --dhall <file> Emit scope graph as Dhall (for zeitschrift)"
   putStrLn ""
   putStrLn "Forbidden bash constructs (no escape hatch):"
   putStrLn "  - heredocs (<<, <<-)"
@@ -104,10 +104,10 @@ usage = do
   putStrLn "  - \"str\".attr  (breaks hnix parser)"
   putStrLn ""
   putStrLn "Examples:"
-  putStrLn "  render lint ./deploy.sh"
-  putStrLn "  render check ./scripts/*.sh"
-  putStrLn "  render infer ./deploy.sh | jq '.env'"
-  putStrLn "  render nix ./default.nix"
+  putStrLn "  nix-compile lint ./deploy.sh"
+  putStrLn "  nix-compile check ./scripts/*.sh"
+  putStrLn "  nix-compile infer ./deploy.sh | jq '.env'"
+  putStrLn "  nix-compile nix ./default.nix"
 
 cmdParse :: FilePath -> IO ()
 cmdParse file = do
