@@ -275,7 +275,10 @@ cmdTypeCheck path = do
            then findAllNixFiles path
            else return [path]
   
-  putStrLn $ "Checking " ++ show (length files) ++ " files (parallel)..."
+  putStrLn $ "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  putStrLn $ "  nix-compile typecheck"
+  putStrLn $ "  " ++ show (length files) ++ " files"
+  putStrLn $ "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   putStrLn ""
   
   -- Lock for synchronized output
@@ -284,13 +287,20 @@ cmdTypeCheck path = do
   
   results <- mapConcurrently (checkFile log) files
   let failures = filter not results
+  let successCount = length files - length failures
+  
+  putStrLn ""
+  putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   
   if null failures
     then do
-      putStrLn "\nAll files passed type checking."
+      putStrLn $ "  ✓ All " ++ show successCount ++ " files passed"
+      putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       exitSuccess
     else do
-      putStrLn $ "\n" ++ show (length failures) ++ " files failed."
+      putStrLn $ "  ✓ " ++ show successCount ++ " passed"
+      putStrLn $ "  ✗ " ++ show (length failures) ++ " failed"
+      putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       exitFailure
   where
     findAllNixFiles :: FilePath -> IO [FilePath]
@@ -310,20 +320,20 @@ cmdTypeCheck path = do
       result <- try $ do
         res <- Nix.parseNixFile file
         case res of
-          Left err -> return $ Left ("Parse error: " <> err)
+          Left err -> return $ Left ("parse error\n  " <> err)
           Right expr -> case NixCompile.Nix.Infer.inferExpr expr of
-            Left err -> return $ Left ("Type error: " <> err)
+            Left err -> return $ Left err
             Right (t, _) -> return $ Right (NixCompile.Nix.Types.prettyType t)
             
       case result of
         Left (e :: SomeException) -> do
-          log $ T.pack file <> ": Exception: " <> T.pack (show e)
+          log $ "✗ " <> T.pack file <> "\n  internal error: " <> T.pack (show e)
           return False
         Right (Left err) -> do
-          log $ T.pack file <> ": " <> err
+          log $ "✗ " <> T.pack file <> "\n  " <> err
           return False
         Right (Right t) -> do
-          log $ T.pack file <> ": " <> t
+          log $ "✓ " <> T.pack file <> "\n  " <> t
           return True
 
     try :: IO a -> IO (Either SomeException a)

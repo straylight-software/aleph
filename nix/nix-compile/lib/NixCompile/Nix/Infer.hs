@@ -260,8 +260,9 @@ unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrs m1 m2 = do
   -- Closed rows must match exactly
   if Map.keysSet m1 /= Map.keysSet m2
-    then throwTypeError $ "Type error: Attribute set mismatch (closed rows). Expected: " <> 
-                         T.pack (show (Map.keys m1)) <> ", got: " <> T.pack (show (Map.keys m2))
+    then throwTypeError $ "attribute set mismatch\n  expected: " <> 
+                         T.intercalate ", " (Map.keys m1) <> 
+                         "\n  found: " <> T.intercalate ", " (Map.keys m2)
     else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) m1 m2))
 
 unifyAttrsOpenOpen :: Map Text NixType -> Map Text NixType -> Infer ()
@@ -273,8 +274,10 @@ unifyAttrsOpenOpen m1 m2 = do
 unifyAttrsClosedOpen :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrsClosedOpen closed open = do
   -- Closed vs Open: Open must be subset of Closed
-  if not (Map.keysSet open `Set.isSubsetOf` Map.keysSet closed)
-    then throwTypeError $ "Type error: Closed attrset missing required fields from open attrset"
+  let missing = Set.difference (Map.keysSet open) (Map.keysSet closed)
+  if not (Set.null missing)
+    then throwTypeError $ "missing required fields\n  missing: " <> 
+                         T.intercalate ", " (Set.toList missing)
     else do
       -- Unify the common fields (which is all of open)
       let common = Map.intersectionWith (,) closed open
