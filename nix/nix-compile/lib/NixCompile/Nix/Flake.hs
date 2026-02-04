@@ -10,26 +10,6 @@
 --   - inputs (nixpkgs, self, etc.)
 --   - outputs (packages, devShells, checks, etc.)
 --   - the flake function signature
---
--- Flake schema:
---
--- @
--- {
---   description : String
---   inputs : { <name> : FlakeInput }
---   outputs : { self, nixpkgs, ... } -> {
---     packages.<system>.<name> : Derivation
---     devShells.<system>.<name> : Derivation
---     checks.<system>.<name> : Derivation
---     apps.<system>.<name> : { type : "app", program : String }
---     nixosConfigurations.<name> : NixOSConfiguration
---     nixosModules.<name> : NixOSModule
---     overlays.<name> : Overlay
---     lib : Attrset
---     ...
---   }
--- }
--- @
 module NixCompile.Nix.Flake
   ( -- * Flake types
     Flake (..),
@@ -285,7 +265,7 @@ inferOutputType = \case
   "packages" -> TDerivation
   "devShells" -> TDerivation
   "checks" -> TDerivation
-  "apps" -> TAttrs $ Map.fromList [("type", TString), ("program", TString)]
+  "apps" -> TAttrs $ Map.fromList [("type", (TString, False)), ("program", (TString, False))]
   "overlays" -> TFun (TAttrsOpen Map.empty) (TFun (TAttrsOpen Map.empty) (TAttrsOpen Map.empty))
   "nixosModules" -> TAttrsOpen Map.empty  -- Module structure
   "nixosConfigurations" -> TAttrsOpen Map.empty  -- NixOS config
@@ -315,27 +295,27 @@ inferFlake flake = FlakeTypes
     flakeOutputsType = TFun flakeInputsType outputsType
     
     flakeInputsType = TAttrs $ Map.fromList
-      [ ("self", TAttrsOpen Map.empty)
-      ] `Map.union` Map.map (const $ TAttrsOpen Map.empty) (flakeInputs flake)
+      [ ("self", (TAttrsOpen Map.empty, False))
+      ] `Map.union` Map.map (const $ (TAttrsOpen Map.empty, False)) (flakeInputs flake)
     
     outputsType = TAttrs $ Map.fromList $ catMaybes
-      [ if Map.null (outPackages o) then Nothing else Just ("packages", systemMapType TDerivation)
-      , if Map.null (outDevShells o) then Nothing else Just ("devShells", systemMapType TDerivation)
-      , if Map.null (outChecks o) then Nothing else Just ("checks", systemMapType TDerivation)
-      , if Map.null (outApps o) then Nothing else Just ("apps", systemMapType appType)
-      , if Map.null (outOverlays o) then Nothing else Just ("overlays", TAttrsOpen Map.empty)
+      [ if Map.null (outPackages o) then Nothing else Just ("packages", (systemMapType TDerivation, False))
+      , if Map.null (outDevShells o) then Nothing else Just ("devShells", (systemMapType TDerivation, False))
+      , if Map.null (outChecks o) then Nothing else Just ("checks", (systemMapType TDerivation, False))
+      , if Map.null (outApps o) then Nothing else Just ("apps", (systemMapType appType, False))
+      , if Map.null (outOverlays o) then Nothing else Just ("overlays", (TAttrsOpen Map.empty, False))
       ]
     
     o = flakeOutputs flake
     
     systemMapType t = TAttrs $ Map.fromList
-      [ ("x86_64-linux", TAttrsOpen (Map.singleton "_" t))
-      , ("aarch64-linux", TAttrsOpen (Map.singleton "_" t))
-      , ("x86_64-darwin", TAttrsOpen (Map.singleton "_" t))
-      , ("aarch64-darwin", TAttrsOpen (Map.singleton "_" t))
+      [ ("x86_64-linux", (TAttrsOpen (Map.singleton "_" (t, False)), False))
+      , ("aarch64-linux", (TAttrsOpen (Map.singleton "_" (t, False)), False))
+      , ("x86_64-darwin", (TAttrsOpen (Map.singleton "_" (t, False)), False))
+      , ("aarch64-darwin", (TAttrsOpen (Map.singleton "_" (t, False)), False))
       ]
     
-    appType = TAttrs $ Map.fromList [("type", TString), ("program", TString)]
+    appType = TAttrs $ Map.fromList [("type", (TString, False)), ("program", (TString, False))]
 
 -- ============================================================================
 -- Schema
@@ -344,22 +324,22 @@ inferFlake flake = FlakeTypes
 -- | The expected flake output schema
 flakeOutputSchema :: NixType
 flakeOutputSchema = TAttrs $ Map.fromList
-  [ ("packages", systemMapType TDerivation)
-  , ("devShells", systemMapType TDerivation)
-  , ("checks", systemMapType TDerivation)
-  , ("apps", systemMapType appType)
-  , ("overlays", TAttrsOpen (Map.singleton "_" overlayType))
-  , ("nixosModules", TAttrsOpen Map.empty)
-  , ("nixosConfigurations", TAttrsOpen Map.empty)
-  , ("lib", TAttrsOpen Map.empty)
-  , ("formatter", systemMapType TDerivation)
-  , ("templates", TAttrsOpen (Map.singleton "_" templateType))
+  [ ("packages", (systemMapType TDerivation, False))
+  , ("devShells", (systemMapType TDerivation, False))
+  , ("checks", (systemMapType TDerivation, False))
+  , ("apps", (systemMapType appType, False))
+  , ("overlays", (TAttrsOpen (Map.singleton "_" (overlayType, False)), False))
+  , ("nixosModules", (TAttrsOpen Map.empty, False))
+  , ("nixosConfigurations", (TAttrsOpen Map.empty, False))
+  , ("lib", (TAttrsOpen Map.empty, False))
+  , ("formatter", (systemMapType TDerivation, False))
+  , ("templates", (TAttrsOpen (Map.singleton "_" (templateType, False)), False))
   ]
   where
-    systemMapType t = TAttrsOpen (Map.singleton "_" (TAttrsOpen (Map.singleton "_" t)))
-    appType = TAttrs $ Map.fromList [("type", TString), ("program", TString)]
+    systemMapType t = TAttrsOpen (Map.singleton "_" ((TAttrsOpen (Map.singleton "_" (t, False))), False))
+    appType = TAttrs $ Map.fromList [("type", (TString, False)), ("program", (TString, False))]
     overlayType = TFun (TAttrsOpen Map.empty) (TFun (TAttrsOpen Map.empty) (TAttrsOpen Map.empty))
-    templateType = TAttrs $ Map.fromList [("description", TString), ("path", TPath)]
+    templateType = TAttrs $ Map.fromList [("description", (TString, False)), ("path", (TPath, False))]
 
 -- ============================================================================
 -- Helpers

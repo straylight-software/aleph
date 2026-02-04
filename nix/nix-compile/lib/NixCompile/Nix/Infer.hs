@@ -7,18 +7,6 @@
 -- Description : Type inference for Nix expressions
 --
 -- Hindley-Milner style type inference for a subset of Nix.
--- 
--- We infer types from:
---   - Literals: 42 : Int, "hello" : String, true : Bool
---   - Defaults: { port ? 8080 } → port : Int
---   - Operators: a + b with a : Int → b : Int, result : Int
---   - Builtins: toString : (Int | Float | Bool | Path) -> String
---   - Function application: f x where f : A -> B, x : A → result : B
---
--- The inference produces:
---   - Type annotations for function parameters
---   - Type annotations for let bindings
---   - Type signatures for top-level definitions
 module NixCompile.Nix.Infer
   ( -- * Inference
     inferExpr,
@@ -44,7 +32,7 @@ import Data.Functor.Compose (Compose (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe, isJust)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -79,12 +67,13 @@ lookupEnv name (TypeEnv m) = Map.lookup name m
 
 -- | Built-in function types
 builtinEnv :: TypeEnv
-builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builtinsTypes)) (Map.map mono builtinsTypes)
+builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builtinsTypes)) (Map.map (mono . fst) builtinsTypes)
   where
     mono t = Forall [] t
+    req t = (t, False)
     
-    builtinsTypes :: Map Text NixType
-    builtinsTypes = Map.fromList
+    builtinsTypes :: Map Text (NixType, Bool)
+    builtinsTypes = Map.fromList $ map (\(k,v) -> (k, req v))
       [ -- String functions
         ("toString", TFun (TUnion [TInt, TFloat, TBool, TPath, TString]) TString)
       , ("baseNameOf", TFun TPath TString)
@@ -93,14 +82,7 @@ builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builti
       , ("substring", TFun TInt (TFun TInt (TFun TString TString)))
       , ("replaceStrings", TFun (TList TString) (TFun (TList TString) (TFun TString TString)))
       
-      -- List functions (Polymorphic types must be instantiated manually here as NixType cannot represent Forall)
-      -- Wait, NixType cannot represent Forall. TAttrs contains NixType.
-      -- So builtins like 'map' cannot be in TAttrs if they are polymorphic?
-      -- NixType doesn't have Forall.
-      -- We'll approximate polymorphic builtins as TAny or specialized versions for now in the set.
-      -- Or we extend NixType with TPoly? No, that's complex.
-      -- For now, let's just put monomorphic builtins in the set, and TAny for others.
-      
+      -- List functions
       , ("head", TFun (TList TAny) TAny)
       , ("tail", TFun (TList TAny) (TList TAny))
       , ("length", TFun (TList TAny) TInt)
@@ -113,11 +95,11 @@ builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builti
       
       -- Attrset functions
       , ("attrNames", TFun (TAttrsOpen Map.empty) (TList TString))
-      , ("attrValues", TFun (TAttrsOpen (Map.singleton "_" TAny)) (TList TAny))
+      , ("attrValues", TFun (TAttrsOpen (Map.singleton "_" (TAny, False))) (TList TAny))
       , ("hasAttr", TFun TString (TFun (TAttrsOpen Map.empty) TBool))
       , ("getAttr", TFun TString (TFun (TAttrsOpen Map.empty) TAny))
       , ("removeAttrs", TFun (TAttrsOpen Map.empty) (TFun (TList TString) (TAttrsOpen Map.empty)))
-      , ("listToAttrs", TFun (TList (TAttrs (Map.fromList [("name", TString), ("value", TAny)]))) (TAttrsOpen Map.empty))
+      , ("listToAttrs", TFun (TList (TAttrs (Map.fromList [("name", (TString, False)), ("value", (TAny, False))]))) (TAttrsOpen Map.empty))
       
       -- Type checking
       , ("isNull", TFun TAny TBool)
@@ -153,7 +135,7 @@ builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builti
       , ("trace", TFun TString (TFun TAny TAny))
       , ("seq", TFun TAny (TFun TAny TAny))
       , ("deepSeq", TFun TAny (TFun TAny TAny))
-      , ("tryEval", TFun TAny (TAttrs (Map.fromList [("success", TBool), ("value", TAny)])))
+      , ("tryEval", TFun TAny (TAttrs (Map.fromList [("success", (TBool, False)), ("value", (TAny, False))])))
       ]
 
 -- ============================================================================
@@ -252,56 +234,62 @@ occursCheck v = \case
   TVar v' -> v == v'
   TList t -> occursCheck v t
   TFun a b -> occursCheck v a || occursCheck v b
-  TAttrs m -> any (occursCheck v) (Map.elems m)
-  TAttrsOpen m -> any (occursCheck v) (Map.elems m)
+  TAttrs m -> any (occursCheck v . fst) (Map.elems m)
+  TAttrsOpen m -> any (occursCheck v . fst) (Map.elems m)
   TUnion ts -> any (occursCheck v) ts
   _ -> False
 
-unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
-unifyAttrs expected actual = do
-  -- For closed rows, actual must have at least all expected keys
-  -- (allows extra keys for extensibility)
-  let missing = Set.difference (Map.keysSet expected) (Map.keysSet actual)
-  if not (Set.null missing)
-    then do
-      let extra = Set.difference (Map.keysSet actual) (Map.keysSet expected)
-      let msg = formatRowError expected actual missing extra
-      throwTypeError msg
-    else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) expected actual))
+unifyAttrs :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
+unifyAttrs m1 m2 = do
+  -- Closed vs Closed
+  -- Keys must match, unless missing keys are optional in the other map
+  let keys1 = Map.keysSet m1
+  let keys2 = Map.keysSet m2
+  let allKeys = Set.union keys1 keys2
+  
+  forM_ (Set.toList allKeys) $ \k -> do
+    let v1 = Map.lookup k m1
+    let v2 = Map.lookup k m2
+    case (v1, v2) of
+      (Just (t1, _), Just (t2, _)) -> unify t1 t2 -- Both present, unify types
+      (Just (_, False), Nothing) -> throwTypeError $ "missing required field: " <> k
+      (Nothing, Just (_, False)) -> throwTypeError $ "unexpected field (required in other): " <> k
+      _ -> pure () -- Missing but optional, OK
 
--- | Format a user-friendly row type error
+-- | Format a user-friendly row type error (deprecated by custom logic above but kept if needed)
 formatRowError :: Map Text NixType -> Map Text NixType -> Set Text -> Set Text -> Text
-formatRowError expected actual missing extra =
-  let parts = catMaybes
-        [ if Set.null missing then Nothing
-          else Just $ "missing required field" <> plural (Set.size missing) <> ": " <> 
-                     T.intercalate ", " (Set.toList missing)
-        , if Set.null extra then Nothing
-          else Just $ "unexpected field" <> plural (Set.size extra) <> ": " <> 
-                     T.intercalate ", " (Set.toList extra)
-        ]
-  in "attribute set mismatch\n" <> T.unlines (map ("  " <>) parts)
-  where
-    plural 1 = ""
-    plural _ = "s"
+formatRowError expected actual missing extra = "error"
 
-unifyAttrsOpenOpen :: Map Text NixType -> Map Text NixType -> Infer ()
+unifyAttrsOpenOpen :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrsOpenOpen m1 m2 = do
   -- Open vs Open: unify common fields
   let common = Map.intersectionWith (,) m1 m2
-  mapM_ (uncurry unify) (Map.elems common)
+  mapM_ (\((t1, _), (t2, _)) -> unify t1 t2) (Map.elems common)
 
-unifyAttrsClosedOpen :: Map Text NixType -> Map Text NixType -> Infer ()
+unifyAttrsClosedOpen :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrsClosedOpen closed open = do
-  -- Closed vs Open: Open must be subset of Closed
-  let missing = Set.difference (Map.keysSet open) (Map.keysSet closed)
-  if not (Set.null missing)
-    then throwTypeError $ "missing required fields\n  missing: " <> 
-                         T.intercalate ", " (Set.toList missing)
+  -- Closed vs Open: 
+  -- Open is a subset of Closed? No, Open can have extra fields.
+  -- But Closed CANNOT have extra fields.
+  -- So keys(Open) must be subset of keys(Closed)? No, Open means "at least these".
+  -- Actually TAttrsOpen m means "contains m, and maybe more".
+  -- TAttrs m means "contains exactly m".
+  -- So TAttrs m ~ TAttrsOpen m'.
+  -- m must contain all of m'.
+  -- Any key in m' must be in m.
+  let openKeys = Map.keysSet open
+  let closedKeys = Map.keysSet closed
+  let missingInClosed = Set.difference openKeys closedKeys
+  
+  if not (Set.null missingInClosed)
+    then throwTypeError $ "closed set missing fields required by open set: " <> T.intercalate ", " (Set.toList missingInClosed)
     else do
-      -- Unify the common fields (which is all of open)
+      -- Unify common fields
       let common = Map.intersectionWith (,) closed open
-      mapM_ (uncurry unify) (Map.elems common)
+      mapM_ (\((t1, _), (t2, _)) -> unify t1 t2) (Map.elems common)
+      -- Check required fields in closed that are missing in open?
+      -- If closed requires 'a', and open doesn't mention 'a'.
+      -- Open allows 'a'. So it's fine.
 
 unifyUnion :: [NixType] -> NixType -> Infer ()
 unifyUnion ts t = case ts of
@@ -355,7 +343,9 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
   -- Attribute sets
   NSet recursive bindings -> do
     fields <- inferBindings (recursive == Recursive) env bindings
-    pure $ TAttrs (Map.fromList fields)
+    -- Sets literals are always required fields
+    let fieldMap = Map.fromList $ map (\(k, t) -> (k, (t, False))) fields
+    pure $ TAttrs fieldMap
   
   -- Let bindings
   NLet bindings body -> inferLet env bindings body
@@ -403,11 +393,11 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
     case (t', key) of
       (TAttrs fields, Just k) -> 
         case Map.lookup k fields of
-          Just t -> pure t
+          Just (t, _) -> pure t
           Nothing -> freshVar -- Missing attr
       (TAttrsOpen fields, Just k) -> 
         case Map.lookup k fields of
-          Just t -> pure t
+          Just (t, _) -> pure t
           Nothing -> freshVar -- Open set
       _ -> freshVar
   
@@ -469,10 +459,10 @@ inferBinary env op left right = do
       leftT' <- applyCurrentSubst leftT
       rightT' <- applyCurrentSubst rightT
       case (leftT', rightT') of
-        (TAttrs l, TAttrs r) -> pure $ TAttrs (r `Map.union` l)  -- Closed + closed = closed (right wins)
-        (TAttrsOpen l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Open + open = open
-        (TAttrs l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Closed + open = open
-        (TAttrsOpen l, TAttrs r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Open + closed = open
+        (TAttrs l, TAttrs r) -> pure $ TAttrs (r `Map.union` l)
+        (TAttrsOpen l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)
+        (TAttrs l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)
+        (TAttrsOpen l, TAttrs r) -> pure $ TAttrsOpen (r `Map.union` l)
         _ -> do
           -- Fallback: try to unify, return left type
           unify leftT rightT
@@ -496,16 +486,14 @@ inferLambda env params body = case params of
       t <- case mDefault of
         Just defaultExpr -> infer env defaultExpr
         Nothing -> freshVar
-      pure (varNameText name, t)
+      pure (varNameText name, (t, isJust mDefault))
     
     -- Pattern types: closed if no ..., open if ... present
-    -- { a, b } means exactly { a, b }
-    -- { a, b, ... } means at least { a, b }
     let attrsT = if variadic == Variadic
                    then TAttrsOpen (Map.fromList paramTypes)
                    else TAttrs (Map.fromList paramTypes)
                    
-    let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env paramTypes
+    let env' = foldr (\(n, (t, _)) e -> extendEnv n (Forall [] t) e) env paramTypes
     
     -- Also bind the @ pattern if present
     let env'' = case mName of
@@ -552,15 +540,6 @@ inferBindings recursive env bindings
 
     bindingName (Nix.NamedVar (StaticKey name :| []) _ _) = Just (varNameText name)
     bindingName _ = Nothing
-
--- | Infer type for a single binding (used in non-recursive Let)
--- Note: This is deprecated by inferLet (recursive), but kept for structure
-inferBinding :: TypeEnv -> Nix.Binding NExprLoc -> Infer TypeEnv
-inferBinding env binding = case binding of
-  Nix.NamedVar (StaticKey name :| []) expr _ -> do
-    t <- infer env expr
-    pure $ extendEnv (varNameText name) (Forall [] t) env
-  _ -> pure env
 
 -- | Infer types for a Let block (recursive with generalization)
 inferLet :: TypeEnv -> [Nix.Binding NExprLoc] -> NExprLoc -> Infer NixType
