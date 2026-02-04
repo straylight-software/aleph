@@ -178,8 +178,8 @@ configFacts span text =
 
 -- | Shell builtins that are allowed without store paths
 -- These are part of bash itself, not external commands
-isShellBuiltin :: Text -> Bool
-isShellBuiltin cmd = cmd `elem` shellBuiltins
+isIgnoredCommand :: Text -> Bool
+isIgnoredCommand cmd = cmd `elem` shellBuiltins || cmd `elem` commonUtilities
 
 shellBuiltins :: [Text]
 shellBuiltins =
@@ -212,6 +212,18 @@ shellBuiltins =
   , "history", "fc"
   ]
 
+-- | Common utilities assumed to be in PATH (coreutils etc.)
+commonUtilities :: [Text]
+commonUtilities =
+  [ "cat", "cp", "mv", "rm", "mkdir", "rmdir", "ln", "ls"
+  , "head", "tail", "sort", "uniq", "wc", "tr", "cut", "tee"
+  , "grep", "sed", "awk", "find", "xargs"
+  , "mktemp", "realpath", "dirname", "basename", "readlink"
+  , "env", "which"
+  , "chmod", "chown", "chgrp", "touch"
+  , "sleep"
+  ]
+
 -- | Facts from command invocation
 cmdInvocationFacts :: Span -> Text -> [Token] -> [Fact]
 cmdInvocationFacts span cmd args = pathFact ++ argFacts
@@ -220,7 +232,7 @@ cmdInvocationFacts span cmd args = pathFact ++ argFacts
     pathFact
       | isStorePath cmd = [UsesStorePath (StorePath cmd) span]
       | "$" `T.isPrefixOf` cmd = [DynamicCommand (T.drop 1 cmd) span]
-      | isShellBuiltin cmd = []  -- builtins are OK
+      | isIgnoredCommand cmd = []  -- builtins/utils are OK
       | otherwise = [BareCommand cmd span]
 
     -- Extract the command name (strip store path prefix if present)
