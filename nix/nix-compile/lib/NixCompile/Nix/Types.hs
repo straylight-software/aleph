@@ -160,38 +160,55 @@ freeTypeVarsScheme (Forall vars t) =
 -- Pretty Printing
 -- ============================================================================
 
--- | Pretty print a type
+-- | Pretty print a type using normalized variable names (a, b, c...)
 prettyType :: NixType -> Text
-prettyType = \case
-  TVar (TypeVar n) -> "t" <> T.pack (show n)
-  TInt -> "Int"
-  TFloat -> "Float"
-  TBool -> "Bool"
-  TString -> "String"
-  TStrLit s -> "\"" <> s <> "\""
-  TPath -> "Path"
-  TNull -> "Null"
-  TList t -> "[" <> prettyType t <> "]"
-  TAttrs m -> prettyAttrs m
-  TAttrsOpen m -> prettyAttrs m <> " | ..."
-  TFun a b -> prettyArg a <> " -> " <> prettyType b
-  TDerivation -> "Derivation"
-  TUnion ts -> T.intercalate " | " (map prettyType ts)
-  TAny -> "Any"
+prettyType t = prettyTypeWith mapping t
   where
-    prettyArg t@(TFun _ _) = "(" <> prettyType t <> ")"
-    prettyArg t = prettyType t
-    
-    prettyAttrs m 
-      | Map.null m = "{}"
-      | otherwise = "{ " <> T.intercalate ", " (map prettyField (Map.toList m)) <> " }"
-    
-    prettyField (k, v) = k <> " : " <> prettyType v
+    vars = Set.toAscList (freeTypeVars t)
+    names = map T.singleton ['a'..'z'] ++ [ "t" <> T.pack (show i) | i <- [1..] :: [Int] ]
+    mapping = Map.fromList $ zip vars names
 
 -- | Pretty print a type scheme
 prettyScheme :: Scheme -> Text
 prettyScheme (Forall [] t) = prettyType t
-prettyScheme (Forall vars t) = 
-  "forall " <> T.intercalate " " (map prettyVar vars) <> ". " <> prettyType t
+prettyScheme (Forall vars t) =
+  let
+    -- Combine bound variables and free variables (if any)
+    free = Set.toAscList (freeTypeVars t `Set.difference` Set.fromList vars)
+    allVars = vars ++ free
+    names = map T.singleton ['a'..'z'] ++ [ "t" <> T.pack (show i) | i <- [1..] :: [Int] ]
+    mapping = Map.fromList $ zip allVars names
+
+    prettyVar v = Map.findWithDefault "?" v mapping
+  in
+    "forall " <> T.intercalate " " (map prettyVar vars) <> ". " <> prettyTypeWith mapping t
+
+-- | Internal helper: pretty print with variable mapping
+prettyTypeWith :: Map TypeVar Text -> NixType -> Text
+prettyTypeWith mapping = go
   where
-    prettyVar (TypeVar n) = "t" <> T.pack (show n)
+    go = \case
+      TVar v -> Map.findWithDefault ("t" <> T.pack (show (unTypeVar v))) v mapping
+      TInt -> "Int"
+      TFloat -> "Float"
+      TBool -> "Bool"
+      TString -> "String"
+      TStrLit s -> "\"" <> s <> "\""
+      TPath -> "Path"
+      TNull -> "Null"
+      TList t -> "[" <> go t <> "]"
+      TAttrs m -> prettyAttrs m
+      TAttrsOpen m -> prettyAttrs m <> " | ..."
+      TFun a b -> prettyArg a <> " -> " <> go b
+      TDerivation -> "Derivation"
+      TUnion ts -> T.intercalate " | " (map go ts)
+      TAny -> "Any"
+
+    prettyArg t@(TFun _ _) = "(" <> go t <> ")"
+    prettyArg t = go t
+
+    prettyAttrs m
+      | Map.null m = "{}"
+      | otherwise = "{ " <> T.intercalate ", " (map prettyField (Map.toList m)) <> " }"
+
+    prettyField (k, v) = k <> " : " <> go v
