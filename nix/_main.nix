@@ -174,6 +174,9 @@ in
       packages = {
         aleph-lint = pkgs.callPackage ./packages/aleph-lint.nix { };
 
+        # Expose nix-compile CLI
+        nix-compile = pkgs.aleph.nix-compile.cli;
+
         # Armitage - daemon-free Nix operations via Buck2
         armitage = inputs.self.lib.buck2.build pkgs {
           src = inputs.self;

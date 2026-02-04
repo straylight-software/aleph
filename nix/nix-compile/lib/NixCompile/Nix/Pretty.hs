@@ -40,7 +40,7 @@ mkBindingAnn :: Binding -> Ann
 mkBindingAnn Binding {..} =
   Ann
     { annLoc = spanStart bindSpan,
-      annText = "# :: " <> prettyType bindType <> "\n"
+      annText = "# :: " <> prettyType bindType
     }
 
 -- | Apply an annotation to the source text
