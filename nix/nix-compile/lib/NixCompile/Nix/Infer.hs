@@ -363,15 +363,20 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
   NSelect _ base (attr :| _) -> do
     baseT <- infer env base
     t' <- applyCurrentSubst baseT
-    case t' of
-      TAttrs fields -> 
-        case Map.lookup (varNameText attr) fields of
+    
+    let key = case attr of
+          StaticKey k -> Just (varNameText k)
+          DynamicKey _ -> Nothing
+    
+    case (t', key) of
+      (TAttrs fields, Just k) -> 
+        case Map.lookup k fields of
           Just t -> pure t
-          Nothing -> freshVar -- Missing attr in closed set (should be error?)
-      TAttrsOpen fields -> 
-        case Map.lookup (varNameText attr) fields of
+          Nothing -> freshVar -- Missing attr
+      (TAttrsOpen fields, Just k) -> 
+        case Map.lookup k fields of
           Just t -> pure t
-          Nothing -> freshVar -- Open set, assume it exists
+          Nothing -> freshVar -- Open set
       _ -> freshVar
   
   -- Has attribute
