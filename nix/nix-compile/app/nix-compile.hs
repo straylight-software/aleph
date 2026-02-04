@@ -36,8 +36,8 @@ import NixCompile.Types (Loc(..), Span(..))
 import qualified NixCompile.Nix.Pretty as Pretty
 import qualified Data.Map.Strict as Map
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.FilePath ((</>), takeExtension)
-import Control.Monad (forM_)
+import System.FilePath ((</>), takeExtension, makeRelative, takeDirectory)
+import Control.Monad (forM, forM_, mapM)
 
 main :: IO ()
 main = do
