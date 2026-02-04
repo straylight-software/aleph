@@ -44,7 +44,7 @@ import Data.Functor.Compose (Compose (..))
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Text (Text)
@@ -257,13 +257,31 @@ occursCheck v = \case
   _ -> False
 
 unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
-unifyAttrs m1 m2 = do
+unifyAttrs expected actual = do
   -- Closed rows must match exactly
-  if Map.keysSet m1 /= Map.keysSet m2
-    then throwTypeError $ "attribute set mismatch\n  expected: " <> 
-                         T.intercalate ", " (Map.keys m1) <> 
-                         "\n  found: " <> T.intercalate ", " (Map.keys m2)
-    else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) m1 m2))
+  if Map.keysSet expected /= Map.keysSet actual
+    then do
+      let missing = Set.difference (Map.keysSet expected) (Map.keysSet actual)
+      let extra = Set.difference (Map.keysSet actual) (Map.keysSet expected)
+      let msg = formatRowError expected actual missing extra
+      throwTypeError msg
+    else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) expected actual))
+
+-- | Format a user-friendly row type error
+formatRowError :: Map Text NixType -> Map Text NixType -> Set Text -> Set Text -> Text
+formatRowError expected actual missing extra =
+  let parts = catMaybes
+        [ if Set.null missing then Nothing
+          else Just $ "missing required field" <> plural (Set.size missing) <> ": " <> 
+                     T.intercalate ", " (Set.toList missing)
+        , if Set.null extra then Nothing
+          else Just $ "unexpected field" <> plural (Set.size extra) <> ": " <> 
+                     T.intercalate ", " (Set.toList extra)
+        ]
+  in "attribute set mismatch\n" <> T.unlines (map ("  " <>) parts)
+  where
+    plural 1 = ""
+    plural _ = "s"
 
 unifyAttrsOpenOpen :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrsOpenOpen m1 m2 = do

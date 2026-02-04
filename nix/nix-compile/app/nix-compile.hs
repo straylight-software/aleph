@@ -275,11 +275,14 @@ cmdTypeCheck path = do
            then findAllNixFiles path
            else return [path]
   
-  putStrLn $ "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  putStrLn $ "  nix-compile typecheck"
-  putStrLn $ "  " ++ show (length files) ++ " files"
-  putStrLn $ "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  putStrLn ""
+  TIO.putStrLn $ T.unlines
+    [ ""
+    , "╔════════════════════════════════════════════════════════════╗"
+    , "║  nix-compile typecheck                                      ║"
+    , "║  " <> T.pack (padRight 54 (show (length files) <> " files")) <> "║"
+    , "╚════════════════════════════════════════════════════════════╝"
+    , ""
+    ]
   
   -- Lock for synchronized output
   outLock <- newMVar ()
@@ -289,19 +292,23 @@ cmdTypeCheck path = do
   let failures = filter not results
   let successCount = length files - length failures
   
-  putStrLn ""
-  putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  TIO.putStrLn $ T.unlines
+    [ ""
+    , "╔════════════════════════════════════════════════════════════╗"
+    , "║  Summary                                                    ║"
+    , "╠════════════════════════════════════════════════════════════╣"
+    , "║  " <> T.pack (padRight 54 (show successCount <> " ✓ passed")) <> "║"
+    , "║  " <> T.pack (padRight 54 (show (length failures) <> " ✗ failed")) <> "║"
+    , "╚════════════════════════════════════════════════════════════╝"
+    , ""
+    ]
   
   if null failures
-    then do
-      putStrLn $ "  ✓ All " ++ show successCount ++ " files passed"
-      putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      exitSuccess
-    else do
-      putStrLn $ "  ✓ " ++ show successCount ++ " passed"
-      putStrLn $ "  ✗ " ++ show (length failures) ++ " failed"
-      putStrLn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      exitFailure
+    then exitSuccess
+    else exitFailure
+  where
+    padRight :: Int -> String -> String
+    padRight n s = take n (s ++ repeat ' ')
   where
     findAllNixFiles :: FilePath -> IO [FilePath]
     findAllNixFiles dir = do
@@ -327,14 +334,34 @@ cmdTypeCheck path = do
             
       case result of
         Left (e :: SomeException) -> do
-          log $ "✗ " <> T.pack file <> "\n  internal error: " <> T.pack (show e)
+          log $ T.unlines
+            [ ""
+            , "━━━ ✗ " <> T.pack file <> " ━━━"
+            , ""
+            , "  💥 Internal error (this is a bug in nix-compile):"
+            , ""
+            , T.unlines $ map ("     " <>) $ T.lines $ T.pack $ show e
+            ]
           return False
         Right (Left err) -> do
-          log $ "✗ " <> T.pack file <> "\n  " <> err
+          log $ T.unlines
+            [ ""
+            , "━━━ ✗ " <> T.pack file <> " ━━━"
+            , ""
+            , formatError err
+            , ""
+            ]
           return False
         Right (Right t) -> do
-          log $ "✓ " <> T.pack file <> "\n  " <> t
+          log $ "✓ " <> T.pack file
           return True
+      where
+        formatError :: T.Text -> T.Text
+        formatError err = 
+          let lines' = T.lines err
+          in case lines' of
+               (first:rest) -> T.unlines $ ("  ❌ " <> first) : map ("     " <>) rest
+               [] -> "  ❌ unknown error"
 
     try :: IO a -> IO (Either SomeException a)
     try act = catch (Right <$> act) (\e -> return (Left e))
