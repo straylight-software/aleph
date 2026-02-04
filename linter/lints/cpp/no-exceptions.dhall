@@ -20,58 +20,60 @@ in  { id = "cpp-no-exceptions"
       }
     , message = "ALEPH-E004: throw statements forbidden, use s4::core::result<T>"
     , note =
-        ''
-        ## What's wrong?
-        Exception handling with `throw` is forbidden. Use `s4::core::result<T>` instead.
+        { description = "Exception handling with `throw` is forbidden. Use `s4::core::result<T>` instead."
+        , examples =
+          [ "throw std::runtime_error(\"...\");"
+          , "throw std::invalid_argument(\"...\");"
+          , "throw my_exception();"
+          , "throw 42;"
+          , "throw \"error\";"
+          , "throw std::exception();"
+          ]
+        , suggested_fix =
+            ''
+            Use result types for error handling:
 
-        ## Examples of violations:
-        - `throw std::runtime_error("...");`
-        - `throw std::invalid_argument("...");`
-        - `throw my_custom_exception();`
+            ```cpp
+            // BAD
+            auto parse_config(const std::string& json) -> configuration {
+              if (json.empty()) {
+                throw std::invalid_argument("empty json");
+              }
+              return configuration{...};
+            }
 
-        ## What can I do to fix this?
-        Use result types for error handling:
+            // GOOD
+            auto parse_config(std::string_view json)
+              -> s4::core::result<configuration> {
+              if (json.empty()) {
+                return s4::fail<configuration>("empty json");
+              }
+              return s4::ok(configuration{...});
+            }
+            ```
 
-        ```cpp
-        // BAD
-        auto parse_config(const std::string& json) -> configuration {
-          if (json.empty()) {
-            throw std::invalid_argument("empty json");
-          }
-          return configuration{...};
+            ## Handling errors
+            Check results explicitly:
+
+            ```cpp
+            auto result = parse_config(json);
+            if (!result) {
+              s4::error("failed to parse: {}", result.error().what());
+              return;
+            }
+            auto config = *result;
+            ```
+
+            ## Fatal errors
+            For truly unrecoverable errors:
+
+            ```cpp
+            if (!critical_resource) {
+              s4::fatal("critical resource unavailable: {}", resource_name);
+            }
+            ```
+            ''
         }
-
-        // GOOD
-        auto parse_config(std::string_view json)
-          -> s4::core::result<configuration> {
-          if (json.empty()) {
-            return s4::fail<configuration>("empty json");
-          }
-          return s4::ok(configuration{...});
-        }
-        ```
-
-        ## Handling errors
-        Check results explicitly:
-
-        ```cpp
-        auto result = parse_config(json);
-        if (!result) {
-          s4::error("failed to parse: {}", result.error().what());
-          return;
-        }
-        auto config = *result;
-        ```
-
-        ## Fatal errors
-        For truly unrecoverable errors:
-
-        ```cpp
-        if (!critical_resource) {
-          s4::fatal("critical resource unavailable: {}", resource_name);
-        }
-        ```
-        ''
     , tests =
         { valid =
             [ "return s4::ok(value);"
@@ -81,13 +83,6 @@ in  { id = "cpp-no-exceptions"
             , "s4::fatal(\"critical error\");"
             , "return s4::core::ok();"
             ]
-        , invalid =
-            [ "throw std::runtime_error(\"...\");"
-            , "throw std::invalid_argument(\"...\");"
-            , "throw my_exception();"
-            , "throw 42;"
-            , "throw \"error\";"
-            , "throw std::exception();"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

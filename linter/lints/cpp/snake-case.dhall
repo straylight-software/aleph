@@ -20,41 +20,45 @@ in  { id = "cpp-snake-case"
       }
     , message = "ALEPH-E002: Identifier must use snake_case (contains uppercase)"
     , note =
-        ''
-        ## What's wrong?
-        C++ identifiers must use snake_case (lowercase with underscores).
+        { description = "C++ identifiers must use snake_case (lowercase with underscores)."
+        , examples =
+          [ "myFunction"
+          , "MyClass"
+          , "MyVariable"
+          , "processData"
+          , "getValue"
+          , "HTTPRequest"
+          , "parseJSON"
+          , "tensorBatch"
+          , "DeviceMemory"
+          , "Configuration"
+          , "getID"
+          ]
+        , suggested_fix =
+            ''
+            Convert camelCase and PascalCase to snake_case:
 
-        ## Examples of violations:
-        - `myFunction` → use `my_function`
-        - `MyClass` → use `my_class`
-        - `parseJSON` → use `parse_json`
-        - `HTTPRequest` → use `http_request`
-        - `getID` → use `get_id`
-        - `numGPUs` → use `num_gpus`
+            ```cpp
+            // BAD
+            class MyClass {
+              void processData();
+              int getValue();
+            };
+            auto myVariable = 42;
 
-        ## What can I do to fix this?
-        Convert camelCase and PascalCase to snake_case:
+            // GOOD
+            class my_class {
+              void process_data();
+              int get_value();
+            };
+            auto my_variable = 42;
+            ```
 
-        ```cpp
-        // BAD
-        class MyClass {
-          void processData();
-          int getValue();
-        };
-        auto myVariable = 42;
-
-        // GOOD
-        class my_class {
-          void process_data();
-          int get_value();
-        };
-        auto my_variable = 42;
-        ```
-
-        ## Note on acronyms
-        Acronyms should be lowercase: `http_request` not `HTTPRequest`,
-        `parse_json` not `parseJSON`, `gpu_memory` not `GPUMemory`.
-        ''
+            ## Note on acronyms
+            Acronyms should be lowercase: `http_request` not `HTTPRequest`,
+            `parse_json` not `parseJSON`, `gpu_memory` not `GPUMemory`.
+            ''
+        }
     , tests =
         { valid =
             [ "my_function"
@@ -69,18 +73,6 @@ in  { id = "cpp-snake-case"
             , "configuration"
             , "connection"
             ]
-        , invalid =
-            [ "myFunction"
-            , "MyClass"
-            , "MyVariable"
-            , "processData"
-            , "getValue"
-            , "HTTPRequest"
-            , "parseJSON"
-            , "tensorBatch"
-            , "DeviceMemory"
-            , "Configuration"
-            , "getID"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

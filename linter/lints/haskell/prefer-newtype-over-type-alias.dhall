@@ -26,51 +26,56 @@ in  { id = "haskell-prefer-newtype-over-type-alias"
       }
     , message = "ALEPH-H005: Consider using newtype instead of type alias"
     , note =
-        ''
-        ## What's wrong?
-        Type aliases don't provide type safety - they are just synonyms.
-        This can lead to bugs where values of different semantic meanings
-        are accidentally mixed up.
+        { description = "Type aliases don't provide type safety - they are just synonyms. This can lead to bugs where values of different semantic meanings are accidentally mixed up."
+        , examples =
+          [ "type UserId = Int"
+          , "type SessionId = UUID"
+          , "type RequestId = Int64"
+          , "type Milliseconds = Int"
+          , "type Email = Text"
+          , "type RouteId = Text"
+          ]
+        , suggested_fix =
+            ''
+            From the Weyl Standard Haskell style guide:
+            > Newtype Wrapping: Pragmatic Boundaries
 
-        From the Weyl Standard Haskell style guide:
-        > Newtype Wrapping: Pragmatic Boundaries
+            ## When to use newtype:
+            - Domain boundaries (UserId, SessionId, RequestId, RouteId)
+            - Units and semantics (Milliseconds, ByteCount, Percentage)
+            - Validation boundaries (Email with smart constructor)
+            - Compiler domain (NodeId, TypeId, ScopeLevel)
 
-        ## When to use newtype:
-        - Domain boundaries (UserId, SessionId, RequestId, RouteId)
-        - Units and semantics (Milliseconds, ByteCount, Percentage)
-        - Validation boundaries (Email with smart constructor)
-        - Compiler domain (NodeId, TypeId, ScopeLevel)
+            Use newtype instead of type alias:
 
-        ## What can I do to fix this?
-        Use newtype instead of type alias:
+            ```haskell
+            -- BAD: Type alias - no type safety
+            type UserId = Int
+            type SessionId = Int
 
-        ```haskell
-        -- BAD: Type alias - no type safety
-        type UserId = Int
-        type SessionId = Int
+            -- These compile but are semantically wrong:
+            let userId = 42 :: UserId
+            let sessionId = userId  -- Wrong! But compiles
 
-        -- These compile but are semantically wrong:
-        let userId = 42 :: UserId
-        let sessionId = userId  -- Wrong! But compiles
+            -- GOOD: Newtype - compiler enforces correctness
+            newtype UserId = UserId { unUserId :: Int }
+              deriving (Eq, Show)
 
-        -- GOOD: Newtype - compiler enforces correctness
-        newtype UserId = UserId { unUserId :: Int }
-          deriving (Eq, Show)
+            newtype SessionId = SessionId { unSessionId :: Int }
+              deriving (Eq, Show)
 
-        newtype SessionId = SessionId { unSessionId :: Int }
-          deriving (Eq, Show)
+            -- These are different types - compiler catches errors:
+            let userId = UserId 42
+            -- sessionId = userId  -- Compile error!
+            ```
 
-        -- These are different types - compiler catches errors:
-        let userId = UserId 42
-        -- sessionId = userId  -- Compile error!
-        ```
+            With `-O2`, GHC eliminates newtype overhead completely.
 
-        With `-O2`, GHC eliminates newtype overhead completely.
-
-        ## Rule: 
-        Start with type aliases, upgrade to newtypes when you find bugs
-        mixing things up.
-        ''
+            ## Rule: 
+            Start with type aliases, upgrade to newtypes when you find bugs
+            mixing things up.
+            ''
+        }
     , tests =
         { valid = 
             [ "newtype UserId = UserId Int"
@@ -80,13 +85,6 @@ in  { id = "haskell-prefer-newtype-over-type-alias"
             , "type LoopCounter = Int"
             , "type CacheSize = Int"
             ]
-        , invalid = 
-            [ "type UserId = Int"
-            , "type SessionId = UUID"
-            , "type RequestId = Int64"
-            , "type Milliseconds = Int"
-            , "type Email = Text"
-            , "type RouteId = Text"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

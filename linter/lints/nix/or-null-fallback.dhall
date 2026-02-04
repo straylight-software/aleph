@@ -20,17 +20,20 @@ in  { id = "or-null-fallback"
       }
     , message = "ALEPH-W004: defensive `or null` fallback"
     , note =
-        ''
-        ## What's wrong?
-        Using `x or null` as a fallback hides errors instead of failing fast.
-
-        ## What can I do to fix this?
-        If the attribute must exist, remove the fallback and let it fail.
-        ''
+        { description = "Using `x or null` as a fallback hides errors instead of failing fast."
+        , examples =
+          [ "args.foo or null"
+          , "pkgs.hello or null"
+          , "config.value or null"
+          ]
+        , suggested_fix =
+            ''
+            If the attribute must exist, remove the fallback and let it fail.
+            ''
+        }
     , tests =
       { valid =
         [ "{ foo ? null }: foo", "config.foo or true", "pkgs.bar or pkgs.baz" ]
-      , invalid =
-        [ "args.foo or null", "pkgs.hello or null", "config.value or null" ]
+      , extra_invalid = [] : List Text
       }
     }

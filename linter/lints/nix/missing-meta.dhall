@@ -11,23 +11,23 @@ in  { id = "missing-meta"
       }
     , message = "ALEPH-W008: Missing meta attribute"
     , note =
-        ''
-        ## What's wrong?
-        `mkDerivation` is missing a `meta` attribute.
-
-        ## What can I do to fix this?
-        Add a `meta` attribute with at least basic information.
-        ''
+        { description = "`mkDerivation` is missing a `meta` attribute."
+        , examples =
+          [ "mkDerivation { name = \"foo\"; }"
+          , "mkDerivation { pname = \"bar\"; version = \"1.0\"; }"
+          , "mkDerivation { src = ./.; }"
+          ]
+        , suggested_fix =
+            ''
+            Add a `meta` attribute with at least basic information.
+            ''
+        }
     , tests =
       { valid =
         [ "{ meta = {}; }"
         , "{ meta = { description = \"foo\"; }; }"
         , "{ meta = { license = lib.licenses.mit; }; }"
         ]
-      , invalid =
-        [ "mkDerivation { name = \"foo\"; }"
-        , "mkDerivation { pname = \"bar\"; version = \"1.0\"; }"
-        , "mkDerivation { src = ./.; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

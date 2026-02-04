@@ -29,51 +29,58 @@ in  { id = "haskell-prefer-guards-over-nested-case"
       }
     , message = "ALEPH-H002: Deeply nested case expression - prefer guards"
     , note =
-        ''
-        ## What's wrong?
-        Deeply nested case expressions are hard to read and maintain.
+        { description = "Deeply nested case expressions are hard to read and maintain."
+        , examples =
+          [ "case x of Just y -> case y of Just z -> z"
+          , "case x of A -> case y of B -> 1"
+          , "case x of A -> case y of B -> case z of C -> 1"
+          , "foo x = case x of A -> case y of B -> 1"
+          , "bar x = case x of Just a -> case a of Just b -> b"
+          , "baz x = case x of Left e -> case e of Error -> 1"
+          ]
+        , suggested_fix =
+            ''
+            From the Weyl Standard Haskell style guide:
+            > The Indentation Reality Check: In production code, deep nesting isn't just ugly—it's a maintenance liability.
 
-        From the Weyl Standard Haskell style guide:
-        > The Indentation Reality Check: In production code, deep nesting isn't just ugly—it's a maintenance liability.
+            Every level of indentation is a place where:
+            - Merge conflicts multiply
+            - Off-by-one space errors break compilation
+            - Code reviews devolve into whitespace debates
 
-        Every level of indentation is a place where:
-        - Merge conflicts multiply
-        - Off-by-one space errors break compilation
-        - Code reviews devolve into whitespace debates
+            Use guards with where clauses instead:
 
-        ## What can I do to fix this?
-        Use guards with where clauses instead:
+            ```haskell
+            -- BAD: Philosophically pure but practically painful
+            processRequest request =
+              case validateRequest request of
+                Nothing -> handleInvalid
+                Just validReq ->
+                  case findRoute routes validReq of
+                    Nothing -> handleNoRoute
+                    Just route ->
+                      case lookupHandler route of
+                        Nothing -> handleMissingHandler
+                        Just handler ->
+                          executeHandler handler validReq
 
-        ```haskell
-        -- BAD: Philosophically pure but practically painful
-        processRequest request =
-          case validateRequest request of
-            Nothing -> handleInvalid
-            Just validReq ->
-              case findRoute routes validReq of
-                Nothing -> handleNoRoute
-                Just route ->
-                  case lookupHandler route of
-                    Nothing -> handleMissingHandler
-                    Just handler ->
-                      executeHandler handler validReq
+            -- GOOD: Flat is better than nested
+            processRequest request = processValidated
+              where
+                processValidated
+                  | Nothing <- validateRequest request = handleInvalid
+                  | Just validReq <- validateRequest request = routeRequest validReq
 
-        -- GOOD: Flat is better than nested
-        processRequest request = processValidated
-          where
-            processValidated
-              | Nothing <- validateRequest request = handleInvalid
-              | Just validReq <- validateRequest request = routeRequest validReq
+                routeRequest validReq
+                  | Nothing <- findRoute routes validReq = handleNoRoute
+                  | Just route <- findRoute routes validReq = handleRoute route validReq
 
-            routeRequest validReq
-              | Nothing <- findRoute routes validReq = handleNoRoute
-              | Just route <- findRoute routes validReq = handleRoute route validReq
-
-            handleRoute route validReq
-              | Nothing <- lookupHandler route = handleMissingHandler
-              | Just handler <- lookupHandler route = executeHandler handler validReq
-        ```
-        ''
+                handleRoute route validReq
+                  | Nothing <- lookupHandler route = handleMissingHandler
+                  | Just handler <- lookupHandler route = executeHandler handler validReq
+            ```
+            ''
+        }
     , tests =
         { valid = 
             [ "case x of Just y -> y"
@@ -83,13 +90,6 @@ in  { id = "haskell-prefer-guards-over-nested-case"
             , "bar = case x of A -> 1"
             , "baz x = x + 1"
             ]
-        , invalid = 
-            [ "case x of Just y -> case y of Just z -> z"
-            , "case x of A -> case y of B -> 1"
-            , "case x of A -> case y of B -> case z of C -> 1"
-            , "foo x = case x of A -> case y of B -> 1"
-            , "bar x = case x of Just a -> case a of Just b -> b"
-            , "baz x = case x of Left e -> case e of Error -> 1"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

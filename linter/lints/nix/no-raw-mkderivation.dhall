@@ -11,23 +11,23 @@ in  { id = "no-raw-mkderivation"
       }
     , message = "ALEPH-E010: raw mkDerivation call"
     , note =
-        ''
-        ## What's wrong?
-        Direct `mkDerivation` calls bypass the typed prelude boundary.
-
-        ## What can I do to fix this?
-        Use `prelude.mk-derivation` instead.
-        ''
+        { description = "Direct `mkDerivation` calls bypass the typed prelude boundary."
+        , examples =
+          [ "pkgs.stdenv.mkDerivation { name = \"foo\"; }"
+          , "nixpkgs.stdenv.mkDerivation {}"
+          , "final.stdenv.mkDerivation { pname = \"baz\"; }"
+          ]
+        , suggested_fix =
+            ''
+            Use `prelude.mk-derivation` instead.
+            ''
+        }
     , tests =
       { valid =
         [ "prelude.mk-derivation { name = \"foo\"; }"
         , "aleph.mk-derivation { pname = \"bar\"; }"
         , "myProject.mk-derivation {}"
         ]
-      , invalid =
-        [ "pkgs.stdenv.mkDerivation { name = \"foo\"; }"
-        , "nixpkgs.stdenv.mkDerivation {}"
-        , "final.stdenv.mkDerivation { pname = \"baz\"; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

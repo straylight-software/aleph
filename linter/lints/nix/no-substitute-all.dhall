@@ -42,21 +42,20 @@ in  { id = "no-substitute-all"
       }
     , message = "ALEPH-E007: Text templating must use Dhall"
     , note =
-        ''
-        ## What's wrong?
-        `substituteAll`, `replaceVars`, and `substitute` are forbidden.
-        All text generation must use Dhall templates.
-        ''
+        { description = "`substituteAll`, `replaceVars`, and `substitute` are forbidden. All text generation must use Dhall templates."
+        , examples =
+          [ "substituteAll { src = ./file; }"
+          , "replaceVars ./template { var = value; }"
+          , "substitute { src = script.sh; }"
+          ]
+        , suggested_fix = ""
+        }
     , tests =
       { valid =
         [ "builtins.readFile ./file"
         , "\"plain text\""
         , "pkgs.writeText \"config\" configText"
         ]
-      , invalid =
-        [ "substituteAll { src = ./file; }"
-        , "replaceVars ./template { var = value; }"
-        , "substitute { src = script.sh; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

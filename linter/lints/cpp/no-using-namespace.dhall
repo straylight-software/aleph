@@ -20,44 +20,46 @@ in  { id = "cpp-no-using-namespace"
       }
     , message = "ALEPH-E003: using namespace directive forbidden"
     , note =
-        ''
-        ## What's wrong?
-        `using namespace` directives are forbidden. Use fully qualified names instead.
+        { description = "`using namespace` directives are forbidden. Use fully qualified names instead."
+        , examples =
+          [ "using namespace std;"
+          , "using namespace s4::core;"
+          , "using namespace boost;"
+          , "using namespace s4::inference;"
+          , "using namespace std::chrono;"
+          , "using namespace detail;"
+          ]
+        , suggested_fix =
+            ''
+            Use fully qualified names throughout:
 
-        ## Examples of violations:
-        - `using namespace std;`
-        - `using namespace s4::core;`
-        - `using namespace boost;`
+            ```cpp
+            // BAD
+            using namespace std;
+            vector<int> data;
+            string name;
 
-        ## What can I do to fix this?
-        Use fully qualified names throughout:
+            // GOOD
+            std::vector<int> data;
+            std::string name;
 
-        ```cpp
-        // BAD
-        using namespace std;
-        vector<int> data;
-        string name;
+            // BAD
+            using namespace s4::core;
+            result<int> compute();
 
-        // GOOD
-        std::vector<int> data;
-        std::string name;
+            // GOOD
+            s4::core::result<int> compute();
+            ```
 
-        // BAD
-        using namespace s4::core;
-        result<int> compute();
+            ## Exceptions
+            Type aliases for long names are encouraged:
 
-        // GOOD
-        s4::core::result<int> compute();
-        ```
-
-        ## Exceptions
-        Type aliases for long names are encouraged:
-
-        ```cpp
-        // GOOD: Type alias for frequently-used type
-        using inference_result = s4::inference::batch_result_t;
-        ```
-        ''
+            ```cpp
+            // GOOD: Type alias for frequently-used type
+            using inference_result = s4::inference::batch_result_t;
+            ```
+            ''
+        }
     , tests =
         { valid =
             [ "std::vector<int> data;"
@@ -67,13 +69,6 @@ in  { id = "cpp-no-using-namespace"
             , "std::string name;"
             , "boost::optional<int> value;"
             ]
-        , invalid =
-            [ "using namespace std;"
-            , "using namespace s4::core;"
-            , "using namespace boost;"
-            , "using namespace s4::inference;"
-            , "using namespace std::chrono;"
-            , "using namespace detail;"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

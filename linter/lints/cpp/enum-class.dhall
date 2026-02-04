@@ -24,37 +24,38 @@ in  { id = "cpp-enum-class"
       }
     , message = "ALEPH-W011: Use enum class instead of plain enum"
     , note =
-        ''
-        ## What's wrong?
-        Use scoped enums (enum class) instead of unscoped enums.
+        { description = "Use scoped enums (enum class) instead of unscoped enums."
+        , examples =
+          [ "enum color { red, green, blue };"
+          , "enum status { ok, error };"
+          , "enum type { int_, float_ };"
+          , "enum direction { north, south };"
+          , "enum state { active, inactive };"
+          ]
+        , suggested_fix =
+            ''
+            Use enum class:
 
-        ## Examples of violations:
-        - `enum color { red, green, blue };`
-        - `enum status { ok, error };`
-        - `enum type { int_, float_ };`
+            ```cpp
+            // BAD
+            enum color { red, green, blue };
+            enum status { ok, error, warning };
 
-        ## What can I do to fix this?
-        Use enum class:
+            // GOOD
+            enum class color { red, green, blue };
+            enum class status { ok, error, warning };
 
-        ```cpp
-        // BAD
-        enum color { red, green, blue };
-        enum status { ok, error, warning };
+            // Usage
+            auto c = color::red;  // Scoped access
+            if (s == status::ok) { ... }
+            ```
 
-        // GOOD
-        enum class color { red, green, blue };
-        enum class status { ok, error, warning };
-
-        // Usage
-        auto c = color::red;  // Scoped access
-        if (s == status::ok) { ... }
-        ```
-
-        ## Benefits
-        - No name pollution in surrounding scope
-        - No implicit conversion to int
-        - Type safety: must use scope operator (::)
-        ''
+            ## Benefits
+            - No name pollution in surrounding scope
+            - No implicit conversion to int
+            - Type safety: must use scope operator (::)
+            ''
+        }
     , tests =
         { valid = 
             [ "enum class color { red, green, blue };"
@@ -63,12 +64,6 @@ in  { id = "cpp-enum-class"
             , "enum class direction { north, south };"
             , "enum class state { active, inactive };"
             ]
-        , invalid = 
-            [ "enum color { red, green, blue };"
-            , "enum status { ok, error };"
-            , "enum type { int_, float_ };"
-            , "enum direction { north, south };"
-            , "enum state { active, inactive };"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

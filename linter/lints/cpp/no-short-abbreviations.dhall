@@ -23,35 +23,36 @@ in  { id = "cpp-no-short-abbreviations"
       }
     , message = "ALEPH-E001: Short abbreviation violates Three-Letter Rule"
     , note =
-        ''
-        ## What's wrong?
-        Abbreviations less than 4 characters create exponential confusion in agent-heavy codebases.
+        { description = "Abbreviations less than 4 characters create exponential confusion in agent-heavy codebases."
+        , examples =
+          [ "cfg"
+          , "conn"
+          , "res"
+          , "req"
+          , "ctx"
+          , "mgr"
+          , "proc"
+          , "buf"
+          , "ptr"
+          , "tmp"
+          ]
+        , suggested_fix =
+            ''
+            Use full words instead of abbreviations. The extra typing is worth the clarity.
 
-        ## Examples of violations:
-        - `cfg` → use `configuration`
-        - `conn` → use `connection`
-        - `res` → use `result`
-        - `req` → use `request`
-        - `ctx` → use `context`
-        - `mgr` → use `manager`
-        - `proc` → use `process` or `procedure`
-        - `buf` → use `buffer`
+            ```cpp
+            // BAD
+            auto cfg = load_cfg();
+            auto conn = db.get_conn();
+            auto res = process(req);
 
-        ## What can I do to fix this?
-        Use full words instead of abbreviations. The extra typing is worth the clarity.
-
-        ```cpp
-        // BAD
-        auto cfg = load_cfg();
-        auto conn = db.get_conn();
-        auto res = process(req);
-
-        // GOOD
-        auto configuration = load_configuration();
-        auto connection = database.get_connection();
-        auto result = process_request(request);
-        ```
-        ''
+            // GOOD
+            auto configuration = load_configuration();
+            auto connection = database.get_connection();
+            auto result = process_request(request);
+            ```
+            ''
+        }
     , tests =
         { valid = 
             [ "configuration"
@@ -66,17 +67,6 @@ in  { id = "cpp-no-short-abbreviations"
             , "value"
             , "string"
             ]
-        , invalid = 
-            [ "cfg"
-            , "conn"
-            , "res"
-            , "req"
-            , "ctx"
-            , "mgr"
-            , "proc"
-            , "buf"
-            , "ptr"
-            , "tmp"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

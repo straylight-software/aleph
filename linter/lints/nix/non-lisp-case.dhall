@@ -8,20 +8,24 @@ in  { id = "non-lisp-case"
     , rule = Schema.Rule::{ kind = "identifier", regex = Some "[A-Z]" }
     , message = "ALEPH-W004: Use lisp-case for identifiers"
     , note =
-        ''
-        ## What's wrong?
-        Identifier contains uppercase characters.
+        { description = "Identifier contains uppercase characters."
+        , examples =
+          [ "myFunction = 1"
+          , "SomeValue = 1"
+          , "IORef = 1"
+          ]
+        , suggested_fix =
+            ''
+            Use lisp-case (kebab-case) for all identifiers:
 
-        ## What can I do to fix this?
-        Use lisp-case (kebab-case) for all identifiers:
-
-        ```nix
-        my-function = ...;  # Good
-        myFunction = ...;  # Bad
-        ```
-        ''
+            ```nix
+            my-function = ...;  # Good
+            myFunction = ...;  # Bad
+            ```
+            ''
+        }
     , tests =
       { valid = [ "my-function = 1", "my_function = 1", "lowercase = 1" ]
-      , invalid = [ "myFunction = 1", "SomeValue = 1", "IORef = 1" ]
+      , extra_invalid = [] : List Text
       }
     }

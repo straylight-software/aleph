@@ -28,44 +28,45 @@ in  { id = "haskell-no-short-abbreviations"
       }
     , message = "ALEPH-H001: Short abbreviation violates Three-Character Rule"
     , note =
-        ''
-        ## What's wrong?
-        Abbreviations less than 4 characters create exponential confusion in agent-heavy codebases.
+        { description = "Abbreviations less than 4 characters create exponential confusion in agent-heavy codebases."
+        , examples =
+          [ "cfg"
+          , "conn"
+          , "res"
+          , "req"
+          , "ctx"
+          , "mgr"
+          , "proc"
+          , "buf"
+          , "ptr"
+          , "tmp"
+          ]
+        , suggested_fix =
+            ''
+            From the Weyl Standard Haskell style guide:
+            > If an identifier is 3 characters or less, it's probably too short for production code
 
-        From the Weyl Standard Haskell style guide:
-        > If an identifier is 3 characters or less, it's probably too short for production code
+            ## Standard exceptions (only where type makes it unambiguous):
+            - `xs`, `ys` - lists in pure functions
+            - `m`, `n` - indices in array algorithms
+            - `k`, `v` - key/value in map operations
+            - `f`, `g` - functions in higher-order contexts
 
-        ## Examples of violations:
-        - `cfg` → use `configuration`
-        - `conn` → use `connection`
-        - `res` → use `result`
-        - `req` → use `request`
-        - `ctx` → use `context`
-        - `mgr` → use `manager`
-        - `proc` → use `process` or `procedure`
-        - `buf` → use `buffer`
+            Use full words instead of abbreviations. The extra typing is worth the clarity.
 
-        ## Standard exceptions (only where type makes it unambiguous):
-        - `xs`, `ys` - lists in pure functions
-        - `m`, `n` - indices in array algorithms
-        - `k`, `v` - key/value in map operations
-        - `f`, `g` - functions in higher-order contexts
+            ```haskell
+            -- BAD
+            cfg <- loadCfg
+            conn <- mkConn cfg
+            res <- proc req
 
-        ## What can I do to fix this?
-        Use full words instead of abbreviations. The extra typing is worth the clarity.
-
-        ```haskell
-        -- BAD
-        cfg <- loadCfg
-        conn <- mkConn cfg
-        res <- proc req
-
-        -- GOOD
-        configuration <- loadServerConfiguration
-        connection <- createDatabaseConnection configuration
-        response <- processClientRequest request
-        ```
-        ''
+            -- GOOD
+            configuration <- loadServerConfiguration
+            connection <- createDatabaseConnection configuration
+            response <- processClientRequest request
+            ```
+            ''
+        }
     , tests =
         { valid = 
             [ "configuration"
@@ -84,17 +85,6 @@ in  { id = "haskell-no-short-abbreviations"
             , "f"
             , "g"
             ]
-        , invalid = 
-            [ "cfg"
-            , "conn"
-            , "res"
-            , "req"
-            , "ctx"
-            , "mgr"
-            , "proc"
-            , "buf"
-            , "ptr"
-            , "tmp"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

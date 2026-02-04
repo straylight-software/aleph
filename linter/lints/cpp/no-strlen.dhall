@@ -20,42 +20,42 @@ in  { id = "cpp-no-strlen"
       }
     , message = "ALEPH-W021: Use std::string::size() instead of strlen"
     , note =
-        ''
-        ## What's wrong?
-        strlen and other C string functions are unsafe. Use std::string for automatic
-        memory management and bounds checking.
+        { description = "strlen and other C string functions are unsafe. Use std::string for automatic memory management and bounds checking."
+        , examples =
+          [ "strlen(name);"
+          , "strlen(buffer.c_str());"
+          , "if (strlen(str) > 0)"
+          , "size_t len = strlen(input);"
+          , "while (strlen(p) < 10)"
+          ]
+        , suggested_fix =
+            ''
+            Use std::string member functions:
 
-        ## Examples of violations:
-        - `strlen(name)`
-        - `strlen(buffer)`
-        - `if (strlen(str) > 0)`
+            ```cpp
+            // BAD: C-style strings
+            char buffer[100];
+            strcpy(buffer, input);
+            size_t len = strlen(buffer);
+            if (len > 0) {
+                strcat(buffer, "suffix");
+            }
 
-        ## What can I do to fix this?
-        Use std::string member functions:
+            // GOOD: std::string
+            std::string buffer = input;
+            if (!buffer.empty()) {
+                buffer += "suffix";
+            }
+            size_t len = buffer.size();
+            ```
 
-        ```cpp
-        // BAD: C-style strings
-        char buffer[100];
-        strcpy(buffer, input);
-        size_t len = strlen(buffer);
-        if (len > 0) {
-            strcat(buffer, "suffix");
+            ## Benefits
+            - Automatic memory management
+            - No buffer overflows
+            - Modern C++ style
+            - Self-documenting code
+            ''
         }
-
-        // GOOD: std::string
-        std::string buffer = input;
-        if (!buffer.empty()) {
-            buffer += "suffix";
-        }
-        size_t len = buffer.size();
-        ```
-
-        ## Benefits
-        - Automatic memory management
-        - No buffer overflows
-        - Modern C++ style
-        - Self-documenting code
-        ''
     , tests =
       { valid =
         [ "name.size();"
@@ -64,12 +64,6 @@ in  { id = "cpp-no-strlen"
         , "std::string s = input;"
         , "s += \"suffix\";"
         ]
-      , invalid =
-        [ "strlen(name);"
-        , "strlen(buffer.c_str());"
-        , "if (strlen(str) > 0)"
-        , "size_t len = strlen(input);"
-        , "while (strlen(p) < 10)"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

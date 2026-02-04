@@ -74,7 +74,11 @@ let validateTestCount
     = λ(lint : Lint) →
         let validCount = Prelude.List.length Text lint.tests.valid
 
-        let invalidCount = Prelude.List.length Text lint.tests.invalid
+        let exampleCount = Prelude.List.length Text lint.note.examples
+
+        let extraInvalidCount = Prelude.List.length Text lint.tests.extra_invalid
+
+        let invalidCount = exampleCount + extraInvalidCount
 
         in      Prelude.Natural.greaterThanEqual validCount 3
             &&  Prelude.Natural.greaterThanEqual invalidCount 3

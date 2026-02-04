@@ -20,29 +20,29 @@ in  { id = "rec-in-derivation"
       }
     , message = "ALEPH-E002: `rec` used with mkDerivation"
     , note =
-        ''
-        ## What's wrong?
-        A recursive attrset (`rec { ... }`) was passed to `mkDerivation`.
+        { description = "A recursive attrset (`rec { ... }`) was passed to `mkDerivation`."
+        , examples =
+          [ "stdenv.mkDerivation rec { name = \"foo\"; }"
+          , "pkgs.stdenv.mkDerivation rec { pname = \"bar\"; version = \"1.0\"; }"
+          , "mkDerivation rec { name = \"baz\"; }"
+          ]
+        , suggested_fix =
+            ''
+            Use the fixed-point form instead:
 
-        ## What can I do to fix this?
-        Use the fixed-point form instead:
-
-        ```nix
-        stdenv.mkDerivation (finalAttrs: {
-          # ...
-        })
-        ```
-        ''
+            ```nix
+            stdenv.mkDerivation (finalAttrs: {
+              # ...
+            })
+            ```
+            ''
+        }
     , tests =
       { valid =
         [ "stdenv.mkDerivation (finalAttrs: { name = \"foo\"; })"
         , "stdenv.mkDerivation { name = \"foo\"; }"
         , "pkgs.stdenv.mkDerivation { pname = \"bar\"; }"
         ]
-      , invalid =
-        [ "stdenv.mkDerivation rec { name = \"foo\"; }"
-        , "pkgs.stdenv.mkDerivation rec { pname = \"bar\"; version = \"1.0\"; }"
-        , "mkDerivation rec { name = \"baz\"; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

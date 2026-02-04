@@ -22,33 +22,40 @@ in  { id = "cpp-explicit-types"
       }
     , message = "ALEPH-W008: Prefer explicit types over auto"
     , note =
-        ''
-        ## What's wrong?
-        `auto` can hide type information. Prefer explicit types for clarity.
+        { description = "`auto` can hide type information. Prefer explicit types for clarity."
+        , examples =
+          [ "auto config = load();"
+          , "auto count = 42;"
+          , "auto name = \"foo\";"
+          , "auto result = compute();"
+          , "auto conn = get_connection();"
+          ]
+        , suggested_fix =
+            ''
+            Use explicit types when the type conveys semantic meaning:
 
-        ## Examples:
+            ```cpp
+            // DISCOURAGED
+            auto config = load_configuration();
+            auto result = process_data(input);
+            auto conn = get_connection();
 
-        ```cpp
-        // DISCOURAGED
-        auto config = load_configuration();
-        auto result = process_data(input);
-        auto conn = get_connection();
+            // PREFERRED
+            configuration config = load_configuration();
+            process_result result = process_data(input);
+            database_connection conn = get_connection();
+            ```
 
-        // PREFERRED
-        configuration config = load_configuration();
-        process_result result = process_data(input);
-        database_connection conn = get_connection();
-        ```
+            ## When auto is acceptable
+            - Complex iterator types: `auto it = container.begin();`
+            - Lambda types: `auto callback = [&] { ... };`
+            - Type is obvious from context: `auto x = static_cast<int>(y);`
 
-        ## When auto is acceptable
-        - Complex iterator types: `auto it = container.begin();`
-        - Lambda types: `auto callback = [&] { ... };`
-        - Type is obvious from context: `auto x = static_cast<int>(y);`
-
-        ## Guideline
-        Use explicit types when the type conveys semantic meaning.
-        Use auto when the type is verbose and obvious from context.
-        ''
+            ## Guideline
+            Use explicit types when the type conveys semantic meaning.
+            Use auto when the type is verbose and obvious from context.
+            ''
+        }
     , tests =
         { valid = 
             [ "configuration config = load();"
@@ -57,12 +64,6 @@ in  { id = "cpp-explicit-types"
             , "result_t result = compute();"
             , "connection conn = get_connection();"
             ]
-        , invalid = 
-            [ "auto config = load();"
-            , "auto count = 42;"
-            , "auto name = \"foo\";"
-            , "auto result = compute();"
-            , "auto conn = get_connection();"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

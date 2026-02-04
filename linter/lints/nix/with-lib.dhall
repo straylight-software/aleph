@@ -16,35 +16,33 @@ in    { id = "with-lib"
               , field = Some "environment"
               , has =
                   node
-                    Match::{ kind = Some "identifier", regex = Some "^lib\$" }
+                    Match::{ kind = Some "identifier", regex = Some "^lib$" }
               }
         }
       , message = "ALEPH-E001: `with lib;` statement"
       , note =
-          ''
-          ## What's wrong?
-          Usage of the `with lib;` construct was detected.
+          { description = "Usage of the `with lib;` construct was detected."
+          , examples =
+            [ "with lib; { options.foo = mkOption { }; }"
+            , "with lib; [ types str ]"
+            , "with lib; mkOption { type = types.str; }"
+            ]
+          , suggested_fix =
+              ''
+              Use explicit imports instead:
 
-          ## What can I do to fix this?
-          Use explicit imports instead:
-
-          ```nix
-          inherit (lib) types mkOption;
-          ```
-          ''
+              ```nix
+              inherit (lib) types mkOption;
+              ```
+              ''
+          }
       , tests =
         { valid =
           [ "environment.systemPackages = with pkgs; [ vim git ];"
           , "with pkgs; [ hello git ]"
           , "with builtins; map toString [ 1 2 3 ]"
           ]
-        , invalid =
-          [ ''
-            with lib;
-            { options.foo = mkOption { }; }''
-          , "with lib; [ types str ]"
-          , "with lib; mkOption { type = types.str; }"
-          ]
+        , extra_invalid = [] : List Text
         }
       }
     : Schema.Lint

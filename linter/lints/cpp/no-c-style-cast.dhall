@@ -19,38 +19,39 @@ in  { id = "cpp-no-c-style-cast"
       }
     , message = "ALEPH-W012: Use C++ style cast instead of C-style cast"
     , note =
-        ''
-        ## What's wrong?
-        C-style casts are forbidden. Use C++ style casts for clarity and safety.
+        { description = "C-style casts are forbidden. Use C++ style casts for clarity and safety."
+        , examples =
+          [ "(int)f"
+          , "(float)x"
+          , "(void*)ptr"
+          , "(char*)data"
+          , "(size_t)count"
+          , "(double)value"
+          ]
+        , suggested_fix =
+            ''
+            Use appropriate C++ cast:
 
-        ## Examples of violations:
-        - `(int)x`
-        - `(float)y`
-        - `(void*)ptr`
-        - `(const char*)data`
+            ```cpp
+            // BAD: C-style casts
+            auto i = (int)f;
+            auto p = (void*)data;
+            auto base = (base_class*)derived;
 
-        ## What can I do to fix this?
-        Use appropriate C++ cast:
+            // GOOD: C++ style casts
+            auto i = static_cast<int>(f);
+            auto p = reinterpret_cast<void*>(data);
+            auto base = dynamic_cast<base_class*>(derived);
+            auto ptr = const_cast<char*>(data);
+            ```
 
-        ```cpp
-        // BAD: C-style casts
-        auto i = (int)f;
-        auto p = (void*)data;
-        auto base = (base_class*)derived;
-
-        // GOOD: C++ style casts
-        auto i = static_cast<int>(f);
-        auto p = reinterpret_cast<void*>(data);
-        auto base = dynamic_cast<base_class*>(derived);
-        auto ptr = const_cast<char*>(data);
-        ```
-
-        ## Cast selection guide
-        - `static_cast`: Safe conversions (int to float, derived to base)
-        - `dynamic_cast`: Polymorphic downcasts (with runtime check)
-        - `const_cast`: Remove const/volatile (avoid if possible)
-        - `reinterpret_cast`: Low-level reinterpreting (dangerous, avoid)
-        ''
+            ## Cast selection guide
+            - `static_cast`: Safe conversions (int to float, derived to base)
+            - `dynamic_cast`: Polymorphic downcasts (with runtime check)
+            - `const_cast`: Remove const/volatile (avoid if possible)
+            - `reinterpret_cast`: Low-level reinterpreting (dangerous, avoid)
+            ''
+        }
     , tests = 
         { valid = 
             [ "static_cast<int>(f)"
@@ -60,13 +61,6 @@ in  { id = "cpp-no-c-style-cast"
             , "static_cast<float>(i)"
             , "static_cast<size_t>(count)"
             ]
-        , invalid = 
-            [ "(int)f"
-            , "(float)x"
-            , "(void*)ptr"
-            , "(char*)data"
-            , "(size_t)count"
-            , "(double)value"
-            ]
+        , extra_invalid = [] : List Text
         }
     }

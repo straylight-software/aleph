@@ -11,23 +11,23 @@ in  { id = "no-raw-writeshellapplication"
       }
     , message = "ALEPH-E012: raw writeShellApplication call"
     , note =
-        ''
-        ## What's wrong?
-        Direct `writeShellApplication` calls bypass the typed prelude boundary.
-
-        ## What can I do to fix this?
-        Use `prelude.write-shell-application` instead.
-        ''
+        { description = "Direct `writeShellApplication` calls bypass the typed prelude boundary."
+        , examples =
+          [ "pkgs.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }"
+          , "nixpkgs.writeShellApplication { name = \"bar\"; text = \"test\"; }"
+          , "final.writeShellApplication { name = \"script\"; text = \"ls\"; }"
+          ]
+        , suggested_fix =
+            ''
+            Use `prelude.write-shell-application` instead.
+            ''
+        }
     , tests =
       { valid =
         [ "prelude.write-shell-application { name = \"foo\"; text = \"echo hi\"; }"
         , "aleph.write-shell-application { name = \"bar\"; text = \"ls\"; }"
         , "myProject.write-shell-application { name = \"script\"; text = \"pwd\"; }"
         ]
-      , invalid =
-        [ "pkgs.writeShellApplication { name = \"foo\"; text = \"echo hi\"; }"
-        , "nixpkgs.writeShellApplication { name = \"bar\"; text = \"test\"; }"
-        , "final.writeShellApplication { name = \"script\"; text = \"ls\"; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

@@ -26,24 +26,23 @@ in  { id = "no-translate-attrs-outside-prelude"
       }
     , message = "ALEPH-E013: translate-attrs used outside prelude"
     , note =
-        ''
-        ## What's wrong?
-        `translate-attrs` is the prelude's internal translation layer.
-        Using it directly means you're bypassing the typed interface.
-
-        ## What can I do to fix this?
-        Use `aleph.stdenv.default` or `prelude.mk-package` instead.
-        ''
+        { description = "`translate-attrs` is the prelude's internal translation layer. Using it directly means you're bypassing the typed interface."
+        , examples =
+          [ "translate-attrs { }"
+          , "translate-attrs { cmake = pkgs.cmake; }"
+          , "translate-attrs config // { extra = true; }"
+          ]
+        , suggested_fix =
+            ''
+            Use `aleph.stdenv.default` or `prelude.mk-package` instead.
+            ''
+        }
     , tests =
       { valid =
         [ "aleph.stdenv.default { }"
         , "prelude.mk-package { name = \"foo\"; }"
         , "pkgs.stdenv.mkDerivation { name = \"bar\"; }"
         ]
-      , invalid =
-        [ "translate-attrs { }"
-        , "translate-attrs { cmake = pkgs.cmake; }"
-        , "translate-attrs config // { extra = true; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

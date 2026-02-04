@@ -20,49 +20,49 @@ in  { id = "cpp-no-raw-arrays"
     , message =
         "ALEPH-W022: Use std::array or std::vector instead of C-style array"
     , note =
-        ''
-        ## What's wrong?
-        C-style arrays decay to pointers, have no bounds checking, and don't
-        support modern container operations.
+        { description = "C-style arrays decay to pointers, have no bounds checking, and don't support modern container operations."
+        , examples =
+          [ "int arr[10];"
+          , "char buffer[256];"
+          , "double matrix[10][10];"
+          , "int values[] = {1, 2, 3};"
+          , "int matrix2[5][5][5];"
+          ]
+        , suggested_fix =
+            ''
+            Use standard containers:
 
-        ## Examples of violations:
-        - `int arr[10];`
-        - `char buffer[256];`
-        - `double matrix[ROWS][COLS];`
+            ```cpp
+            // BAD: C-style arrays
+            int arr[10];
+            char buffer[256];
+            int matrix[10][10];
 
-        ## What can I do to fix this?
-        Use standard containers:
+            // Accessing is unsafe
+            arr[15] = 5;  // Undefined behavior, no bounds check
 
-        ```cpp
-        // BAD: C-style arrays
-        int arr[10];
-        char buffer[256];
-        int matrix[10][10];
+            // GOOD: std::array for fixed size
+            std::array<int, 10> arr;
+            std::array<char, 256> buffer;
+            std::array<std::array<int, 10>, 10> matrix;
 
-        // Accessing is unsafe
-        arr[15] = 5;  // Undefined behavior, no bounds check
+            // Bounds-checked access
+            arr.at(5) = 10;  // Throws if out of bounds
+            if (arr.size() > 5) arr[5] = 10;  // Safe
 
-        // GOOD: std::array for fixed size
-        std::array<int, 10> arr;
-        std::array<char, 256> buffer;
-        std::array<std::array<int, 10>, 10> matrix;
+            // GOOD: std::vector for dynamic size
+            std::vector<int> vec(10);
+            vec.push_back(42);
+            ```
 
-        // Bounds-checked access
-        arr.at(5) = 10;  // Throws if out of bounds
-        if (arr.size() > 5) arr[5] = 10;  // Safe
-
-        // GOOD: std::vector for dynamic size
-        std::vector<int> vec(10);
-        vec.push_back(42);
-        ```
-
-        ## Benefits
-        - Bounds checking with .at()
-        - No array-to-pointer decay
-        - Standard container interface (begin, end, size)
-        - Works with STL algorithms
-        - Type-safe
-        ''
+            ## Benefits
+            - Bounds checking with .at()
+            - No array-to-pointer decay
+            - Standard container interface (begin, end, size)
+            - Works with STL algorithms
+            - Type-safe
+            ''
+        }
     , tests =
       { valid =
         [ "std::array<int, 10> arr;"
@@ -72,12 +72,6 @@ in  { id = "cpp-no-raw-arrays"
         , "int* ptr = new int[10];"
         , "const char* str = \"hello\";"
         ]
-      , invalid =
-        [ "int arr[10];"
-        , "char buffer[256];"
-        , "double matrix[10][10];"
-        , "int values[] = {1, 2, 3};"
-        , "int matrix2[5][5][5];"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

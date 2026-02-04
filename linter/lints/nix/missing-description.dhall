@@ -8,23 +8,23 @@ in  { id = "missing-description"
     , rule = Schema.Rule::{ kind = "apply_expression", regex = Some "mkOption" }
     , message = "ALEPH-W005: missing description attribute"
     , note =
-        ''
-        ## What's wrong?
-        `mkOption` was called without a `description` attribute.
-
-        ## What can I do to fix this?
-        Add a human-readable `description` for the option.
-        ''
+        { description = "`mkOption` was called without a `description` attribute."
+        , examples =
+          [ "mkOption { type = types.str; }"
+          , "mkOption { type = types.int; default = 0; }"
+          , "mkOption { type = types.bool; default = false; }"
+          ]
+        , suggested_fix =
+            ''
+            Add a human-readable `description` for the option.
+            ''
+        }
     , tests =
       { valid =
         [ "{ description = \"foo\"; }"
         , "{ description = \"Enable feature\"; type = types.bool; }"
         , "{ type = types.str; description = \"Path to file\"; }"
         ]
-      , invalid =
-        [ "mkOption { type = types.str; }"
-        , "mkOption { type = types.int; default = 0; }"
-        , "mkOption { type = types.bool; default = false; }"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

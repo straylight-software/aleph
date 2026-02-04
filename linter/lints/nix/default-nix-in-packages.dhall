@@ -11,23 +11,23 @@ in  { id = "default-nix-in-packages"
       }
     , message = "ALEPH-E006: Avoid using default.nix in packages"
     , note =
-        ''
-        ## What's wrong?
-        A `default.nix` file was referenced in the packages directory.
-
-        ## What can I do to fix this?
-        Use explicit file names that describe the package.
-        ''
+        { description = "A `default.nix` file was referenced in the packages directory."
+        , examples =
+          [ "\"./default.nix\""
+          , "\"nix/packages/bar/default.nix\""
+          , "\"./package/default.nix\""
+          ]
+        , suggested_fix =
+            ''
+            Use explicit file names that describe the package.
+            ''
+        }
     , tests =
       { valid =
         [ "\"./hello.nix\""
         , "\"./my-package.nix\""
         , "\"nix/packages/foo/package.nix\""
         ]
-      , invalid =
-        [ "\"./default.nix\""
-        , "\"nix/packages/bar/default.nix\""
-        , "\"./package/default.nix\""
-        ]
+      , extra_invalid = [] : List Text
       }
     }

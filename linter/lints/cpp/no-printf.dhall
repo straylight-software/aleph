@@ -21,36 +21,32 @@ in  { id = "cpp-no-printf"
       }
     , message = "ALEPH-W020: Use std::format or iostreams instead of printf"
     , note =
-        ''
-        ## What's wrong?
-        printf is not type-safe and can cause runtime errors. Use modern C++ alternatives.
+      { description =
+          "printf is not type-safe and can cause runtime errors. Use modern C++ alternatives."
+      , examples =
+        [ "printf(\"Hello %s\\n\", name);"
+        , "printf(\"Count: %d\\n\", count);"
+        , "printf(\"%.2f\\n\", value);"
+        ]
+      , suggested_fix =
+          ''
+          Use type-safe alternatives:
 
-        ## Examples of violations:
-        - `printf("Hello %s\n", name);`
-        - `fprintf(stderr, "Error: %d\n", code);`
-        - `sprintf(buffer, "%s", str);`
+          ```cpp
+          // BAD: printf
+          printf("Hello %s, you have %d messages\n", name, count);
 
-        ## What can I do to fix this?
-        Use type-safe alternatives:
+          // GOOD: std::format (C++20)
+          std::println("Hello {}, you have {} messages", name, count);
+          ```
 
-        ```cpp
-        // BAD: printf
-        printf("Hello %s, you have %d messages\n", name, count);
-
-        // GOOD: iostreams
-        std::cout << "Hello " << name << ", you have " << count << " messages\n";
-
-        // GOOD: std::format (C++20)
-        auto msg = std::format("Hello {}, you have {} messages\n", name, count);
-        std::cout << msg;
-        ```
-
-        ## Benefits
-        - Type safety: Compile-time type checking
-        - No format string vulnerabilities
-        - Modern C++ style
-        - Better performance with std::format
-        ''
+          ## Benefits
+          - Type safety: Compile-time type checking
+          - No format string vulnerabilities
+          - Modern C++ style
+          - Better performance with std::format
+          ''
+      }
     , tests =
       { valid =
         [ "std::cout << name << std::endl;"
@@ -59,10 +55,6 @@ in  { id = "cpp-no-printf"
         , "fmt::format(\"Hello {}\\n\", name);"
         , "std::cerr << error << std::endl;"
         ]
-      , invalid =
-        [ "printf(\"Hello %s\\n\", name);"
-        , "printf(\"Count: %d\\n\", count);"
-        , "printf(\"%.2f\\n\", value);"
-        ]
+      , extra_invalid = [] : List Text
       }
     }

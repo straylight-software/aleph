@@ -37,23 +37,23 @@ in  { id = "prefer-write-shell-application"
       }
     , message = "ALEPH-W006: prefer writeShellApplication"
     , note =
-        ''
-        ## What's wrong?
-        `writeShellScript` and `writeShellScriptBin` are deprecated.
-
-        ## What can I do to fix this?
-        Use `writeShellApplication` instead.
-        ''
+        { description = "`writeShellScript` and `writeShellScriptBin` are deprecated."
+        , examples =
+          [ "writeShellScript \"foo\" \"echo hi\""
+          , "writeShellScriptBin \"foo\" \"echo hi\""
+          , "pkgs.writeShellScript \"bar\" \"ls\""
+          ]
+        , suggested_fix =
+            ''
+            Use `writeShellApplication` instead.
+            ''
+        }
     , tests =
       { valid =
         [ "writeShellApplication { name = \"foo\"; text = \"echo hi\"; }"
         , "writeShellApplication { name = \"script\"; text = \"ls -la\"; }"
         , "writeShellApplication { name = \"checker\"; text = \"test -f file\"; }"
         ]
-      , invalid =
-        [ "writeShellScript \"foo\" \"echo hi\""
-        , "writeShellScriptBin \"foo\" \"echo hi\""
-        , "pkgs.writeShellScript \"bar\" \"ls\""
-        ]
+      , extra_invalid = [] : List Text
       }
     }

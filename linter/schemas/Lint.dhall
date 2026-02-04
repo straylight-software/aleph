@@ -125,14 +125,40 @@ let Rule =
         }
       }
 
+let Note =
+      { description : Text
+      , examples : List Text
+      , suggested_fix : Text
+      }
+
+let renderNote =
+      λ(note : Note) →
+        let examplesText =
+              Prelude.Text.concatMapSep
+                "\n"
+                Text
+                (λ(example : Text) → "- `${example}`")
+                note.examples
+
+        in  ''
+            ## What's wrong?
+            ${note.description}
+
+            ## Examples of violations:
+            ${examplesText}
+
+            ## What can I do to fix this?
+            ${note.suggested_fix}
+            ''
+
 let Lint =
       { id : Text
       , language : Text
       , severity : Severity
       , rule : Rule.Type
       , message : Text
-      , note : Text
-      , tests : { valid : List Text, invalid : List Text }
+      , note : Note
+      , tests : { valid : List Text, extra_invalid : List Text }
       }
 
 let toList = Prelude.Optional.toList
@@ -277,7 +303,7 @@ let renderRuleYAML
                   , language = JSON.string lint.language
                   , severity = JSON.string (severityToText lint.severity)
                   , message = JSON.string lint.message
-                  , note = JSON.string lint.note
+                  , note = JSON.string (renderNote lint.note)
                   , rule = ruleToJSON lint.rule
                   }
               )
@@ -286,29 +312,31 @@ let renderRuleYAML
 let renderTestYAML
     : Lint → Text
     = λ(lint : Lint) →
-        JSON.renderYAML
-          ( JSON.object
-              ( toMap
-                  { id = JSON.string lint.id
-                  , valid =
-                      JSON.array
-                        ( Prelude.List.map
-                            Text
-                            JSON.Type
-                            JSON.string
-                            lint.tests.valid
-                        )
-                  , invalid =
-                      JSON.array
-                        ( Prelude.List.map
-                            Text
-                            JSON.Type
-                            JSON.string
-                            lint.tests.invalid
-                        )
-                  }
+        let allInvalid = lint.note.examples # lint.tests.extra_invalid
+
+        in  JSON.renderYAML
+              ( JSON.object
+                  ( toMap
+                      { id = JSON.string lint.id
+                      , valid =
+                          JSON.array
+                            ( Prelude.List.map
+                                Text
+                                JSON.Type
+                                JSON.string
+                                lint.tests.valid
+                            )
+                      , invalid =
+                          JSON.array
+                            ( Prelude.List.map
+                                Text
+                                JSON.Type
+                                JSON.string
+                                allInvalid
+                            )
+                      }
+                  )
               )
-          )
 
 let renderSGConfigYAML
     : Text
@@ -336,6 +364,8 @@ in  { Severity
     , SubRule
     , RuleNot
     , Rule
+    , Note
+    , renderNote
     , Lint
     , renderRuleYAML
     , renderTestYAML
