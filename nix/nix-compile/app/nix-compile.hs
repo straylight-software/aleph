@@ -309,7 +309,7 @@ cmdTypeCheck path = do
   where
     padRight :: Int -> String -> String
     padRight n s = take n (s ++ repeat ' ')
-  where
+    
     findAllNixFiles :: FilePath -> IO [FilePath]
     findAllNixFiles dir = do
       entries <- listDirectory dir
