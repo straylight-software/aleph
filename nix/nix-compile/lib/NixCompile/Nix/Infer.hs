@@ -35,7 +35,7 @@ module NixCompile.Nix.Infer
   )
 where
 
-import Control.Monad (foldM, forM)
+import Control.Monad (foldM, forM, replicateM)
 import Control.Monad.State.Strict
 import Data.Coerce (coerce)
 import Data.Fix (Fix (..))
@@ -201,9 +201,9 @@ unify' t1 t2 = case (t1, t2) of
   (TList a, TList b) -> unify a b
   (TFun a1 b1, TFun a2 b2) -> unify a1 a2 >> unify b1 b2
   (TAttrs m1, TAttrs m2) -> unifyAttrs m1 m2
-  (TAttrsOpen m1, TAttrsOpen m2) -> unifyAttrsOpen m1 m2
-  (TAttrs m1, TAttrsOpen m2) -> unifyAttrsOpen m1 m2
-  (TAttrsOpen m1, TAttrs m2) -> unifyAttrsOpen m1 m2
+  (TAttrsOpen m1, TAttrsOpen m2) -> unifyAttrsOpenOpen m1 m2
+  (TAttrs m1, TAttrsOpen m2) -> unifyAttrsClosedOpen m1 m2
+  (TAttrsOpen m1, TAttrs m2) -> unifyAttrsClosedOpen m2 m1
   (TUnion ts, t) -> unifyUnion ts t
   (t, TUnion ts) -> unifyUnion ts t
   _ -> pure () -- Mismatch, but don't fail (we're lenient)
@@ -226,11 +226,26 @@ occursCheck v = \case
 
 unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrs m1 m2 = do
+  -- Closed rows must match exactly
+  if Map.keysSet m1 /= Map.keysSet m2
+    then error "Type error: Attribute set mismatch (closed rows)" -- TODO: proper error
+    else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) m1 m2))
+
+unifyAttrsOpenOpen :: Map Text NixType -> Map Text NixType -> Infer ()
+unifyAttrsOpenOpen m1 m2 = do
+  -- Open vs Open: unify common fields
   let common = Map.intersectionWith (,) m1 m2
   mapM_ (uncurry unify) (Map.elems common)
 
-unifyAttrsOpen :: Map Text NixType -> Map Text NixType -> Infer ()
-unifyAttrsOpen m1 m2 = unifyAttrs m1 m2
+unifyAttrsClosedOpen :: Map Text NixType -> Map Text NixType -> Infer ()
+unifyAttrsClosedOpen closed open = do
+  -- Closed vs Open: Open must be subset of Closed
+  if not (Map.keysSet open `Set.isSubsetOf` Map.keysSet closed)
+    then error "Type error: Closed attrset missing required fields from open attrset"
+    else do
+      -- Unify the common fields (which is all of open)
+      let common = Map.intersectionWith (,) closed open
+      mapM_ (uncurry unify) (Map.elems common)
 
 unifyUnion :: [NixType] -> NixType -> Infer ()
 unifyUnion ts t = case ts of
@@ -281,14 +296,12 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
     TList <$> applyCurrentSubst elemType
   
   -- Attribute sets
-  NSet _ bindings -> do
-    fields <- inferBindings env bindings
+  NSet recursive bindings -> do
+    fields <- inferBindings (recursive == Recursive) env bindings
     pure $ TAttrs (Map.fromList fields)
   
   -- Let bindings
-  NLet bindings body -> do
-    env' <- foldM inferBinding env bindings
-    infer env' body
+  NLet bindings body -> inferLet env bindings body
   
   -- If expression
   NIf cond thenE elseE -> do
@@ -398,7 +411,7 @@ inferLambda env params body = case params of
     pure $ TFun paramT' resultT
   
   -- Pattern: { a, b ? default, ... }: body
-  ParamSet mName _ paramList -> do
+  ParamSet mName variadic paramList -> do
     -- Infer types from defaults
     paramTypes <- forM paramList $ \(name, mDefault) -> do
       t <- case mDefault of
@@ -406,7 +419,10 @@ inferLambda env params body = case params of
         Nothing -> freshVar
       pure (varNameText name, t)
     
-    let attrsT = TAttrs (Map.fromList paramTypes)
+    let attrsT = if variadic == Variadic
+                   then TAttrsOpen (Map.fromList paramTypes)
+                   else TAttrs (Map.fromList paramTypes)
+                   
     let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env paramTypes
     
     -- Also bind the @ pattern if present
@@ -418,8 +434,23 @@ inferLambda env params body = case params of
     pure $ TFun attrsT resultT
 
 -- | Infer types for bindings in an attrset
-inferBindings :: TypeEnv -> [Nix.Binding NExprLoc] -> Infer [(Text, NixType)]
-inferBindings env = foldM go []
+inferBindings :: Bool -> TypeEnv -> [Nix.Binding NExprLoc] -> Infer [(Text, NixType)]
+inferBindings recursive env bindings
+  | recursive = do
+      -- Recursive: bind all names to fresh vars first
+      let names = mapMaybe bindingName bindings
+      freshVars <- replicateM (length names) freshVar
+      let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env (zip names freshVars)
+      
+      -- Infer bodies and unify
+      forM (zip bindings freshVars) $ \(binding, typeVar) -> do
+        case binding of
+          Nix.NamedVar (StaticKey name :| []) expr _ -> do
+            t <- infer env' expr
+            unify typeVar t
+            pure (varNameText name, t)
+          _ -> pure ("", typeVar) -- Skip complex bindings for now
+  | otherwise = foldM go [] bindings
   where
     go acc binding = case binding of
       Nix.NamedVar (StaticKey name :| []) expr _ -> do
@@ -427,13 +458,39 @@ inferBindings env = foldM go []
         pure $ acc ++ [(varNameText name, t)]
       _ -> pure acc
 
--- | Extend environment with a binding
+    bindingName (Nix.NamedVar (StaticKey name :| []) _ _) = Just (varNameText name)
+    bindingName _ = Nothing
+
+-- | Infer type for a single binding (used in non-recursive Let)
 inferBinding :: TypeEnv -> Nix.Binding NExprLoc -> Infer TypeEnv
 inferBinding env binding = case binding of
   Nix.NamedVar (StaticKey name :| []) expr _ -> do
     t <- infer env expr
     pure $ extendEnv (varNameText name) (Forall [] t) env
   _ -> pure env
+
+-- | Infer types for a Let block (recursive)
+inferLet :: TypeEnv -> [Nix.Binding NExprLoc] -> NExprLoc -> Infer NixType
+inferLet env bindings body = do
+  -- Recursive let is like recursive attrset
+  let names = mapMaybe bindingName bindings
+  freshVars <- replicateM (length names) freshVar
+  let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env (zip names freshVars)
+  
+  -- Infer bodies and unify
+  mapM_ (\(binding, typeVar) -> do
+    case binding of
+      Nix.NamedVar (StaticKey _ :| []) expr _ -> do
+        t <- infer env' expr
+        unify typeVar t
+      _ -> pure ()
+    ) (zip bindings freshVars)
+    
+  infer env' body
+  where
+    bindingName (Nix.NamedVar (StaticKey name :| []) _ _) = Just (varNameText name)
+    bindingName _ = Nothing
+
 
 -- | Get type from an atom
 atomType :: NAtom -> NixType
