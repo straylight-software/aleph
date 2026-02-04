@@ -23,6 +23,7 @@ import NixCompile
 import NixCompile.Bash.Parse (parseBash)
 import NixCompile.Emit.Config (emitConfigFunction)
 import NixCompile.Lint.Forbidden (findViolations, formatViolations)
+import qualified NixCompile.Nix.Infer
 import qualified NixCompile.Nix.Parse as Nix
 import qualified NixCompile.Nix.Format as NixFmt
 import qualified NixCompile.Nix.Flake as Flake
@@ -32,8 +33,10 @@ import qualified NixCompile.Nix.Lint as Lint
 import qualified NixCompile.Nix.Scope as Scope
 import qualified NixCompile.Nix.Types
 import NixCompile.Types (Loc(..), Span(..))
-import qualified Data.Map.Strict as Map
-import System.FilePath (makeRelative, takeDirectory)
+import qualified NixCompile.Nix.Pretty as Pretty
+import System.Directory (doesDirectoryExist, listDirectory)
+import System.FilePath ((</>), takeExtension)
+import Control.Monad (forM_)
 
 main :: IO ()
 main = do
@@ -46,6 +49,7 @@ main = do
     ["emit", file] -> cmdEmit file
     ["nix", file] -> cmdNix file
     ["fmt", file] -> cmdFmt file
+    ["typecheck", path] -> cmdTypeCheck path
     ["flake"] -> cmdFlake "."
     ["flake", dir] -> cmdFlake dir
     ["graph"] -> cmdGraph "." False
@@ -76,6 +80,7 @@ usage = do
   putStrLn "  render emit <script.sh>    Generate emit-config Dhall function"
   putStrLn "  render nix <file.nix>      Check embedded bash in Nix files"
   putStrLn "  render fmt <file.nix>      Add type annotations to Nix file"
+  putStrLn "  render typecheck <path>    Recursively infer and check types for all Nix files"
   putStrLn "  render flake [dir]         Analyze a flake"
   putStrLn "  render graph [--dot] [dir] Show module dependency graph (exits 1 on violations)"
   putStrLn "  render scope <file.nix>    Show scope graph (declarations, references, edges)"
@@ -257,6 +262,57 @@ cmdNix file = do
     
     unless cond action = if cond then return () else action
     when cond action = if cond then action else return ()
+
+-- | Recursively type check a directory or single file
+cmdTypeCheck :: FilePath -> IO ()
+cmdTypeCheck path = do
+  isDir <- doesDirectoryExist path
+  files <- if isDir 
+           then findAllNixFiles path
+           else return [path]
+  
+  putStrLn $ "Checking " ++ show (length files) ++ " files..."
+  putStrLn ""
+  
+  results <- mapM checkFile files
+  let failures = filter not results
+  
+  if null failures
+    then do
+      putStrLn "\nAll files passed type checking."
+      exitSuccess
+    else do
+      putStrLn $ "\n" ++ show (length failures) ++ " files failed."
+      exitFailure
+  where
+    findAllNixFiles :: FilePath -> IO [FilePath]
+    findAllNixFiles dir = do
+      entries <- listDirectory dir
+      paths <- forM entries $ \entry -> do
+        let fullPath = dir </> entry
+        isD <- doesDirectoryExist fullPath
+        if isD
+          then findAllNixFiles fullPath
+          else return [fullPath | takeExtension fullPath == ".nix"]
+      return (concat paths)
+
+    checkFile :: FilePath -> IO Bool
+    checkFile file = do
+      result <- Nix.parseNixFile file
+      case result of
+        Left err -> do
+          TIO.putStrLn $ T.pack file <> ": Parse error"
+          TIO.putStrLn $ "  " <> err
+          return False
+        Right expr -> do
+          case NixCompile.Nix.Infer.inferExpr expr of
+            Left err -> do
+              TIO.putStrLn $ T.pack file <> ": Type error"
+              TIO.putStrLn $ "  " <> err
+              return False
+            Right (t, _) -> do
+              TIO.putStrLn $ T.pack file <> ": " <> NixCompile.Nix.Types.prettyType t
+              return True
 
 -- | Format a Nix file with type annotations
 cmdFmt :: FilePath -> IO ()
