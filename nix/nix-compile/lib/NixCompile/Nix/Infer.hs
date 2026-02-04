@@ -127,6 +127,8 @@ builtinEnv = TypeEnv $ Map.fromList
   
   -- Import
   , ("import", mono $ TFun TPath TAny)
+  , ("readFile", mono $ TFun TPath TString)
+  , ("toPath", mono $ TFun TString TPath)
   
   -- Derivation
   , ("derivation", mono $ TFun (TAttrsOpen Map.empty) TDerivation)
