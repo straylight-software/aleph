@@ -133,18 +133,37 @@ let Note =
 
 let renderNote =
       λ(note : Note) →
+      λ(language : Text) →
+        let exampleCount = Prelude.List.length Text note.examples
+
+        let backticks = "${"```"}"
+
+        let formatExample =
+              λ(example : Text) →
+                "${backticks}${language}\n${example}\n${backticks}"
+
         let examplesText =
-              Prelude.Text.concatMapSep
-                "\n"
-                Text
-                (λ(example : Text) → "- `${example}`")
-                note.examples
+              if    Prelude.Natural.equal exampleCount 1
+              then  formatExample
+                      ( Prelude.Optional.default
+                          Text
+                          ""
+                          (Prelude.List.head Text note.examples)
+                      )
+              else  Prelude.Text.concatMapSep
+                      "\n\n"
+                      Text
+                      formatExample
+                      note.examples
+
+        let examplesTitle =
+              if Prelude.Natural.equal exampleCount 1 then "Example" else "Examples"
 
         in  ''
             ## What's wrong?
             ${note.description}
 
-            ## Examples of violations:
+            ## ${examplesTitle} of violations:
             ${examplesText}
 
             ## What can I do to fix this?
@@ -303,7 +322,7 @@ let renderRuleYAML
                   , language = JSON.string lint.language
                   , severity = JSON.string (severityToText lint.severity)
                   , message = JSON.string lint.message
-                  , note = JSON.string (renderNote lint.note)
+                  , note = JSON.string (renderNote lint.note lint.language)
                   , rule = ruleToJSON lint.rule
                   }
               )
