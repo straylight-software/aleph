@@ -45,6 +45,9 @@ let lints
       , ./lints/cpp/explicit-types.dhall
       , ./lints/cpp/enum-class.dhall
       , ./lints/cpp/no-c-style-cast.dhall
+      , ./lints/cpp/no-printf.dhall
+      , ./lints/cpp/no-strlen.dhall
+      , ./lints/cpp/no-raw-arrays.dhall
       , ./lints/haskell/no-short-abbreviations.dhall
       , ./lints/haskell/prefer-guards-over-nested-case.dhall
       , ./lints/haskell/prefer-newtype-over-type-alias.dhall
