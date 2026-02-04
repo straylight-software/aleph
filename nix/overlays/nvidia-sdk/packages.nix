@@ -215,7 +215,7 @@ let
       wheel-info,
       runtime-inputs ? runtime-deps,
       ignore-missing-deps ? [ ],
-      meta ? { },
+      meta ? builtins.fromJSON "{}",
     }:
     prev.stdenv.mkDerivation (
       translate-attrs {
@@ -283,7 +283,7 @@ let
       runtime-inputs ? extended-runtime-deps,
       ignore-missing-deps ? [ ],
       post-extract ? "",
-      meta ? { },
+      meta ? builtins.fromJSON "{}",
     }:
     prev.stdenv.mkDerivation (
       translate-attrs {
