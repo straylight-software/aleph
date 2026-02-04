@@ -463,10 +463,19 @@ inferBinary env op left right = do
       unify leftT rightT
       applyCurrentSubst leftT
     
-    -- Attrset update
+    -- Attrset update (//) - merges two attrsets, right overrides left
     NUpdate -> do
-      unify leftT rightT
-      applyCurrentSubst leftT
+      leftT' <- applyCurrentSubst leftT
+      rightT' <- applyCurrentSubst rightT
+      case (leftT', rightT') of
+        (TAttrs l, TAttrs r) -> pure $ TAttrs (r `Map.union` l)  -- Closed + closed = closed (right wins)
+        (TAttrsOpen l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Open + open = open
+        (TAttrs l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Closed + open = open
+        (TAttrsOpen l, TAttrs r) -> pure $ TAttrsOpen (r `Map.union` l)  -- Open + closed = open
+        _ -> do
+          -- Fallback: try to unify, return left type
+          unify leftT rightT
+          applyCurrentSubst leftT
 
 -- | Infer type of a lambda
 inferLambda :: TypeEnv -> Params NExprLoc -> NExprLoc -> Infer NixType
@@ -488,9 +497,12 @@ inferLambda env params body = case params of
         Nothing -> freshVar
       pure (varNameText name, t)
     
-    -- Patterns always create open rows - they require at least these fields
-    -- but allow extra fields (width subtyping)
-    let attrsT = TAttrsOpen (Map.fromList paramTypes)
+    -- Pattern types: closed if no ..., open if ... present
+    -- { a, b } means exactly { a, b }
+    -- { a, b, ... } means at least { a, b }
+    let attrsT = if variadic == Variadic
+                   then TAttrsOpen (Map.fromList paramTypes)
+                   else TAttrs (Map.fromList paramTypes)
                    
     let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env paramTypes
     

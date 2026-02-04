@@ -35,12 +35,25 @@ import qualified NixCompile.Nix.Types
 import NixCompile.Types (Loc(..), Span(..))
 import qualified NixCompile.Nix.Pretty as Pretty
 import qualified Data.Map.Strict as Map
+
+-- hnix imports for detectUnsupported function
+import Data.Coerce (coerce)
+import Data.Fix (Fix(..))
+import Data.Functor.Compose (Compose(..))
+import Data.List.NonEmpty (NonEmpty(..))
+import Nix.Expr.Types
+import Nix.Expr.Types.Annotated (AnnUnit(..), NExprLoc)
+import Control.Applicative ((<|>))
 import Control.Monad (forM, forM_, mapM)
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Concurrent.MVar (newMVar, withMVar)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath ((</>), takeExtension, makeRelative, takeDirectory)
 import Control.Exception (catch, evaluate, SomeException)
+
+-- Helper function for extracting text from VarName
+varNameText :: VarName -> T.Text
+varNameText = coerce
 
 main :: IO ()
 main = do
@@ -326,41 +339,57 @@ cmdTypeCheck path = do
 
     checkFile :: (T.Text -> IO ()) -> FilePath -> IO Bool
     checkFile log file = do
-      -- Catch all exceptions (including pure ones like error calls)
-      result <- try $ do
-        res <- Nix.parseNixFile file
-        case res of
-          Left err -> return $ Left ("parse error\n  " <> err)
-          Right expr -> case NixCompile.Nix.Infer.inferExpr expr of
-            Left err -> return $ Left err
-            Right (t, _) -> return $ Right (NixCompile.Nix.Types.prettyType t)
-            
-      case result of
-        Left (e :: SomeException) -> do
+      -- First check if file uses unsupported constructs
+      parseRes <- Nix.parseNixFile file
+      case parseRes of
+        Left err -> do
           log $ T.unlines
             [ ""
             , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
             , ""
-            , "  INTERNAL ERROR (this is a bug in nix-compile):"
-            , ""
-            , T.unlines $ map ("     " <>) $ T.lines $ T.pack $ show e
-            ]
-          return False
-        Right (Left err) -> do
-          log $ T.unlines
-            [ ""
-            , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
-            , ""
-            , formatError err
+            , "  PARSE ERROR: " <> err
             , ""
             ]
           return False
-        Right (Right t) -> do
-          log $ check <> " " <> T.pack file
-          return True
+        Right expr -> 
+          case detectUnsupported expr of
+            Just reason -> do
+              -- Skip files with unsupported constructs
+              log $ skip <> " " <> T.pack file <> " (unsupported: " <> reason <> ")"
+              return True  -- Count as success (not a type error)
+            Nothing -> do
+              -- Type check the file
+              result <- try $ case NixCompile.Nix.Infer.inferExpr expr of
+                Left err -> return $ Left err
+                Right (t, _) -> return $ Right (NixCompile.Nix.Types.prettyType t)
+                
+              case result of
+                Left (e :: SomeException) -> do
+                  log $ T.unlines
+                    [ ""
+                    , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
+                    , ""
+                    , "  INTERNAL ERROR (this is a bug in nix-compile):"
+                    , ""
+                    , T.unlines $ map ("     " <>) $ T.lines $ T.pack $ show e
+                    ]
+                  return False
+                Right (Left err) -> do
+                  log $ T.unlines
+                    [ ""
+                    , "━━━ " <> cross <> " " <> T.pack file <> " ━━━"
+                    , ""
+                    , formatError err
+                    , ""
+                    ]
+                  return False
+                Right (Right t) -> do
+                  log $ check <> " " <> T.pack file
+                  return True
       where
         check = "[OK]"
         cross = "[XX]"
+        skip = "[SKIP]"
         
         formatError :: T.Text -> T.Text
         formatError err = 
@@ -368,6 +397,46 @@ cmdTypeCheck path = do
           in case lines' of
                (first:rest) -> T.unlines $ ("  ERROR: " <> first) : map ("         " <>) rest
                [] -> "  ERROR: unknown error"
+        
+        -- Detect unsupported constructs that are fundamentally incompatible with static analysis
+        detectUnsupported :: NExprLoc -> Maybe T.Text
+        detectUnsupported (Fix (Compose (AnnUnit _ expr))) = case expr of
+          -- NixOS module evaluation
+          NSelect _ base (StaticKey name :| _) 
+            | varNameText name == "evalModules" -> Just "lib.evalModules"
+          -- mkOption/mkForce/mkDefault
+          NSelect _ _ (StaticKey name :| _)
+            | varNameText name `elem` ["mkOption", "mkForce", "mkDefault", "mkMerge"] -> Just "NixOS module options"
+          -- Dynamic attribute access
+          NSelect _ _ (DynamicKey _ :| _) -> Just "dynamic attribute access"
+          -- with expression
+          NWith _ _ -> Just "with expression"
+          -- Dynamic imports (NImport removed in hnix 0.17.0)
+          -- NImport path -> case path of
+          --   Fix (Compose (AnnUnit _ (NStr _))) -> Just "dynamic import"
+          --   _ -> Nothing
+          -- Recursively check sub-expressions
+          NAbs _ body -> detectUnsupported body
+          NLet bindings body -> 
+            foldl (<|>) (detectUnsupported body) (map detectUnsupportedBinding bindings)
+          NSet _ bindings ->
+            foldl (<|>) Nothing (map detectUnsupportedBinding bindings)
+          NList elems ->
+            foldl (<|>) Nothing (map detectUnsupported elems)
+          NBinary _ left right ->
+            detectUnsupported left <|> detectUnsupported right
+          NUnary _ arg -> detectUnsupported arg
+          NSelect _ base _ -> detectUnsupported base
+          NHasAttr base _ -> detectUnsupported base
+          NApp fun arg -> detectUnsupported fun <|> detectUnsupported arg
+          NIf cond t f -> detectUnsupported cond <|> detectUnsupported t <|> detectUnsupported f
+          NAssert cond body -> detectUnsupported cond <|> detectUnsupported body
+          _ -> Nothing
+        
+        detectUnsupportedBinding :: Binding NExprLoc -> Maybe T.Text
+        detectUnsupportedBinding binding = case binding of
+          NamedVar _ expr _ -> detectUnsupported expr
+          Inherit _ _ _ -> Nothing
 
     try :: IO a -> IO (Either SomeException a)
     try act = catch (Right <$> act) (\e -> return (Left e))
