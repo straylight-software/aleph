@@ -34,6 +34,7 @@ import qualified NixCompile.Nix.Scope as Scope
 import qualified NixCompile.Nix.Types
 import NixCompile.Types (Loc(..), Span(..))
 import qualified NixCompile.Nix.Pretty as Pretty
+import qualified Data.Map.Strict as Map
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath ((</>), takeExtension)
 import Control.Monad (forM_)
