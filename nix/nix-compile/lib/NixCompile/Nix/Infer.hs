@@ -77,8 +77,12 @@ lookupEnv name (TypeEnv m) = Map.lookup name m
 
 -- | Built-in function types
 builtinEnv :: TypeEnv
-builtinEnv = TypeEnv $ Map.fromList
-  [ -- String functions
+builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builtinsMap)) builtinsMap
+  where
+    mono t = Forall [] t
+    
+    builtinsMap = Map.fromList $
+      [ -- String functions
     ("toString", mono $ TFun (TUnion [TInt, TFloat, TBool, TPath, TString]) TString)
   , ("baseNameOf", mono $ TFun TPath TString)
   , ("dirOf", mono $ TFun TPath TPath)
@@ -141,8 +145,6 @@ builtinEnv = TypeEnv $ Map.fromList
   , ("deepSeq", Forall [TypeVar 0, TypeVar 1] $ TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 1))))
   , ("tryEval", Forall [TypeVar 0] $ TFun (TVar (TypeVar 0)) (TAttrs (Map.fromList [("success", TBool), ("value", TVar (TypeVar 0))])))
   ]
-  where
-    mono t = Forall [] t
 
 -- ============================================================================
 -- Inference State
@@ -352,9 +354,17 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
   -- Selection (a.b)
   NSelect _ base (attr :| _) -> do
     baseT <- infer env base
-    resultT <- freshVar
-    -- For now, just return fresh - proper would track attrset structure
-    pure resultT
+    t' <- applyCurrentSubst baseT
+    case t' of
+      TAttrs fields -> 
+        case Map.lookup (varNameText attr) fields of
+          Just t -> pure t
+          Nothing -> freshVar -- Missing attr in closed set (should be error?)
+      TAttrsOpen fields -> 
+        case Map.lookup (varNameText attr) fields of
+          Just t -> pure t
+          Nothing -> freshVar -- Open set, assume it exists
+      _ -> freshVar
   
   -- Has attribute
   NHasAttr base _ -> do
