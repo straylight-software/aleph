@@ -67,6 +67,7 @@ data NixType
   | TFloat                     -- Floats  
   | TBool                      -- Booleans
   | TString                    -- Strings
+  | TStrLit !Text              -- String literal (singleton type)
   | TPath                      -- Paths (including store paths)
   | TNull                      -- null
   | TList !NixType             -- Lists (homogeneous)
@@ -167,6 +168,7 @@ prettyType = \case
   TFloat -> "Float"
   TBool -> "Bool"
   TString -> "String"
+  TStrLit s -> "\"" <> s <> "\""
   TPath -> "Path"
   TNull -> "Null"
   TList t -> "[" <> prettyType t <> "]"

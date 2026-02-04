@@ -195,6 +195,9 @@ unify' t1 t2 = case (t1, t2) of
   (TFloat, TFloat) -> pure ()
   (TBool, TBool) -> pure ()
   (TString, TString) -> pure ()
+  (TStrLit s1, TStrLit s2) | s1 == s2 -> pure ()
+  (TString, TStrLit _) -> pure () -- Subtyping: Literal is a String
+  (TStrLit _, TString) -> pure () -- Subtyping: Literal is a String
   (TPath, TPath) -> pure ()
   (TNull, TNull) -> pure ()
   (TDerivation, TDerivation) -> pure ()
@@ -275,6 +278,7 @@ infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
   NConstant atom -> pure $ atomType atom
   
   -- Strings (could contain interpolations)
+  NStr (DoubleQuoted [Plain t]) -> pure $ TStrLit t
   NStr _ -> pure TString
   
   -- Paths
