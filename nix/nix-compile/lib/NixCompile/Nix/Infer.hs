@@ -84,67 +84,67 @@ builtinEnv = TypeEnv $ Map.union (Map.singleton "builtins" (mono $ TAttrs builti
     builtinsMap = Map.fromList
       [ -- String functions
         ("toString", mono $ TFun (TUnion [TInt, TFloat, TBool, TPath, TString]) TString)
-  , ("baseNameOf", mono $ TFun TPath TString)
-  , ("dirOf", mono $ TFun TPath TPath)
-  , ("stringLength", mono $ TFun TString TInt)
-  , ("substring", mono $ TFun TInt (TFun TInt (TFun TString TString)))
-  , ("replaceStrings", mono $ TFun (TList TString) (TFun (TList TString) (TFun TString TString)))
-  
-  -- List functions  
-  , ("head", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TVar (TypeVar 0)))
-  , ("tail", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 0))))
-  , ("length", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) TInt)
-  , ("elemAt", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TFun TInt (TVar (TypeVar 0))))
-  , ("filter", Forall [TypeVar 0] $ TFun (TFun (TVar (TypeVar 0)) TBool) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 0)))))
-  , ("map", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TVar (TypeVar 1))) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 1)))))
-  , ("foldl'", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 0)))) (TFun (TVar (TypeVar 0)) (TFun (TList (TVar (TypeVar 1))) (TVar (TypeVar 0)))))
-  , ("concatLists", Forall [TypeVar 0] $ TFun (TList (TList (TVar (TypeVar 0)))) (TList (TVar (TypeVar 0))))
-  , ("concatMap", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TList (TVar (TypeVar 1)))) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 1)))))
-  
-  -- Attrset functions
-  , ("attrNames", mono $ TFun (TAttrsOpen Map.empty) (TList TString))
-  , ("attrValues", Forall [TypeVar 0] $ TFun (TAttrsOpen (Map.singleton "_" (TVar (TypeVar 0)))) (TList (TVar (TypeVar 0))))
-  , ("hasAttr", mono $ TFun TString (TFun (TAttrsOpen Map.empty) TBool))
-  , ("getAttr", Forall [TypeVar 0] $ TFun TString (TFun (TAttrsOpen Map.empty) (TVar (TypeVar 0))))
-  , ("removeAttrs", mono $ TFun (TAttrsOpen Map.empty) (TFun (TList TString) (TAttrsOpen Map.empty)))
-  , ("listToAttrs", Forall [TypeVar 0] $ TFun (TList (TAttrs (Map.fromList [("name", TString), ("value", TVar (TypeVar 0))]))) (TAttrsOpen Map.empty))
-  
-  -- Type checking
-  , ("isNull", mono $ TFun TAny TBool)
-  , ("isInt", mono $ TFun TAny TBool)
-  , ("isFloat", mono $ TFun TAny TBool)
-  , ("isBool", mono $ TFun TAny TBool)
-  , ("isString", mono $ TFun TAny TBool)
-  , ("isList", mono $ TFun TAny TBool)
-  , ("isAttrs", mono $ TFun TAny TBool)
-  , ("isFunction", mono $ TFun TAny TBool)
-  , ("isPath", mono $ TFun TAny TBool)
-  
-  -- Arithmetic
-  , ("add", mono $ TFun TInt (TFun TInt TInt))
-  , ("sub", mono $ TFun TInt (TFun TInt TInt))
-  , ("mul", mono $ TFun TInt (TFun TInt TInt))
-  , ("div", mono $ TFun TInt (TFun TInt TInt))
-  
-  -- Comparison
-  , ("lessThan", mono $ TFun TInt (TFun TInt TBool))
-  
-  -- Import
-  , ("import", mono $ TFun TPath TAny)
-  , ("readFile", mono $ TFun TPath TString)
-  , ("toPath", mono $ TFun TString TPath)
-  
-  -- Derivation
-  , ("derivation", mono $ TFun (TAttrsOpen Map.empty) TDerivation)
-  
-  -- Misc
-  , ("throw", Forall [TypeVar 0] $ TFun TString (TVar (TypeVar 0)))
-  , ("abort", Forall [TypeVar 0] $ TFun TString (TVar (TypeVar 0)))
-  , ("trace", Forall [TypeVar 0] $ TFun TString (TFun (TVar (TypeVar 0)) (TVar (TypeVar 0))))
-  , ("seq", Forall [TypeVar 0, TypeVar 1] $ TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 1))))
-  , ("deepSeq", Forall [TypeVar 0, TypeVar 1] $ TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 1))))
-  , ("tryEval", Forall [TypeVar 0] $ TFun (TVar (TypeVar 0)) (TAttrs (Map.fromList [("success", TBool), ("value", TVar (TypeVar 0))])))
-  ]
+      , ("baseNameOf", mono $ TFun TPath TString)
+      , ("dirOf", mono $ TFun TPath TPath)
+      , ("stringLength", mono $ TFun TString TInt)
+      , ("substring", mono $ TFun TInt (TFun TInt (TFun TString TString)))
+      , ("replaceStrings", mono $ TFun (TList TString) (TFun (TList TString) (TFun TString TString)))
+      
+      -- List functions  
+      , ("head", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TVar (TypeVar 0)))
+      , ("tail", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 0))))
+      , ("length", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) TInt)
+      , ("elemAt", Forall [TypeVar 0] $ TFun (TList (TVar (TypeVar 0))) (TFun TInt (TVar (TypeVar 0))))
+      , ("filter", Forall [TypeVar 0] $ TFun (TFun (TVar (TypeVar 0)) TBool) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 0)))))
+      , ("map", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TVar (TypeVar 1))) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 1)))))
+      , ("foldl'", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 0)))) (TFun (TVar (TypeVar 0)) (TFun (TList (TVar (TypeVar 1))) (TVar (TypeVar 0)))))
+      , ("concatLists", Forall [TypeVar 0] $ TFun (TList (TList (TVar (TypeVar 0)))) (TList (TVar (TypeVar 0))))
+      , ("concatMap", Forall [TypeVar 0, TypeVar 1] $ TFun (TFun (TVar (TypeVar 0)) (TList (TVar (TypeVar 1)))) (TFun (TList (TVar (TypeVar 0))) (TList (TVar (TypeVar 1)))))
+      
+      -- Attrset functions
+      , ("attrNames", mono $ TFun (TAttrsOpen Map.empty) (TList TString))
+      , ("attrValues", Forall [TypeVar 0] $ TFun (TAttrsOpen (Map.singleton "_" (TVar (TypeVar 0)))) (TList (TVar (TypeVar 0))))
+      , ("hasAttr", mono $ TFun TString (TFun (TAttrsOpen Map.empty) TBool))
+      , ("getAttr", Forall [TypeVar 0] $ TFun TString (TFun (TAttrsOpen Map.empty) (TVar (TypeVar 0))))
+      , ("removeAttrs", mono $ TFun (TAttrsOpen Map.empty) (TFun (TList TString) (TAttrsOpen Map.empty)))
+      , ("listToAttrs", Forall [TypeVar 0] $ TFun (TList (TAttrs (Map.fromList [("name", TString), ("value", TVar (TypeVar 0))]))) (TAttrsOpen Map.empty))
+      
+      -- Type checking
+      , ("isNull", mono $ TFun TAny TBool)
+      , ("isInt", mono $ TFun TAny TBool)
+      , ("isFloat", mono $ TFun TAny TBool)
+      , ("isBool", mono $ TFun TAny TBool)
+      , ("isString", mono $ TFun TAny TBool)
+      , ("isList", mono $ TFun TAny TBool)
+      , ("isAttrs", mono $ TFun TAny TBool)
+      , ("isFunction", mono $ TFun TAny TBool)
+      , ("isPath", mono $ TFun TAny TBool)
+      
+      -- Arithmetic
+      , ("add", mono $ TFun TInt (TFun TInt TInt))
+      , ("sub", mono $ TFun TInt (TFun TInt TInt))
+      , ("mul", mono $ TFun TInt (TFun TInt TInt))
+      , ("div", mono $ TFun TInt (TFun TInt TInt))
+      
+      -- Comparison
+      , ("lessThan", mono $ TFun TInt (TFun TInt TBool))
+      
+      -- Import
+      , ("import", mono $ TFun TPath TAny)
+      , ("readFile", mono $ TFun TPath TString)
+      , ("toPath", mono $ TFun TString TPath)
+      
+      -- Derivation
+      , ("derivation", mono $ TFun (TAttrsOpen Map.empty) TDerivation)
+      
+      -- Misc
+      , ("throw", Forall [TypeVar 0] $ TFun TString (TVar (TypeVar 0)))
+      , ("abort", Forall [TypeVar 0] $ TFun TString (TVar (TypeVar 0)))
+      , ("trace", Forall [TypeVar 0] $ TFun TString (TFun (TVar (TypeVar 0)) (TVar (TypeVar 0))))
+      , ("seq", Forall [TypeVar 0, TypeVar 1] $ TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 1))))
+      , ("deepSeq", Forall [TypeVar 0, TypeVar 1] $ TFun (TVar (TypeVar 0)) (TFun (TVar (TypeVar 1)) (TVar (TypeVar 1))))
+      , ("tryEval", Forall [TypeVar 0] $ TFun (TVar (TypeVar 0)) (TAttrs (Map.fromList [("success", TBool), ("value", TVar (TypeVar 0))])))
+      ]
 
 -- ============================================================================
 -- Inference State
