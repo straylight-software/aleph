@@ -51,6 +51,10 @@ let lints
       , ./lints/haskell/no-short-abbreviations.dhall
       , ./lints/haskell/prefer-guards-over-nested-case.dhall
       , ./lints/haskell/prefer-newtype-over-type-alias.dhall
+      , ./lints/haskell/no-red-light-extensions.dhall
+      , ./lints/haskell/no-deep-nesting.dhall
+      , ./lints/haskell/no-error-undefined.dhall
+      , ./lints/haskell/no-partial-functions.dhall
       ]
 
 let renderToEntry
