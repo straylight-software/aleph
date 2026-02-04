@@ -41,7 +41,7 @@ import Data.Graph (stronglyConnComp, SCC(..))
 import Nix.Atoms (NAtom (..))
 import Nix.Expr.Types hiding (Binding)
 import qualified Nix.Expr.Types as Nix
-import Nix.Expr.Types.Annotated
+import Nix.Expr.Types.Annotated (NExprLoc, AnnUnit(..), nullSpan)
 import Nix.Parser (parseNixFileLoc, parseNixTextLoc)
 import qualified Nix.Utils as Nix
 import NixCompile.Nix.Types
@@ -187,7 +187,7 @@ addSubst v t = modify $ \s ->
   s { inferSubst = composeSubst (singleSubst v t) (inferSubst s) }
 
 -- ============================================================================
--- Unification
+-- Unification and Merging
 -- ============================================================================
 
 -- | Unify two types
@@ -208,8 +208,8 @@ unify' t1 t2 = case (t1, t2) of
   (TBool, TBool) -> pure ()
   (TString, TString) -> pure ()
   (TStrLit s1, TStrLit s2) | s1 == s2 -> pure ()
-  (TString, TStrLit _) -> pure () -- Subtyping: Literal is a String
-  (TStrLit _, TString) -> pure () -- Subtyping: Literal is a String
+  (TString, TStrLit _) -> pure ()
+  (TStrLit _, TString) -> pure ()
   (TPath, TPath) -> pure ()
   (TNull, TNull) -> pure ()
   (TDerivation, TDerivation) -> pure ()
@@ -221,12 +221,12 @@ unify' t1 t2 = case (t1, t2) of
   (TAttrsOpen m1, TAttrs m2) -> unifyAttrsClosedOpen m2 m1
   (TUnion ts, t) -> unifyUnion ts t
   (t, TUnion ts) -> unifyUnion ts t
-  _ -> pure () -- Mismatch, but don't fail (we're lenient)
+  _ -> pure () -- Mismatch
 
 bindVar :: TypeVar -> NixType -> Infer ()
 bindVar v t
   | t == TVar v = pure ()
-  | occursCheck v t = pure () -- Occurs check, skip
+  | occursCheck v t = pure ()
   | otherwise = addSubst v t
 
 occursCheck :: TypeVar -> NixType -> Bool
@@ -242,7 +242,6 @@ occursCheck v = \case
 unifyAttrs :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrs m1 m2 = do
   -- Closed vs Closed
-  -- Keys must match, unless missing keys are optional in the other map
   let keys1 = Map.keysSet m1
   let keys2 = Map.keysSet m2
   let allKeys = Set.union keys1 keys2
@@ -251,24 +250,18 @@ unifyAttrs m1 m2 = do
     let v1 = Map.lookup k m1
     let v2 = Map.lookup k m2
     case (v1, v2) of
-      (Just (t1, _), Just (t2, _)) -> unify t1 t2 -- Both present, unify types
+      (Just (t1, _), Just (t2, _)) -> unify t1 t2
       (Just (_, False), Nothing) -> throwTypeError $ "missing required field: " <> k
       (Nothing, Just (_, False)) -> throwTypeError $ "unexpected field (required in other): " <> k
-      _ -> pure () -- Missing but optional, OK
-
--- | Format a user-friendly row type error (deprecated by custom logic above but kept if needed)
-formatRowError :: Map Text NixType -> Map Text NixType -> Set Text -> Set Text -> Text
-formatRowError expected actual missing extra = "error"
+      _ -> pure ()
 
 unifyAttrsOpenOpen :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrsOpenOpen m1 m2 = do
-  -- Open vs Open: unify common fields
   let common = Map.intersectionWith (,) m1 m2
   mapM_ (\((t1, _), (t2, _)) -> unify t1 t2) (Map.elems common)
 
 unifyAttrsClosedOpen :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer ()
 unifyAttrsClosedOpen closed open = do
-  -- Closed vs Open: 
   let openKeys = Map.keysSet open
   let closedKeys = Map.keysSet closed
   let missingInClosed = Set.difference openKeys closedKeys
@@ -276,7 +269,6 @@ unifyAttrsClosedOpen closed open = do
   if not (Set.null missingInClosed)
     then throwTypeError $ "closed set missing fields required by open set: " <> T.intercalate ", " (Set.toList missingInClosed)
     else do
-      -- Unify common fields
       let common = Map.intersectionWith (,) closed open
       mapM_ (\((t1, _), (t2, _)) -> unify t1 t2) (Map.elems common)
 
@@ -284,13 +276,45 @@ unifyUnion :: [NixType] -> NixType -> Infer ()
 unifyUnion ts t = case ts of
   [] -> pure ()
   [t'] -> unify t' t
-  _ -> pure () -- Can't easily unify with unions, be lenient
+  _ -> pure ()
+
+mergeTypes :: NixType -> NixType -> Infer NixType
+mergeTypes t1 t2 = do
+  t1' <- applyCurrentSubst t1
+  t2' <- applyCurrentSubst t2
+  case (t1', t2') of
+    (TVar v, t) -> bindVar v t >> pure t
+    (t, TVar v) -> bindVar v t >> pure t
+    (TAny, _) -> pure TAny
+    (_, TAny) -> pure TAny
+    (TAttrs m1, TAttrs m2) -> mergeAttrs m1 m2
+    (TList e1, TList e2) -> TList <$> mergeTypes e1 e2
+    (TFun a1 b1, TFun a2 b2) -> do
+       unify a1 a2
+       res <- mergeTypes b1 b2
+       pure $ TFun a1 res
+    (a, b) | a == b -> pure a
+    (a, b) -> pure $ TUnion [a, b]
+
+mergeAttrs :: Map Text (NixType, Bool) -> Map Text (NixType, Bool) -> Infer NixType
+mergeAttrs m1 m2 = do
+  let keys = Set.union (Map.keysSet m1) (Map.keysSet m2)
+  fields <- forM (Set.toList keys) $ \k -> do
+    let v1 = Map.lookup k m1
+    let v2 = Map.lookup k m2
+    case (v1, v2) of
+      (Just (t1, o1), Just (t2, o2)) -> do
+         t <- mergeTypes t1 t2
+         pure (k, (t, o1 || o2))
+      (Just (t1, _), Nothing) -> pure (k, (t1, True))
+      (Nothing, Just (t2, _)) -> pure (k, (t2, True))
+      _ -> error "impossible"
+  pure $ TAttrs (Map.fromList fields)
 
 -- ============================================================================
 -- Instantiation
 -- ============================================================================
 
--- | Instantiate a type scheme with fresh variables
 instantiate :: Scheme -> Infer NixType
 instantiate (Forall vars t) = do
   freshVars <- mapM (const freshVar) vars
@@ -301,149 +325,98 @@ instantiate (Forall vars t) = do
 -- Inference
 -- ============================================================================
 
--- | Infer the type of an expression
 infer :: TypeEnv -> NExprLoc -> Infer NixType
 infer env (Fix (Compose (AnnUnit _ expr))) = case expr of
-  -- Literals
   NConstant atom -> pure $ atomType atom
-  
-  -- Strings (could contain interpolations)
   NStr (DoubleQuoted [Plain t]) -> pure $ TStrLit t
   NStr _ -> pure TString
-  
-  -- Paths
   NLiteralPath _ -> pure TPath
   NEnvPath _ -> pure TPath
-  
-  -- Variables
   NSym name -> case lookupEnv (varNameText name) env of
     Just scheme -> instantiate scheme
-    Nothing -> freshVar -- Unknown variable, assign fresh
-  
-  -- Lists
+    Nothing -> freshVar
   NList [] -> do
     elemType <- freshVar
     pure $ TList elemType
   NList (x:xs) -> do
     elemType <- infer env x
-    mapM_ (\e -> infer env e >>= unify elemType) xs
-    TList <$> applyCurrentSubst elemType
-  
-  -- Attribute sets
+    finalElemType <- foldM (\acc e -> infer env e >>= mergeTypes acc) elemType xs
+    pure $ TList finalElemType
   NSet recursive bindings -> do
     fields <- inferBindings (recursive == Recursive) env bindings
-    -- Sets literals are always required fields
     let fieldMap = Map.fromList $ map (\(k, t) -> (k, (t, False))) fields
     pure $ TAttrs fieldMap
-  
-  -- Let bindings
   NLet bindings body -> inferLet env bindings body
-  
-  -- If expression
   NIf cond thenE elseE -> do
     condT <- infer env cond
     unify condT TBool
     thenT <- infer env thenE
     elseT <- infer env elseE
-    unify thenT elseT
-    applyCurrentSubst thenT
-  
-  -- With expression
+    mergeTypes thenT elseT
   NWith scope body -> do
-    _ <- infer env scope -- Just check scope, don't use its type
+    _ <- infer env scope
     infer env body
-  
-  -- Assert
   NAssert cond body -> do
     condT <- infer env cond
     unify condT TBool
     infer env body
-  
-  -- Lambda
   NAbs params body -> inferLambda env params body
-  
-  -- Application
   NApp func arg -> do
     funcT <- infer env func
     argT <- infer env arg
     resultT <- freshVar
     unify funcT (TFun argT resultT)
     applyCurrentSubst resultT
-  
-  -- Selection (a.b)
   NSelect _ base (attr :| _) -> do
     baseT <- infer env base
     t' <- applyCurrentSubst baseT
-    
     let key = case attr of
           StaticKey k -> Just (varNameText k)
           DynamicKey _ -> Nothing
-    
     case (t', key) of
       (TAttrs fields, Just k) -> 
         case Map.lookup k fields of
           Just (t, _) -> pure t
-          Nothing -> freshVar -- Missing attr
+          Nothing -> freshVar
       (TAttrsOpen fields, Just k) -> 
         case Map.lookup k fields of
           Just (t, _) -> pure t
-          Nothing -> freshVar -- Open set
+          Nothing -> freshVar
       _ -> freshVar
-  
-  -- Has attribute
   NHasAttr base _ -> do
     _ <- infer env base
     pure TBool
-  
-  -- Unary operators
   NUnary op e -> do
     t <- infer env e
     case op of
       NNeg -> unify t TInt >> pure TInt
       NNot -> unify t TBool >> pure TBool
-  
-  -- Binary operators
   NBinary op left right -> inferBinary env op left right
-  
-  -- Holes (shouldn't appear normally)
   NSynHole _ -> freshVar
 
--- | Infer type of a binary operation
 inferBinary :: TypeEnv -> NBinaryOp -> NExprLoc -> NExprLoc -> Infer NixType
 inferBinary env op left right = do
   leftT <- infer env left
   rightT <- infer env right
   case op of
-    -- Equality: any types, but should be same
     NEq -> unify leftT rightT >> pure TBool
     NNEq -> unify leftT rightT >> pure TBool
-    
-    -- Comparison: numeric
     NLt -> unify leftT TInt >> unify rightT TInt >> pure TBool
     NLte -> unify leftT TInt >> unify rightT TInt >> pure TBool
     NGt -> unify leftT TInt >> unify rightT TInt >> pure TBool
     NGte -> unify leftT TInt >> unify rightT TInt >> pure TBool
-    
-    -- Logical
     NAnd -> unify leftT TBool >> unify rightT TBool >> pure TBool
     NOr -> unify leftT TBool >> unify rightT TBool >> pure TBool
     NImpl -> unify leftT TBool >> unify rightT TBool >> pure TBool
-    
-    -- Arithmetic
     NPlus -> do
-      -- Could be int+int, string+string, path+string, list+list
       resultT <- freshVar
-      pure resultT -- Be lenient
+      pure resultT
     NMinus -> unify leftT TInt >> unify rightT TInt >> pure TInt
     NMult -> unify leftT TInt >> unify rightT TInt >> pure TInt
     NDiv -> unify leftT TInt >> unify rightT TInt >> pure TInt
-    
-    -- List concatenation
     NConcat -> do
       unify leftT rightT
       applyCurrentSubst leftT
-    
-    -- Attrset update (//) - merges two attrsets, right overrides left
     NUpdate -> do
       leftT' <- applyCurrentSubst leftT
       rightT' <- applyCurrentSubst rightT
@@ -453,14 +426,11 @@ inferBinary env op left right = do
         (TAttrs l, TAttrsOpen r) -> pure $ TAttrsOpen (r `Map.union` l)
         (TAttrsOpen l, TAttrs r) -> pure $ TAttrsOpen (r `Map.union` l)
         _ -> do
-          -- Fallback: try to unify, return left type
           unify leftT rightT
           applyCurrentSubst leftT
 
--- | Infer type of a lambda
 inferLambda :: TypeEnv -> Params NExprLoc -> NExprLoc -> Infer NixType
 inferLambda env params body = case params of
-  -- Simple parameter: x: body
   Param name -> do
     paramT <- freshVar
     let env' = extendEnv (varNameText name) (Forall [] paramT) env
@@ -468,23 +438,19 @@ inferLambda env params body = case params of
     paramT' <- applyCurrentSubst paramT
     pure $ TFun paramT' resultT
   
-  -- Pattern: { a, b ? default, ... }: body
   ParamSet mName variadic paramList -> do
-    -- Infer types from defaults
     paramTypes <- forM paramList $ \(name, mDefault) -> do
       t <- case mDefault of
         Just defaultExpr -> infer env defaultExpr
         Nothing -> freshVar
       pure (varNameText name, (t, isJust mDefault))
     
-    -- Pattern types: closed if no ..., open if ... present
     let attrsT = if variadic == Variadic
                    then TAttrsOpen (Map.fromList paramTypes)
                    else TAttrs (Map.fromList paramTypes)
                    
     let env' = foldr (\(n, (t, _)) e -> extendEnv n (Forall [] t) e) env paramTypes
     
-    -- Also bind the @ pattern if present
     let env'' = case mName of
           Just name -> extendEnv (varNameText name) (Forall [] attrsT) env'
           Nothing -> env'
@@ -492,16 +458,13 @@ inferLambda env params body = case params of
     resultT <- infer env'' body
     pure $ TFun attrsT resultT
 
--- | Infer types for bindings in an attrset
 inferBindings :: Bool -> TypeEnv -> [Nix.Binding NExprLoc] -> Infer [(Text, NixType)]
 inferBindings recursive env bindings
   | recursive = do
-      -- Recursive: bind all names to fresh vars first
       let names = concatMap bindingNames bindings
       freshVars <- replicateM (length names) freshVar
       let env' = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) env (zip names freshVars)
       
-      -- Infer bodies and unify
       concat <$> forM (zip bindings (chunkVars bindings freshVars)) (\(binding, vars) -> do
         case binding of
           Nix.NamedVar (StaticKey name :| []) expr pos -> do
@@ -523,7 +486,7 @@ inferBindings recursive env bindings
               unify typeVar t
               pure (name, t)
               
-          _ -> pure [] -- Skip complex bindings
+          _ -> pure []
         )
   | otherwise = foldM go [] bindings
   where
@@ -557,22 +520,13 @@ inferBindings recursive env bindings
         
       _ -> pure acc
 
--- | Infer types for a Let block (recursive with generalization)
 inferLet :: TypeEnv -> [Nix.Binding NExprLoc] -> NExprLoc -> Infer NixType
 inferLet env bindings body = do
-  -- 1. Parse bindings into (Name, Expr, Span)
   let namedBindings = concatMap parseBinding bindings
-      
-  -- 2. Build dependency graph
   let edges = map (buildEdge namedBindings) namedBindings
-  
-  -- 3. SCC analysis
   let sccs = stronglyConnComp edges
   
-  -- 4. Process SCCs in order
   envBody <- foldM (inferGroup env) env sccs
-  
-  -- 5. Infer body
   infer envBody body
   where
     parseBinding (Nix.NamedVar (StaticKey name :| []) expr pos) = 
@@ -601,26 +555,17 @@ inferLet env bindings body = do
       let names = map (\(n, _, _) -> n) groupBindings
       freshVars <- replicateM (length names) freshVar
       
-      -- Extend env with monomorphic variables for recursion within the group
       let envRecursive = foldr (\(n, t) e -> extendEnv n (Forall [] t) e) currentEnv (zip names freshVars)
       
-      -- Infer bodies
       forM_ (zip groupBindings freshVars) $ \((name, expr, span), typeVar) -> do
         t <- infer envRecursive expr
         unify typeVar t
-        
-        -- Emit binding info for IDE/formatting
         t' <- applyCurrentSubst t
         emitBinding name t' span
 
-      -- Generalize
-      -- Generalize against currentEnv (variables free in group but not in env are quantified)
       schemes <- mapM (generalize currentEnv) freshVars
-      
-      -- Extend env with generalized schemes
       pure $ foldr (\(n, s) e -> extendEnv n s e) currentEnv (zip names schemes)
 
--- | Collect free variables (approximated by all NSym)
 collectFreeVars :: NExprLoc -> [Text]
 collectFreeVars (Fix (Compose (AnnUnit _ expr))) = case expr of
   NSym name -> [varNameText name]
@@ -642,7 +587,6 @@ collectFreeVarsBinding :: Nix.Binding NExprLoc -> [Text]
 collectFreeVarsBinding (Nix.NamedVar _ expr _) = collectFreeVars expr
 collectFreeVarsBinding _ = []
 
--- | Generalize a type to a scheme
 generalize :: TypeEnv -> NixType -> Infer Scheme
 generalize env t = do
   t' <- applyCurrentSubst t
@@ -652,13 +596,11 @@ generalize env t = do
   let vars = Set.toList (freeInT `Set.difference` freeInEnv)
   pure $ Forall vars t'
 
--- | Apply substitution to a scheme
 applyCurrentSubstScheme :: Scheme -> Infer Scheme
 applyCurrentSubstScheme s = do
   subst <- gets inferSubst
   pure $ applySubstScheme subst s
 
--- | Get type from an atom
 atomType :: NAtom -> NixType
 atomType = \case
   NInt _ -> TInt
@@ -666,13 +608,8 @@ atomType = \case
   NBool _ -> TBool
   NNull -> TNull
 
--- | Extract text from VarName
 varNameText :: VarName -> Text
 varNameText = coerce
-
--- ============================================================================
--- Results
--- ============================================================================
 
 -- | A typed binding
 data Binding = Binding
@@ -682,30 +619,24 @@ data Binding = Binding
   }
   deriving (Eq, Show)
 
--- | Inference result for a file
 data InferResult = InferResult
   { irBindings :: ![Binding]
   , irFunctions :: ![(Text, NixType)]
   }
   deriving (Eq, Show)
 
--- | Infer types for a Nix expression
 inferExpr :: NExprLoc -> Either Text (NixType, [Binding])
 inferExpr expr = 
   runInfer $ do
     t <- infer builtinEnv expr
     applyCurrentSubst t
 
--- | Helper to convert SrcSpan to Span
-toSpan :: NSourcePos -> Span
-toSpan (NSourcePos _ l c) =
-  -- NExprLoc gives start pos. We don't have end pos easily from here without traversing expr.
-  -- But we only need start for insertion.
+toSpan :: Nix.NSourcePos -> Span
+toSpan (Nix.NSourcePos _ l c) =
   Span (Loc (fromIntegral $ unPos (coerce l)) (fromIntegral $ unPos (coerce c)))
        (Loc (fromIntegral $ unPos (coerce l)) (fromIntegral $ unPos (coerce c))) 
        Nothing
 
--- | Infer types for a Nix file
 inferFile :: FilePath -> IO (Either Text InferResult)
 inferFile path = do
   result <- parseNixFileLoc (Nix.Path path)
