@@ -326,7 +326,7 @@ cmdTypeCheck path = do
           return True
 
     try :: IO a -> IO (Either SomeException a)
-    try act = catch (Right <$> evaluate act) (\e -> return (Left e))
+    try act = catch (Right <$> act) (\e -> return (Left e))
 
 -- | Format a Nix file with type annotations
 cmdFmt :: FilePath -> IO ()
