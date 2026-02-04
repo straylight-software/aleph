@@ -35,6 +35,8 @@ import qualified NixCompile.Nix.Types
 import NixCompile.Types (Loc(..), Span(..))
 import qualified NixCompile.Nix.Pretty as Pretty
 import qualified Data.Map.Strict as Map
+import Control.Concurrent.Async (mapConcurrently)
+import Control.Concurrent.MVar (newMVar, withMVar)
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath ((</>), takeExtension, makeRelative, takeDirectory)
 import Control.Monad (forM, forM_, mapM)
@@ -264,7 +266,7 @@ cmdNix file = do
     unless cond action = if cond then return () else action
     when cond action = if cond then action else return ()
 
--- | Recursively type check a directory or single file
+-- | Recursively type check a directory or single file in parallel
 cmdTypeCheck :: FilePath -> IO ()
 cmdTypeCheck path = do
   isDir <- doesDirectoryExist path
@@ -272,10 +274,14 @@ cmdTypeCheck path = do
            then findAllNixFiles path
            else return [path]
   
-  putStrLn $ "Checking " ++ show (length files) ++ " files..."
+  putStrLn $ "Checking " ++ show (length files) ++ " files (parallel)..."
   putStrLn ""
   
-  results <- mapM checkFile files
+  -- Lock for synchronized output
+  outLock <- newMVar ()
+  let log msg = withMVar outLock $ \_ -> TIO.putStrLn msg
+  
+  results <- mapConcurrently (checkFile log) files
   let failures = filter not results
   
   if null failures
@@ -297,22 +303,22 @@ cmdTypeCheck path = do
           else return [fullPath | takeExtension fullPath == ".nix"]
       return (concat paths)
 
-    checkFile :: FilePath -> IO Bool
-    checkFile file = do
+    checkFile :: (T.Text -> IO ()) -> FilePath -> IO Bool
+    checkFile log file = do
       result <- Nix.parseNixFile file
       case result of
         Left err -> do
-          TIO.putStrLn $ T.pack file <> ": Parse error"
-          TIO.putStrLn $ "  " <> err
+          log $ T.pack file <> ": Parse error"
+          log $ "  " <> err
           return False
         Right expr -> do
           case NixCompile.Nix.Infer.inferExpr expr of
             Left err -> do
-              TIO.putStrLn $ T.pack file <> ": Type error"
-              TIO.putStrLn $ "  " <> err
+              log $ T.pack file <> ": Type error"
+              log $ "  " <> err
               return False
             Right (t, _) -> do
-              TIO.putStrLn $ T.pack file <> ": " <> NixCompile.Nix.Types.prettyType t
+              log $ T.pack file <> ": " <> NixCompile.Nix.Types.prettyType t
               return True
 
 -- | Format a Nix file with type annotations
