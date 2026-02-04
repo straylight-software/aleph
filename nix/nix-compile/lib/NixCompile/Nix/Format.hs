@@ -26,7 +26,7 @@ where
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import Nix.Expr.Types (NExprLoc)
+import Nix.Expr.Types.Annotated (NExprLoc)
 import Nix.Parser (parseNixFileLoc, parseNixTextLoc)
 import qualified Nix.Utils as Nix
 import NixCompile.Nix.Infer (inferExpr, InferResult(..))
