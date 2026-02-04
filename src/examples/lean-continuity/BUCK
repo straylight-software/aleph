@@ -1,0 +1,31 @@
+# src/examples/lean-continuity/BUCK
+#
+# Continuity: The Straylight Build Formalization
+#
+# A formal proof that the Continuity build system maintains correctness
+# across content-addressed derivations, typed toolchains, and isolation
+# boundaries.
+#
+# STATUS: This target requires Mathlib which is managed by Lake.
+#         Lake builds are non-hermetic and disabled in Buck2.
+#
+# To build this project, use Lake directly:
+#
+#     cd src/examples/lean-continuity
+#     lake build
+#
+# Or manage Mathlib via Nix overlay for hermetic builds.
+# See: nix/overlays/ for examples.
+
+# Placeholder target that documents the situation
+genrule(
+    name = "continuity",
+    out = "README.txt",
+    cmd = """
+        echo "This target requires Mathlib (Lake dependency)." > $OUT
+        echo "Lake builds are non-hermetic and disabled in Buck2." >> $OUT
+        echo "" >> $OUT
+        echo "Build with: cd src/examples/lean-continuity && lake build" >> $OUT
+    """,
+    visibility = ["PUBLIC"],
+)

@@ -36,3 +36,5 @@ nix-analyze
 
 # Nix store symlinks in src
 src/armitage/nix/
+.lake/
+.b7r6/

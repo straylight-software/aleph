@@ -1,0 +1,32 @@
+# Reindeer configuration for dice-rs
+
+# Path to Cargo.toml (relative to this file)
+manifest_path = "Cargo.toml"
+
+# Output directory for vendored crates - same as workspace root
+third_party_dir = "."
+
+# Parse Rust code to work out the precise set of source files
+precise_srcs = true
+
+# Include workspace members
+include_workspace_members = true
+
+[cargo]
+# Support bindeps
+bindeps = true
+
+[buck]
+# Generated file name
+file_name = "BUCK"
+
+# Use our toolchain's rules
+rust_library = "rust_library"
+rust_binary = "rust_binary"
+
+buckfile_imports = """
+load("@toolchains//:rust.bzl", "rust_library", "rust_binary")
+"""
+
+[vendor]
+# Vendor dependencies - no special settings needed

@@ -1,0 +1,21 @@
+[package]
+name = "dice_bench"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dice = { path = "../dice" }
+dice_examples = { path = "../dice_examples" }
+dice_futures = { path = "../dice_futures" }
+dupe = { path = "../dupe" }
+allocative = { path = "../allocative" }
+anyhow = "1.0"
+async-trait = "0.1"
+derive_more = { version = "1.0.0", features = ["full"] }
+futures = "0.3"
+tokio = { version = "1.35", features = ["full", "rt-multi-thread"] }
+rand = "0.8"
+
+[[bin]]
+name = "dice_bench"
+path = "src/main.rs"

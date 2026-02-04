@@ -402,6 +402,7 @@ instance Exception BuildError
 
  This type mirrors:
  - Dhall: src/armitage/dhall/Resource.dhall
+ - Lean: src/examples/lean-continuity/Continuity.lean (Coeffect)
  -}
 data Coeffect
     = -- | Needs nothing external
