@@ -36,6 +36,7 @@ module NixCompile.Nix.Infer
 where
 
 import Control.Monad (foldM, forM, replicateM)
+import Control.Monad.Except
 import Control.Monad.State.Strict
 import Data.Coerce (coerce)
 import Data.Fix (Fix (..))
@@ -165,17 +166,24 @@ data InferState = InferState
   , inferBinds :: ![Binding] -- Collected bindings
   }
 
-type Infer a = State InferState a
+-- | Inference monad with error handling
+type Infer a = ExceptT Text (State InferState) a
 
-runInfer :: Infer a -> (a, [Binding])
+runInfer :: Infer a -> Either Text (a, [Binding])
 runInfer m = 
-  let (res, state) = runState m (InferState 0 emptySubst [])
-  in (res, inferBinds state)
+  let (eRes, state) = runState (runExceptT m) (InferState 0 emptySubst [])
+  in case eRes of
+       Left err -> Left err
+       Right res -> Right (res, inferBinds state)
 
 -- | Emit a binding
 emitBinding :: Text -> NixType -> Span -> Infer ()
 emitBinding name t span = modify $ \s ->
   s { inferBinds = Binding name t span : inferBinds s }
+
+-- | Throw a type error
+throwTypeError :: Text -> Infer a
+throwTypeError = throwError
 
 -- | Generate a fresh type variable
 freshVar :: Infer NixType
@@ -251,10 +259,9 @@ occursCheck v = \case
 unifyAttrs :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrs m1 m2 = do
   -- Closed rows must match exactly
-  -- NOTE: We allow mismatched closed rows for now to avoid crashes.
-  -- Proper error reporting requires refactoring to Either.
   if Map.keysSet m1 /= Map.keysSet m2
-    then return () -- TODO: proper error reporting
+    then throwTypeError $ "Type error: Attribute set mismatch (closed rows). Expected: " <> 
+                         T.pack (show (Map.keys m1)) <> ", got: " <> T.pack (show (Map.keys m2))
     else mapM_ (uncurry unify) (Map.elems (Map.intersectionWith (,) m1 m2))
 
 unifyAttrsOpenOpen :: Map Text NixType -> Map Text NixType -> Infer ()
@@ -267,7 +274,7 @@ unifyAttrsClosedOpen :: Map Text NixType -> Map Text NixType -> Infer ()
 unifyAttrsClosedOpen closed open = do
   -- Closed vs Open: Open must be subset of Closed
   if not (Map.keysSet open `Set.isSubsetOf` Map.keysSet closed)
-    then error "Type error: Closed attrset missing required fields from open attrset"
+    then throwTypeError $ "Type error: Closed attrset missing required fields from open attrset"
     else do
       -- Unify the common fields (which is all of open)
       let common = Map.intersectionWith (,) closed open
@@ -582,10 +589,9 @@ data InferResult = InferResult
 -- | Infer types for a Nix expression
 inferExpr :: NExprLoc -> Either Text (NixType, [Binding])
 inferExpr expr = 
-  let (t, bindings) = runInfer $ do
-        t <- infer builtinEnv expr
-        applyCurrentSubst t
-  in Right (t, bindings)
+  runInfer $ do
+    t <- infer builtinEnv expr
+    applyCurrentSubst t
 
 -- | Helper to convert SrcSpan to Span
 toSpan :: NSourcePos -> Span
