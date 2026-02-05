@@ -121,3 +121,13 @@ See `examples/nix-compile/` for illustrative examples.
 *   `pipeline.sh`: Advanced bash script using config arrays and safe temp files.
 *   `typed.nix`: A clean Nix file ready for type annotation.
 *   `complex.nix`: Higher-order functions and polymorphism examples.
+
+## // error reporting //
+
+`nix-compile` reports type errors with precise location information:
+
+```
+ERROR: 10:5: type mismatch: expected Int, got String
+```
+
+This helps quickly identify the source of unification failures or schema violations.

@@ -221,9 +221,9 @@ unify' t1 t2 = case (t1, t2) of
   (TFloat, TFloat) -> pure ()
   (TBool, TBool) -> pure ()
   (TString, TString) -> pure ()
-  (TStrLit s1, TStrLit s2) | s1 == s2 -> pure ()
-  (TString, TStrLit _) -> pure () -- Subtyping: Literal is a String
-  (TStrLit _, TString) -> pure () -- Subtyping: Literal is a String
+  (TStrLit _, TStrLit _) -> pure ()
+  (TString, TStrLit _) -> pure ()
+  (TStrLit _, TString) -> pure ()
   (TPath, TPath) -> pure ()
   (TNull, TNull) -> pure ()
   (TDerivation, TDerivation) -> pure ()
@@ -235,12 +235,12 @@ unify' t1 t2 = case (t1, t2) of
   (TAttrsOpen m1, TAttrs m2) -> unifyAttrsClosedOpen m2 m1
   (TUnion ts, t) -> unifyUnion ts t
   (t, TUnion ts) -> unifyUnion ts t
-  _ -> pure () -- Mismatch, but don't fail (we're lenient)
+  _ -> throwTypeError $ "type mismatch: expected " <> prettyType t1 <> ", got " <> prettyType t2
 
 bindVar :: TypeVar -> NixType -> Infer ()
 bindVar v t
   | t == TVar v = pure ()
-  | occursCheck v t = pure () -- Occurs check, skip
+  | occursCheck v t = pure () -- Infinite type, allow it
   | otherwise = addSubst v t
 
 occursCheck :: TypeVar -> NixType -> Bool
