@@ -401,12 +401,6 @@ cmdTypeCheck path = do
         -- Detect unsupported constructs that are fundamentally incompatible with static analysis
         detectUnsupported :: NExprLoc -> Maybe T.Text
         detectUnsupported (Fix (Compose (AnnUnit _ expr))) = case expr of
-          -- NixOS module evaluation
-          NSelect _ base (StaticKey name :| _) 
-            | varNameText name == "evalModules" -> Just "lib.evalModules"
-          -- mkOption/mkForce/mkDefault
-          NSelect _ _ (StaticKey name :| _)
-            | varNameText name `elem` ["mkOption", "mkForce", "mkDefault", "mkMerge"] -> Just "NixOS module options"
           -- Dynamic attribute access
           NSelect _ _ (DynamicKey _ :| _) -> Just "dynamic attribute access"
           -- with expression
