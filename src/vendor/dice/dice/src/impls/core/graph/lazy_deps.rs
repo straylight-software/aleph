@@ -108,7 +108,7 @@ impl LazyDepsSet {
     }
 
     /// Iterates over all currently stored deps. The returned iterator might contain duplicates.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = DiceKey> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = DiceKey> + '_ {
         self.data.iter().copied()
     }
 }

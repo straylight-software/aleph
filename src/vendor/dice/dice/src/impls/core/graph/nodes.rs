@@ -570,7 +570,7 @@ impl OccupiedGraphNode {
             .intersect_range(VersionRange::bounded(VersionNumber::ZERO, v))
     }
 
-    fn rdeps(&self) -> impl Iterator<Item = DiceKey> {
+    fn rdeps(&self) -> impl Iterator<Item = DiceKey> + '_ {
         self.metadata.rdeps.iter()
     }
 

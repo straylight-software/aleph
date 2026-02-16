@@ -16,22 +16,21 @@ use std::hash::Hasher;
 
 use cmp_any::PartialEqAny;
 use dupe::Dupe;
+use serde::de::Error;
+use serde::de::Unexpected;
+use serde::de::Visitor;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
-use serde::de::Error;
-use serde::de::Unexpected;
-use serde::de::Visitor;
-use serde_derive::{Deserialize as DeserializeDerive, Serialize as SerializeDerive};
 
-use crate::HashMap;
-use crate::HashSet;
 use crate::impls::core::graph::introspection::VersionedGraphIntrospectable;
 use crate::impls::core::versions::introspection::VersionIntrospectable;
 use crate::impls::key::DiceKey;
 use crate::introspection::serialize_dense_graph;
 use crate::legacy::dice_futures::dice_task::DiceTaskStateForDebugging;
+use crate::HashMap;
+use crate::HashSet;
 
 pub struct GraphIntrospectable {
     pub(crate) graph: VersionedGraphIntrospectable,
@@ -99,21 +98,11 @@ impl Serialize for GraphIntrospectable {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, SerializeDerive, DeserializeDerive, Clone, Dupe, Copy)]
+#[derive(PartialEq, Eq, Hash, Serialize, Deserialize, Clone, Dupe, Copy)]
 #[serde(transparent)]
 pub struct KeyID(pub usize);
 
-#[derive(
-    PartialEq,
-    Eq,
-    Hash,
-    Clone,
-    Dupe,
-    Copy,
-    Ord,
-    PartialOrd,
-    derive_more::Display
-)]
+#[derive(PartialEq, Eq, Hash, Clone, Dupe, Copy, Ord, PartialOrd, derive_more::Display)]
 pub struct VersionNumber(pub usize);
 
 impl Serialize for VersionNumber {
@@ -161,27 +150,27 @@ impl<'de> Deserialize<'de> for VersionNumber {
     }
 }
 
-#[derive(Clone, SerializeDerive, DeserializeDerive)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum GraphNodeKind {
     Occupied,
     Transient,
     Vacant,
 }
 
-#[derive(Clone, SerializeDerive, DeserializeDerive)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CellHistory {
     pub valid_ranges: Vec<(VersionNumber, Option<VersionNumber>)>,
     pub force_dirtied_at: Vec<VersionNumber>,
 }
 
-#[derive(Clone, SerializeDerive, DeserializeDerive)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum HistoryState {
     Verified,
     Dirty,
     ForceDirty,
 }
 
-#[derive(Clone, SerializeDerive, DeserializeDerive)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SerializedGraphNode {
     pub node_id: KeyID,
     pub kind: GraphNodeKind,
@@ -190,7 +179,7 @@ pub struct SerializedGraphNode {
     pub rdeps: Vec<KeyID>,
 }
 
-#[derive(Clone, SerializeDerive, DeserializeDerive)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SerializedGraphNodeForKey {
     pub id: KeyID,
     pub key: String,

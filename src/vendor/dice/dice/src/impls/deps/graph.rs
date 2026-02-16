@@ -126,7 +126,7 @@ impl SeriesParallelDeps {
         }
     }
 
-    pub(crate) fn iter_keys(&self) -> impl Iterator<Item = DiceKey> {
+    pub(crate) fn iter_keys(&self) -> impl Iterator<Item = DiceKey> + '_ {
         match self {
             SeriesParallelDeps::None => Either::Left(Option::<DiceKey>::None.into_iter()),
             SeriesParallelDeps::One(v) => Either::Left(Option::<DiceKey>::Some(*v).into_iter()),

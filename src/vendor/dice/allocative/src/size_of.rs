@@ -8,11 +8,11 @@
  * above-listed licenses.
  */
 
+use crate::visitor::NodeKind;
+use crate::visitor::VisitorImpl;
 use crate::Allocative;
 use crate::Key;
 use crate::Visitor;
-use crate::visitor::NodeKind;
-use crate::visitor::VisitorImpl;
 
 /// Size of data allocated in unique pointers in the struct.
 ///

@@ -474,7 +474,7 @@ impl ModernComputeCtx<'static> {
 
 struct DepsTrackerHolder<'a>(Either<&'a mut RecordingDepsTracker, &'a Mutex<RecordingDepsTracker>>);
 impl<'a> DepsTrackerHolder<'a> {
-    fn lock(self) -> impl DerefMut<Target = RecordingDepsTracker> {
+    fn lock(self) -> impl DerefMut<Target = RecordingDepsTracker> + 'a {
         self.0.map_right(|v| v.lock())
     }
 }
@@ -587,7 +587,7 @@ impl ModernComputeCtx<'_> {
     }
 
     #[allow(unused)] // used in test
-    pub(super) fn dep_trackers(&mut self) -> impl DerefMut<Target = RecordingDepsTracker> {
+    pub(super) fn dep_trackers(&mut self) -> impl DerefMut<Target = RecordingDepsTracker> + '_ {
         self.unpack().1.lock()
     }
 

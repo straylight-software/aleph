@@ -173,7 +173,7 @@ pub(crate) mod introspection {
     impl SharedCache {
         pub(crate) fn iter_tasks(
             &self,
-        ) -> impl Iterator<Item = (DiceKey, DiceTaskStateForDebugging)> {
+        ) -> impl Iterator<Item = (DiceKey, DiceTaskStateForDebugging)> + '_ {
             self.data
                 .storage
                 .iter()

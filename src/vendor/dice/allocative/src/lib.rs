@@ -51,27 +51,7 @@
 #![deny(rustdoc::broken_intra_doc_links)]
 #![allow(clippy::empty_enum)]
 
-// Explicit extern crate declarations to make crates available to submodules.
-// This is required in edition 2024 when submodules have module names that could
-// otherwise shadow extern crate names (even after renaming, the extern prelude
-// resolution seems to require explicit declarations).
-#[cfg(feature = "parking_lot")]
-extern crate parking_lot;
-#[cfg(feature = "parking_lot")]
-extern crate lock_api;
-#[cfg(feature = "dashmap")]
-extern crate dashmap;
-#[cfg(feature = "slab")]
-extern crate slab;
-#[cfg(feature = "futures")]
-extern crate futures;
-#[cfg(feature = "once_cell")]
-extern crate once_cell;
-#[cfg(feature = "anyhow")]
-extern crate anyhow;
-#[cfg(feature = "triomphe")]
-extern crate triomphe;
-extern crate tokio;
+// Note: extern crate declarations removed - not needed in edition 2021
 
 mod allocative_trait;
 mod flamegraph;
@@ -84,8 +64,8 @@ mod size_of;
 mod test_derive;
 mod visitor;
 
-pub use allocative_derive::Allocative;
 pub use allocative_derive::root;
+pub use allocative_derive::Allocative;
 
 pub use crate::allocative_trait::Allocative;
 pub use crate::flamegraph::FlameGraph;

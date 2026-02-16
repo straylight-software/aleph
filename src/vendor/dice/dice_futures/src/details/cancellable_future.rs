@@ -152,10 +152,10 @@ impl<T> Future for ExplicitlyCancellableFutureInner<T> {
 
         // When we exit, release our waker to ensure we don't keep create a reference cycle for
         // this task.
-        if poll.is_ready()
-            && let Err(CancelledError) = self.view.set_exited()
-        {
-            return Poll::Ready(ExplicitlyCancellableResult::Err(CancelledError));
+        if poll.is_ready() {
+            if let Err(CancelledError) = self.view.set_exited() {
+                return Poll::Ready(ExplicitlyCancellableResult::Err(CancelledError));
+            }
         }
 
         poll
